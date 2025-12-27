@@ -1,0 +1,96 @@
+# goblog
+goblog is a simple blog system written in Go.
+
+## ディレクトリ構成
+
+```
+/cmd/goblog/main.go
+/internal/
+  /http/
+    router.go
+    middleware.go
+    handlers_public.go
+    handlers_api.go
+  /domain/
+    post.go
+  /repo/
+    post_repo.go
+  /service/
+    post_service.go
+  /auth/
+    session.go
+  /view/
+    templates/   (*.html)
+    assets/      (admin distを置く or 埋め込む)
+/migrations/
+  001_init.sql
+/web-admin/       (React)
+  src/...
+```
+
+## 基本的な開発方針
+
+- これは自分のGo言語勉強用プロジェクトなので、あまり凝った構成にはしない。
+- ただしある程度のベストプラクティスには従って開発したい。例えば：
+    - handlerは極力薄く、DB直叩きしない。
+    - serviceに業務ロジックを寄せる。
+    - インターフェースをうまく活用して疎結合にしテストしやすくする。
+- 当然最終的には公開するつもりなのでセキュリティにも気をつけたい。
+- 公開ページはSSR（通常のページ遷移型のWebアプリケーション）として作成し、管理画面はVite + React + React RouterのSPAとする。
+    - `/inernal/`: 公開ページのソースコード 
+    - `/web-admin/`: 管理画面SPAのソースコード
+- 公開ページはHTML（html/template）
+- APIは必ずJSON（エラーもJSON）
+- DBはSQLiteを使う。
+- 認証はusername + passwordのシンプルな自前実装。CognitoやAuth0などの外部サービスは使わない。Cookieセッションで管理画面だけ守る。
+- CSSフレームワークはTailwindを使う（これも勉強目的）。
+- ホスト先はAWSのLightsailの予定。
+
+### セキュリティ関連
+
+1. パスワードは必ずハッシュ化（平文保存はNG）
+    - DBには ハッシュのみ保存（例：bcrypt / argon2id）
+    - ログイン時に照合してOKならセッション発行
+2. セッションは HttpOnly + Secure cookie
+    - HttpOnly（JSから読めない）
+    - Secure（HTTPSのみ）
+    - SameSite=Lax（まずはこれでOK）
+    - セッションIDは ランダムで十分長いもの
+3. CSRF対策
+    - 管理画面がCookie認証でAPI叩くなら、CSRFは基本やる。やり方は2択：
+        - Double Submit Cookie（SPAと相性良い）
+        - Origin/Refererチェック + CSRFトークン（実装は増えるが堅い）
+4. ブルートフォース対策（最低限）
+    - ログイン失敗回数で 遅延 or 一時ロック
+    - 管理画面を Basic Authで二重ロックするのも安くて強い（Nginxで可能）
+
+### URL設計
+
+#### 公開ページ（SSR）
+
+- GET /（トップ）
+- GET /posts（一覧）
+- GET /posts/{slug}（詳細）
+- GET /tags/{tag}（タグ別）
+- GET /rss.xml
+- GET /sitemap.xml
+
+#### 管理画面（SPA）
+
+- GET /admin（SPAの入口）
+- GET /admin/*（全部SPAにフォールバック）
+
+#### API（管理画面が叩く）
+
+- /api/v1/... に集約（将来破壊的変更しても共存できるのでおすすめ）
+- POST /api/v1/auth/login
+- POST /api/v1/auth/logout
+- GET  /api/v1/auth/me（ログイン状態確認）
+- GET  /api/v1/posts?status=draft|published&q=&page=&limit=
+- POST /api/v1/posts
+- GET  /api/v1/posts/{id}
+- PUT  /api/v1/posts/{id}
+- DELETE /api/v1/posts/{id}
+- POST /api/v1/posts/{id}/publish（公開操作を分けたい場合）
+- POST /api/v1/uploads（画像アップロード → URL返す）
+- （任意）GET /api/v1/tags
