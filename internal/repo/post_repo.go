@@ -43,7 +43,7 @@ func NewPostRepository(db *sqlx.DB) PostRepository {
 func (r *postRepository) FindAll(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
 	var posts []*domain.Post
 	query := "SELECT * FROM posts"
-	args := []interface{}{}
+	args := []any{}
 
 	// ステータスでフィルタリング
 	if status != nil {
