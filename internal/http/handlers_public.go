@@ -1,35 +1,114 @@
 package http
 
 import (
-	"fmt"
+	"html/template"
+	"log"
 	"net/http"
+	"path/filepath"
 
+	"github.com/capybara-translation/goblog/internal/service"
 	"github.com/gorilla/mux"
 )
 
+// PublicHandlers は公開ページのハンドラーをまとめた構造体です
+type PublicHandlers struct {
+	postService   service.PostService
+	homeTemplate  *template.Template
+	postsTemplate *template.Template
+	postTemplate  *template.Template
+}
+
+// NewPublicHandlers はテンプレートパスを指定してPublicHandlersを作成します
+func NewPublicHandlers(postService service.PostService, templatePattern string) *PublicHandlers {
+	dir := filepath.Dir(templatePattern)
+	layoutPath := filepath.Join(dir, "layout.html")
+
+	// 各ページごとに独立したテンプレートセットを作成
+	homeTemplate := template.Must(template.ParseFiles(layoutPath, filepath.Join(dir, "home.html")))
+	postsTemplate := template.Must(template.ParseFiles(layoutPath, filepath.Join(dir, "posts.html")))
+	postTemplate := template.Must(template.ParseFiles(layoutPath, filepath.Join(dir, "post.html")))
+
+	return &PublicHandlers{
+		postService:   postService,
+		homeTemplate:  homeTemplate,
+		postsTemplate: postsTemplate,
+		postTemplate:  postTemplate,
+	}
+}
+
 // HandleHome はトップページを表示します
-func HandleHome(w http.ResponseWriter, r *http.Request) {
+func (h *PublicHandlers) HandleHome(w http.ResponseWriter, r *http.Request) {
+	// 最近の記事を5件取得
+	posts, err := h.postService.GetPublishedPosts(5, 0)
+	if err != nil {
+		log.Printf("failed to get published posts: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	data := map[string]any{
+		"Posts": posts,
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, "<h1>goblog - トップページ</h1><p>これからブログシステムを作っていきます。</p>")
+	if err := h.homeTemplate.ExecuteTemplate(w, "home", data); err != nil {
+		log.Printf("failed to execute template: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
 }
 
 // HandlePosts は記事一覧ページを表示します
-func HandlePosts(w http.ResponseWriter, r *http.Request) {
+func (h *PublicHandlers) HandlePosts(w http.ResponseWriter, r *http.Request) {
+	// 公開済みの記事を取得
+	posts, err := h.postService.GetPublishedPosts(100, 0)
+	if err != nil {
+		log.Printf("failed to get published posts: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	data := map[string]any{
+		"Posts": posts,
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, "<h1>記事一覧</h1><p>まだ記事はありません。</p>")
+	if err := h.postsTemplate.ExecuteTemplate(w, "posts", data); err != nil {
+		log.Printf("failed to execute template: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
 }
 
 // HandlePostDetail は記事詳細ページを表示します
-func HandlePostDetail(w http.ResponseWriter, r *http.Request) {
+func (h *PublicHandlers) HandlePostDetail(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	slug := vars["slug"]
 
+	// スラッグで記事を取得
+	post, err := h.postService.GetPostBySlug(slug)
+	if err != nil {
+		log.Printf("failed to get post by slug: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	if post == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	data := map[string]any{
+		"Post": post,
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, "<h1>記事詳細</h1><p>スラッグ: %s</p><p>まだ実装されていません。</p>", slug)
+	if err := h.postTemplate.ExecuteTemplate(w, "post", data); err != nil {
+		log.Printf("failed to execute template: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
 }
 
 // HandleAdmin は管理画面のSPAを配信します（後でReactアプリを配信）
 func HandleAdmin(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, "<h1>管理画面</h1><p>後でReact SPAをここに配置します。</p>")
+	w.Write([]byte("<h1>管理画面</h1><p>後でReact SPAをここに配置します。</p>"))
 }

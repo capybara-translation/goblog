@@ -7,6 +7,8 @@ import (
 
 	"github.com/capybara-translation/goblog/internal/db"
 	gobloghttp "github.com/capybara-translation/goblog/internal/http"
+	"github.com/capybara-translation/goblog/internal/repo"
+	"github.com/capybara-translation/goblog/internal/service"
 )
 
 func main() {
@@ -24,8 +26,14 @@ func main() {
 
 	fmt.Println("Database initialized successfully")
 
+	// Repository層の初期化
+	postRepo := repo.NewPostRepository(database)
+
+	// Service層の初期化
+	postService := service.NewPostService(postRepo)
+
 	// ルーターの初期化
-	r := gobloghttp.NewRouter()
+	r := gobloghttp.NewRouter(postService)
 
 	// サーバー起動
 	port := ":8080"

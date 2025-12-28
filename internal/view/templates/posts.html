@@ -1,0 +1,37 @@
+{{define "posts"}}
+    {{template "layout" .}}
+{{end}}
+
+{{define "title"}}記事一覧 - goblog{{end}}
+
+{{define "content"}}
+<h2>記事一覧</h2>
+
+{{if .Posts}}
+    <ul style="list-style: none; padding: 0; margin-top: 20px;">
+    {{range .Posts}}
+        <li style="margin-bottom: 30px; padding-bottom: 30px; border-bottom: 1px solid #e0e0e0;">
+            <h3 style="margin-bottom: 10px;">
+                <a href="/posts/{{.Slug}}" style="color: #333; text-decoration: none;">{{.Title}}</a>
+            </h3>
+            <div style="color: #666; margin-bottom: 10px;">
+                <small>{{.PublishedAt.Format "2006年01月02日"}}</small>
+                {{if .Tags}}
+                    <small style="margin-left: 10px;">タグ: {{.Tags}}</small>
+                {{end}}
+            </div>
+            <p style="color: #666; line-height: 1.6;">
+                {{if gt (len .Content) 200}}
+                    {{slice .Content 0 200}}...
+                {{else}}
+                    {{.Content}}
+                {{end}}
+            </p>
+            <a href="/posts/{{.Slug}}" style="color: #0066cc; text-decoration: none;">続きを読む &rarr;</a>
+        </li>
+    {{end}}
+    </ul>
+{{else}}
+    <p style="color: #666; margin-top: 20px;">まだ記事がありません。</p>
+{{end}}
+{{end}}

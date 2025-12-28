@@ -1,0 +1,22 @@
+{{define "post"}}
+    {{template "layout" .}}
+{{end}}
+
+{{define "title"}}{{.Post.Title}} - goblog{{end}}
+
+{{define "content"}}
+<article>
+    <h2 style="margin-bottom: 10px;">{{.Post.Title}}</h2>
+    <div style="color: #666; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #e0e0e0;">
+        <small>{{.Post.PublishedAt.Format "2006年01月02日"}}</small>
+        {{if .Post.Tags}}
+            <small style="margin-left: 10px;">タグ: {{.Post.Tags}}</small>
+        {{end}}
+    </div>
+    <div style="line-height: 1.8; white-space: pre-wrap;">{{.Post.Content}}</div>
+</article>
+
+<div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+    <a href="/posts" style="color: #0066cc; text-decoration: none;">&larr; 記事一覧に戻る</a>
+</div>
+{{end}}
