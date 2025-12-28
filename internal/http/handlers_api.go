@@ -1,12 +1,249 @@
 package http
 
 import (
+	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"strconv"
+
+	"github.com/capybara-translation/goblog/internal/domain"
+	"github.com/capybara-translation/goblog/internal/service"
+	"github.com/gorilla/mux"
 )
+
+// APIHandlers は管理画面API用のハンドラーをまとめた構造体です
+type APIHandlers struct {
+	postService service.PostService
+}
+
+// NewAPIHandlers は新しいAPIHandlersを作成します
+func NewAPIHandlers(postService service.PostService) *APIHandlers {
+	return &APIHandlers{
+		postService: postService,
+	}
+}
 
 // HandleHealth はAPIのヘルスチェックエンドポイントです
 func HandleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprintf(w, `{"status":"ok"}`)
+}
+
+// リクエスト/レスポンス用の構造体
+
+// CreatePostRequest は記事作成リクエストの構造体です
+type CreatePostRequest struct {
+	Title   string `json:"title"`
+	Slug    string `json:"slug"`
+	Content string `json:"content"`
+	Tags    string `json:"tags"`
+}
+
+// UpdatePostRequest は記事更新リクエストの構造体です
+type UpdatePostRequest struct {
+	Title   string `json:"title"`
+	Slug    string `json:"slug"`
+	Content string `json:"content"`
+	Tags    string `json:"tags"`
+}
+
+// ErrorResponse はエラーレスポンスの構造体です
+type ErrorResponse struct {
+	Error string `json:"error"`
+}
+
+// ヘルパー関数
+
+func writeJSON(w http.ResponseWriter, status int, data any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		log.Printf("failed to encode JSON: %v", err)
+	}
+}
+
+func writeError(w http.ResponseWriter, status int, message string) {
+	writeJSON(w, status, ErrorResponse{Error: message})
+}
+// HandleGetPosts は記事一覧を取得します
+// GET /api/v1/posts?status=draft|published&limit=10&offset=0
+func (h *APIHandlers) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
+	// クエリパラメータを取得
+	statusStr := r.URL.Query().Get("status")
+	limitStr := r.URL.Query().Get("limit")
+	offsetStr := r.URL.Query().Get("offset")
+
+	// デフォルト値
+	const maxLimit = 200
+	limit := 100
+	offset := 0
+
+	if limitStr != "" {
+		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
+			limit = parsed
+			if limit > maxLimit {
+				limit = maxLimit
+			}
+		}
+	}
+	if offsetStr != "" {
+		if parsed, err := strconv.Atoi(offsetStr); err == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
+
+	var status *domain.PostStatus
+	if statusStr != "" {
+		s := domain.PostStatus(statusStr)
+		status = &s
+	}
+
+	posts, err := h.postService.GetAllPosts(status, limit, offset)
+	if err != nil {
+		log.Printf("failed to get posts: %v", err)
+		writeError(w, http.StatusInternalServerError, "Failed to get posts")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, posts)
+}
+
+// HandleGetPost は記事詳細を取得します
+// GET /api/v1/posts/{id}
+func (h *APIHandlers) HandleGetPost(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid post ID")
+		return
+	}
+
+	post, err := h.postService.GetPostByID(id)
+	if err != nil {
+		log.Printf("failed to get post: %v", err)
+		writeError(w, http.StatusInternalServerError, "Failed to get post")
+		return
+	}
+
+	if post == nil {
+		writeError(w, http.StatusNotFound, "Post not found")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, post)
+}
+
+// HandleCreatePost は記事を作成します
+// POST /api/v1/posts
+func (h *APIHandlers) HandleCreatePost(w http.ResponseWriter, r *http.Request) {
+	var req CreatePostRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	post, err := h.postService.CreatePost(req.Title, req.Slug, req.Content, req.Tags)
+	if err != nil {
+		log.Printf("failed to create post: %v", err)
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, post)
+}
+
+// HandleUpdatePost は記事を更新します
+// PUT /api/v1/posts/{id}
+func (h *APIHandlers) HandleUpdatePost(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid post ID")
+		return
+	}
+
+	var req UpdatePostRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	post, err := h.postService.UpdatePost(id, req.Title, req.Slug, req.Content, req.Tags)
+	if err != nil {
+		log.Printf("failed to update post: %v", err)
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, post)
+}
+
+// HandleDeletePost は記事を削除します
+// DELETE /api/v1/posts/{id}
+func (h *APIHandlers) HandleDeletePost(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid post ID")
+		return
+	}
+
+	if err := h.postService.DeletePost(id); err != nil {
+		log.Printf("failed to delete post: %v", err)
+		writeError(w, http.StatusInternalServerError, "Failed to delete post")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// HandlePublishPost は記事を公開します
+// POST /api/v1/posts/{id}/publish
+func (h *APIHandlers) HandlePublishPost(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid post ID")
+		return
+	}
+
+	post, err := h.postService.PublishPost(id)
+	if err != nil {
+		log.Printf("failed to publish post: %v", err)
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, post)
+}
+
+// HandleUnpublishPost は記事を非公開にします
+// POST /api/v1/posts/{id}/unpublish
+func (h *APIHandlers) HandleUnpublishPost(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid post ID")
+		return
+	}
+
+	post, err := h.postService.UnpublishPost(id)
+	if err != nil {
+		log.Printf("failed to unpublish post: %v", err)
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, post)
 }

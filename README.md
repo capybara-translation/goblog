@@ -1,10 +1,85 @@
 # goblog
 goblog is a simple blog system written in Go.
 
+## 開発環境のセットアップ
+
+### 1. リポジトリのクローン
+
+```bash
+git clone https://github.com/capybara-translation/goblog.git
+cd goblog
+```
+
+### 2. 依存関係のインストール
+
+```bash
+make deps
+# または
+go mod download
+```
+
+### 3. データベースのセットアップとテストデータ投入
+
+```bash
+# データベースをリセットしてテストデータ投入
+make reset
+
+# または個別に実行
+make clean  # データベースを削除
+make seed   # テストデータを投入
+```
+
+これにより以下のデータが投入されます：
+- 公開記事: 19件
+- 下書き記事: 5件
+
+### 4. サーバーの起動
+
+```bash
+make run
+# または
+go run cmd/goblog/main.go
+```
+
+ブラウザで http://localhost:8080 にアクセスして確認できます。
+
+### 5. テストの実行
+
+```bash
+# 全テストを実行
+make test
+
+# 詳細な出力付き
+make test-v
+
+# カバレッジを確認
+make test-cover
+```
+
+## 利用可能なMakeコマンド
+
+開発でよく使うコマンドをMakefileにまとめています：
+
+```bash
+make help        # ヘルプを表示
+make run         # サーバーを起動
+make test        # テストを実行
+make test-v      # テストを詳細出力で実行
+make test-cover  # テストカバレッジを表示
+make clean       # データベースを削除
+make seed        # テストデータを投入
+make reset       # データベースをリセットしてテストデータ投入
+make build       # バイナリをビルド
+make install     # バイナリをインストール
+make deps        # 依存関係をダウンロード
+```
+
 ## ディレクトリ構成
 
 ```
-/cmd/goblog/main.go
+/cmd/
+  /goblog/main.go  (アプリケーション本体)
+  /seed/main.go    (テストデータ投入コマンド)
 /internal/
   /http/
     router.go

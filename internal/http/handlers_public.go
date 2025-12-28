@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
+	"strconv"
 
 	"github.com/capybara-translation/goblog/internal/service"
 	"github.com/gorilla/mux"
@@ -59,16 +60,40 @@ func (h *PublicHandlers) HandleHome(w http.ResponseWriter, r *http.Request) {
 
 // HandlePosts は記事一覧ページを表示します
 func (h *PublicHandlers) HandlePosts(w http.ResponseWriter, r *http.Request) {
-	// 公開済みの記事を取得
-	posts, err := h.postService.GetPublishedPosts(100, 0)
+	// クエリパラメータから page を取得
+	pageStr := r.URL.Query().Get("page")
+	page := 1
+	if pageStr != "" {
+		if parsed, err := strconv.Atoi(pageStr); err == nil && parsed > 0 {
+			page = parsed
+		}
+	}
+
+	// 1ページあたりの記事数
+	const perPage = 20
+	offset := (page - 1) * perPage
+
+	// 次のページがあるか判定するため、perPage+1 件取得
+	posts, err := h.postService.GetPublishedPosts(perPage+1, offset)
 	if err != nil {
 		log.Printf("failed to get published posts: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
+	// 次のページがあるか判定
+	hasNext := len(posts) > perPage
+	if hasNext {
+		posts = posts[:perPage] // 表示用に perPage 件に切り詰める
+	}
+
 	data := map[string]any{
-		"Posts": posts,
+		"Posts":       posts,
+		"CurrentPage": page,
+		"HasPrev":     page > 1,
+		"HasNext":     hasNext,
+		"PrevPage":    page - 1,
+		"NextPage":    page + 1,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
