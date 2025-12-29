@@ -66,6 +66,7 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, ErrorResponse{Error: message})
 }
+
 // HandleGetPosts は記事一覧を取得します
 // GET /api/v1/posts?status=draft|published&limit=10&offset=0
 func (h *APIHandlers) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
