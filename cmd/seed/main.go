@@ -5,9 +5,12 @@ import (
 	"log"
 	"time"
 
+	"github.com/capybara-translation/goblog/internal/auth"
+	"github.com/capybara-translation/goblog/internal/config"
 	"github.com/capybara-translation/goblog/internal/db"
 	"github.com/capybara-translation/goblog/internal/domain"
 	"github.com/capybara-translation/goblog/internal/repo"
+	"github.com/capybara-translation/goblog/internal/service"
 )
 
 // seedPost はシードデータの記事を表す構造体です
@@ -316,15 +319,18 @@ func getSeedPosts() []seedPost {
 func main() {
 	fmt.Println("=== シードデータ投入開始 ===")
 
+	// 設定の読み込み
+	cfg := config.Load()
+
 	// データベースの初期化
-	database, err := db.Open("data/goblog.db")
+	database, err := db.Open(cfg.DatabasePath)
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
 	}
 	defer database.Close()
 
 	// マイグレーションの実行
-	if err := db.RunMigrations(database, "migrations/001_init.sql"); err != nil {
+	if err := db.RunMigrations(database, "migrations/001_init.sql", "migrations/002_create_users.sql"); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
@@ -332,12 +338,21 @@ func main() {
 
 	// Repository層の初期化
 	postRepo := repo.NewPostRepository(database)
+	userRepo := repo.NewUserRepository(database)
+
+	// SessionStoreとAuthServiceの初期化
+	sessionStore := auth.NewInMemorySessionStore()
+	authService := service.NewAuthService(userRepo, sessionStore)
 
 	// 既存のデータを削除（開発環境用）
 	fmt.Println("Clearing existing data...")
 	_, err = database.Exec("DELETE FROM posts")
 	if err != nil {
-		log.Fatalf("Failed to clear existing data: %v", err)
+		log.Fatalf("Failed to clear existing posts data: %v", err)
+	}
+	_, err = database.Exec("DELETE FROM users")
+	if err != nil {
+		log.Fatalf("Failed to clear existing users data: %v", err)
 	}
 
 	// シードデータの投入
@@ -388,9 +403,20 @@ func main() {
 		}
 	}
 
-	fmt.Printf("\n=== シードデータ投入完了 ===\n")
-	fmt.Printf("公開記事: %d件\n", publishedCount)
+	fmt.Printf("\n公開記事: %d件\n", publishedCount)
 	fmt.Printf("下書き: %d件\n", draftCount)
 	fmt.Printf("合計: %d件\n", publishedCount+draftCount)
+
+	// テストユーザーの作成
+	fmt.Println("\nCreating test user...")
+	testUser, err := authService.CreateUser("admin", "password")
+	if err != nil {
+		log.Printf("Warning: Failed to create test user: %v", err)
+	} else {
+		fmt.Printf("Test user created: username=%s, id=%d\n", testUser.Username, testUser.ID)
+	}
+
+	fmt.Printf("\n=== シードデータ投入完了 ===\n")
 	fmt.Printf("\nブログを起動して http://localhost:8080 で確認できます\n")
+	fmt.Printf("管理画面ログイン情報: username=admin, password=password\n")
 }

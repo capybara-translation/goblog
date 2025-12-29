@@ -35,6 +35,8 @@ make seed   # テストデータを投入
 
 ### 4. サーバーの起動
 
+#### 開発環境
+
 ```bash
 make run
 # または
@@ -42,6 +44,29 @@ go run cmd/goblog/main.go
 ```
 
 ブラウザで http://localhost:8080 にアクセスして確認できます。
+
+#### 本番環境（環境変数を使用）
+
+```bash
+# 環境変数で設定を指定
+SECURE_COOKIE=true PORT=3000 go run cmd/goblog/main.go
+
+# または環境変数をエクスポート
+export SECURE_COOKIE=true
+export PORT=3000
+export DATABASE_PATH=/var/lib/goblog/production.db
+go run cmd/goblog/main.go
+```
+
+**利用可能な環境変数:**
+
+| 環境変数 | 説明 | デフォルト値 |
+|---------|------|-------------|
+| `PORT` | サーバーのポート番号 | `8080` |
+| `SECURE_COOKIE` | Cookie の Secure フラグ（HTTPS環境では `true` に設定） | `false` |
+| `DATABASE_PATH` | データベースファイルのパス | `data/goblog.db` |
+
+**注意:** 本番環境（HTTPS対応サーバー）では必ず `SECURE_COOKIE=true` を設定してください。これにより Cookie が HTTPS 接続でのみ送信されるようになります。
 
 ### 5. テストの実行
 
@@ -128,7 +153,7 @@ make deps        # 依存関係をダウンロード
     - ログイン時に照合してOKならセッション発行
 2. セッションは HttpOnly + Secure cookie
     - HttpOnly（JSから読めない）
-    - Secure（HTTPSのみ）
+    - Secure（HTTPSのみ） - **本番環境では環境変数 `SECURE_COOKIE=true` で有効化**
     - SameSite=Lax（まずはこれでOK）
     - セッションIDは ランダムで十分長いもの
 3. CSRF対策

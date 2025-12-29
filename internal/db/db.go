@@ -32,16 +32,18 @@ func Open(dbPath string) (*sqlx.DB, error) {
 }
 
 // RunMigrations はマイグレーションを実行します
-func RunMigrations(db *sqlx.DB, migrationPath string) error {
-	// マイグレーションファイルを読み込む
-	content, err := os.ReadFile(migrationPath)
-	if err != nil {
-		return fmt.Errorf("failed to read migration file: %w", err)
-	}
+func RunMigrations(db *sqlx.DB, migrationPaths ...string) error {
+	for _, migrationPath := range migrationPaths {
+		// マイグレーションファイルを読み込む
+		content, err := os.ReadFile(migrationPath)
+		if err != nil {
+			return fmt.Errorf("failed to read migration file %s: %w", migrationPath, err)
+		}
 
-	// マイグレーションを実行
-	if _, err := db.Exec(string(content)); err != nil {
-		return fmt.Errorf("failed to execute migration: %w", err)
+		// マイグレーションを実行
+		if _, err := db.Exec(string(content)); err != nil {
+			return fmt.Errorf("failed to execute migration %s: %w", migrationPath, err)
+		}
 	}
 
 	return nil
