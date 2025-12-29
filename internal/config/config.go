@@ -15,6 +15,9 @@ type Config struct {
 
 	// Database settings
 	DatabasePath string
+
+	// Site settings
+	BlogTitle string // ブログのタイトル
 }
 
 // Load は環境変数から設定を読み込みます
@@ -23,6 +26,7 @@ func Load() *Config {
 		Port:         getEnv("PORT", "8080"),
 		SecureCookie: getEnvAsBool("SECURE_COOKIE", false), // デフォルト: false（開発環境用）
 		DatabasePath: getEnv("DATABASE_PATH", "data/goblog.db"),
+		BlogTitle:    getEnv("BLOG_TITLE", "goblog"),
 	}
 }
 

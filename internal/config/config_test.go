@@ -23,6 +23,10 @@ func TestLoad_DefaultValues(t *testing.T) {
 	if cfg.DatabasePath != "data/goblog.db" {
 		t.Errorf("expected default DatabasePath to be %q, got %q", "data/goblog.db", cfg.DatabasePath)
 	}
+
+	if cfg.BlogTitle != "goblog" {
+		t.Errorf("expected default BlogTitle to be %q, got %q", "goblog", cfg.BlogTitle)
+	}
 }
 
 func TestLoad_WithEnvironmentVariables(t *testing.T) {
@@ -33,10 +37,12 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 	os.Setenv("PORT", "3000")
 	os.Setenv("SECURE_COOKIE", "true")
 	os.Setenv("DATABASE_PATH", "/var/lib/goblog/production.db")
+	os.Setenv("BLOG_TITLE", "My Awesome Blog")
 	t.Cleanup(func() {
 		os.Unsetenv("PORT")
 		os.Unsetenv("SECURE_COOKIE")
 		os.Unsetenv("DATABASE_PATH")
+		os.Unsetenv("BLOG_TITLE")
 	})
 
 	cfg := Load()
@@ -52,6 +58,10 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 
 	if cfg.DatabasePath != "/var/lib/goblog/production.db" {
 		t.Errorf("expected DatabasePath to be %q, got %q", "/var/lib/goblog/production.db", cfg.DatabasePath)
+	}
+
+	if cfg.BlogTitle != "My Awesome Blog" {
+		t.Errorf("expected BlogTitle to be %q, got %q", "My Awesome Blog", cfg.BlogTitle)
 	}
 }
 
@@ -235,4 +245,5 @@ func clearEnv(t *testing.T) {
 	os.Unsetenv("PORT")
 	os.Unsetenv("SECURE_COOKIE")
 	os.Unsetenv("DATABASE_PATH")
+	os.Unsetenv("BLOG_TITLE")
 }

@@ -14,13 +14,14 @@ import (
 // PublicHandlers は公開ページのハンドラーをまとめた構造体です
 type PublicHandlers struct {
 	postService   service.PostService
+	blogTitle     string // ブログのタイトル
 	homeTemplate  *template.Template
 	postsTemplate *template.Template
 	postTemplate  *template.Template
 }
 
 // NewPublicHandlers はテンプレートパスを指定してPublicHandlersを作成します
-func NewPublicHandlers(postService service.PostService, templatePattern string) *PublicHandlers {
+func NewPublicHandlers(postService service.PostService, blogTitle string, templatePattern string) *PublicHandlers {
 	dir := filepath.Dir(templatePattern)
 	layoutPath := filepath.Join(dir, "layout.html")
 
@@ -31,6 +32,7 @@ func NewPublicHandlers(postService service.PostService, templatePattern string) 
 
 	return &PublicHandlers{
 		postService:   postService,
+		blogTitle:     blogTitle,
 		homeTemplate:  homeTemplate,
 		postsTemplate: postsTemplate,
 		postTemplate:  postTemplate,
@@ -48,7 +50,8 @@ func (h *PublicHandlers) HandleHome(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]any{
-		"Posts": posts,
+		"SiteTitle": h.blogTitle,
+		"Posts":     posts,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -88,6 +91,7 @@ func (h *PublicHandlers) HandlePosts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]any{
+		"SiteTitle":   h.blogTitle,
 		"Posts":       posts,
 		"CurrentPage": page,
 		"HasPrev":     page > 1,
@@ -122,7 +126,8 @@ func (h *PublicHandlers) HandlePostDetail(w http.ResponseWriter, r *http.Request
 	}
 
 	data := map[string]any{
-		"Post": post,
+		"SiteTitle": h.blogTitle,
+		"Post":      post,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

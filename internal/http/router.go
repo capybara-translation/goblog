@@ -6,16 +6,16 @@ import (
 )
 
 // NewRouter はアプリケーション全体のルーターを作成します
-func NewRouter(postService service.PostService, authService service.AuthService, secureCookie bool) *mux.Router {
-	return NewRouterWithTemplates(postService, authService, secureCookie, "internal/view/templates/*.html")
+func NewRouter(postService service.PostService, authService service.AuthService, secureCookie bool, blogTitle string) *mux.Router {
+	return NewRouterWithTemplates(postService, authService, secureCookie, blogTitle, "internal/view/templates/*.html")
 }
 
 // NewRouterWithTemplates はテンプレートパスを指定してルーターを作成します（テスト用）
-func NewRouterWithTemplates(postService service.PostService, authService service.AuthService, secureCookie bool, templatePattern string) *mux.Router {
+func NewRouterWithTemplates(postService service.PostService, authService service.AuthService, secureCookie bool, blogTitle string, templatePattern string) *mux.Router {
 	r := mux.NewRouter()
 
 	// 公開ページのハンドラーを初期化
-	publicHandlers := NewPublicHandlers(postService, templatePattern)
+	publicHandlers := NewPublicHandlers(postService, blogTitle, templatePattern)
 
 	// 管理画面API用のハンドラーを初期化
 	apiHandlers := NewAPIHandlers(postService)

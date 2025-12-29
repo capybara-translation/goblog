@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{block "title" .}}goblog{{end}}</title>
+    <title>{{block "title" .}}{{.SiteTitle}}{{end}}</title>
     <style>
         * {
             margin: 0;
@@ -61,7 +61,7 @@
 <body>
     <header>
         <div class="container">
-            <h1><a href="/">goblog</a></h1>
+            <h1><a href="/">{{.SiteTitle}}</a></h1>
             <nav>
                 <a href="/">ホーム</a>
                 <a href="/posts">記事一覧</a>
@@ -75,7 +75,7 @@
     </div>
     <footer>
         <div class="container">
-            <p>&copy; 2025 goblog. All rights reserved.</p>
+            <p>&copy; 2025 {{.SiteTitle}}. All rights reserved.</p>
         </div>
     </footer>
 </body>

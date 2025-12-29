@@ -49,12 +49,13 @@ go run cmd/goblog/main.go
 
 ```bash
 # 環境変数で設定を指定
-SECURE_COOKIE=true PORT=3000 go run cmd/goblog/main.go
+SECURE_COOKIE=true PORT=3000 BLOG_TITLE="My Awesome Blog" go run cmd/goblog/main.go
 
 # または環境変数をエクスポート
 export SECURE_COOKIE=true
 export PORT=3000
 export DATABASE_PATH=/var/lib/goblog/production.db
+export BLOG_TITLE="My Awesome Blog"
 go run cmd/goblog/main.go
 ```
 
@@ -65,6 +66,7 @@ go run cmd/goblog/main.go
 | `PORT` | サーバーのポート番号 | `8080` |
 | `SECURE_COOKIE` | Cookie の Secure フラグ（HTTPS環境では `true` に設定） | `false` |
 | `DATABASE_PATH` | データベースファイルのパス | `data/goblog.db` |
+| `BLOG_TITLE` | ブログのタイトル（ヘッダーやページタイトルに表示） | `goblog` |
 
 **注意:** 本番環境（HTTPS対応サーバー）では必ず `SECURE_COOKIE=true` を設定してください。これにより Cookie が HTTPS 接続でのみ送信されるようになります。
 
@@ -135,6 +137,7 @@ make deps        # 依存関係をダウンロード
     - handlerは極力薄く、DB直叩きしない。
     - serviceに業務ロジックを寄せる。
     - インターフェースをうまく活用して疎結合にしテストしやすくする。
+- Beyond the Twelve-Factor App (https://raw.githubusercontent.com/ffisk/books/master/beyond-the-twelve-factor-app.pdf) に従った開発 
 - 当然最終的には公開するつもりなのでセキュリティにも気をつけたい。
 - 公開ページはSSR（通常のページ遷移型のWebアプリケーション）として作成し、管理画面はVite + React + React RouterのSPAとする。
     - `/inernal/`: 公開ページのソースコード 

@@ -113,7 +113,7 @@ func TestHandleHealth(t *testing.T) {
 func TestHandleHealth_ViaRouter(t *testing.T) {
 	// ルーター経由でもテスト
 	mockService := &mockPostServiceForAPI{}
-	router := NewRouterWithTemplates(mockService, nil, false, "../view/templates/*.html")
+	router := NewRouterWithTemplates(mockService, nil, false, "goblog", "../view/templates/*.html")
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
 	w := httptest.NewRecorder()
@@ -135,7 +135,7 @@ func TestHandleHealth_ViaRouter(t *testing.T) {
 }
 func TestHandleGetPosts(t *testing.T) {
 	mockService := &mockPostServiceForAPI{}
-	router := NewRouterWithTemplates(mockService, nil, false, "../view/templates/*.html")
+	router := NewRouterWithTemplates(mockService, nil, false, "goblog", "../view/templates/*.html")
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/posts", nil)
 	w := httptest.NewRecorder()
@@ -154,7 +154,7 @@ func TestHandleGetPosts(t *testing.T) {
 
 func TestHandleGetPost_NotFound(t *testing.T) {
 	mockService := &mockPostServiceForAPI{}
-	router := NewRouterWithTemplates(mockService, nil, false, "../view/templates/*.html")
+	router := NewRouterWithTemplates(mockService, nil, false, "goblog", "../view/templates/*.html")
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/posts/999", nil)
 	w := httptest.NewRecorder()
@@ -233,7 +233,7 @@ func TestHandleGetPosts_WithFilters(t *testing.T) {
 			mockService := &mockPostServiceForAPI{
 				getAllPostsFunc: tt.mockFunc,
 			}
-			router := NewRouterWithTemplates(mockService, nil, false, "../view/templates/*.html")
+			router := NewRouterWithTemplates(mockService, nil, false, "goblog", "../view/templates/*.html")
 
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/posts"+tt.queryParams, nil)
 			w := httptest.NewRecorder()
@@ -271,7 +271,7 @@ func TestHandleGetPost_Success(t *testing.T) {
 			return nil, nil
 		},
 	}
-	router := NewRouterWithTemplates(mockService, nil, false, "../view/templates/*.html")
+	router := NewRouterWithTemplates(mockService, nil, false, "goblog", "../view/templates/*.html")
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/posts/1", nil)
 	w := httptest.NewRecorder()
@@ -308,7 +308,7 @@ func TestHandleCreatePost_Success(t *testing.T) {
 			}, nil
 		},
 	}
-	router := NewRouterWithTemplates(mockService, nil, false, "../view/templates/*.html")
+	router := NewRouterWithTemplates(mockService, nil, false, "goblog", "../view/templates/*.html")
 
 	body := `{"title":"New Post","slug":"new-post","content":"Content here","tags":"tag1,tag2"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/posts", strings.NewReader(body))
@@ -336,7 +336,7 @@ func TestHandleCreatePost_Success(t *testing.T) {
 
 func TestHandleCreatePost_InvalidJSON(t *testing.T) {
 	mockService := &mockPostServiceForAPI{}
-	router := NewRouterWithTemplates(mockService, nil, false, "../view/templates/*.html")
+	router := NewRouterWithTemplates(mockService, nil, false, "goblog", "../view/templates/*.html")
 
 	body := `{invalid json}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/posts", strings.NewReader(body))
@@ -375,7 +375,7 @@ func TestHandleUpdatePost_Success(t *testing.T) {
 			return nil, nil
 		},
 	}
-	router := NewRouterWithTemplates(mockService, nil, false, "../view/templates/*.html")
+	router := NewRouterWithTemplates(mockService, nil, false, "goblog", "../view/templates/*.html")
 
 	body := `{"title":"Updated Post","slug":"updated-post","content":"Updated content","tags":"new-tags"}`
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/posts/1", strings.NewReader(body))
@@ -407,7 +407,7 @@ func TestHandleDeletePost_Success(t *testing.T) {
 			return nil
 		},
 	}
-	router := NewRouterWithTemplates(mockService, nil, false, "../view/templates/*.html")
+	router := NewRouterWithTemplates(mockService, nil, false, "goblog", "../view/templates/*.html")
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/posts/1", nil)
 	w := httptest.NewRecorder()
@@ -436,7 +436,7 @@ func TestHandlePublishPost_Success(t *testing.T) {
 			return nil, nil
 		},
 	}
-	router := NewRouterWithTemplates(mockService, nil, false, "../view/templates/*.html")
+	router := NewRouterWithTemplates(mockService, nil, false, "goblog", "../view/templates/*.html")
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/posts/1/publish", nil)
 	w := httptest.NewRecorder()
@@ -470,7 +470,7 @@ func TestHandleUnpublishPost_Success(t *testing.T) {
 			return nil, nil
 		},
 	}
-	router := NewRouterWithTemplates(mockService, nil, false, "../view/templates/*.html")
+	router := NewRouterWithTemplates(mockService, nil, false, "goblog", "../view/templates/*.html")
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/posts/1/unpublish", nil)
 	w := httptest.NewRecorder()
@@ -493,7 +493,7 @@ func TestHandleUnpublishPost_Success(t *testing.T) {
 
 func TestHandleGetPost_InvalidID(t *testing.T) {
 	mockService := &mockPostServiceForAPI{}
-	router := NewRouterWithTemplates(mockService, nil, false, "../view/templates/*.html")
+	router := NewRouterWithTemplates(mockService, nil, false, "goblog", "../view/templates/*.html")
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/posts/invalid", nil)
 	w := httptest.NewRecorder()
@@ -526,7 +526,7 @@ func TestHandleGetPosts_LimitMax(t *testing.T) {
 			return []*domain.Post{}, nil
 		},
 	}
-	router := NewRouterWithTemplates(mockService, nil, false, "../view/templates/*.html")
+	router := NewRouterWithTemplates(mockService, nil, false, "goblog", "../view/templates/*.html")
 
 	tests := []struct {
 		name          string

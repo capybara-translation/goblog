@@ -43,7 +43,7 @@ func main() {
 	authService := service.NewAuthService(userRepo, sessionStore)
 
 	// ルーターの初期化
-	r := gobloghttp.NewRouter(postService, authService, cfg.SecureCookie)
+	r := gobloghttp.NewRouter(postService, authService, cfg.SecureCookie, cfg.BlogTitle)
 
 	// サーバー起動
 	port := ":" + cfg.Port
