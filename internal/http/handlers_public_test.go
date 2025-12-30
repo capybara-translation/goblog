@@ -13,6 +13,8 @@ import (
 	"github.com/capybara-translation/goblog/internal/service"
 )
 
+const testTemplatePattern = "../view/templates/*.html"
+
 // mockPostService は PostService のモック実装です
 type mockPostService struct {
 	getPublishedPostsFunc func(limit, offset int) ([]*domain.Post, error)
@@ -132,7 +134,7 @@ func TestHandleHome(t *testing.T) {
 			mockService := &mockPostService{
 				getPublishedPostsFunc: tt.mockFunc,
 			}
-			router := NewRouterWithTemplates(mockService, nil, false, "goblog", "../view/templates/*.html")
+			router := NewRouterWithTemplates(mockService, nil, false, "goblog", testTemplatePattern)
 
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			w := httptest.NewRecorder()
@@ -228,7 +230,7 @@ func TestHandleHome_BlogTitle(t *testing.T) {
 			mockService := &mockPostService{
 				getPublishedPostsFunc: tt.mockFunc,
 			}
-			router := NewRouterWithTemplates(mockService, nil, false, tt.blogTitle, "../view/templates/*.html")
+			router := NewRouterWithTemplates(mockService, nil, false, tt.blogTitle, testTemplatePattern)
 
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			w := httptest.NewRecorder()
@@ -315,7 +317,7 @@ func TestHandlePosts(t *testing.T) {
 			mockService := &mockPostService{
 				getPublishedPostsFunc: tt.mockFunc,
 			}
-			router := NewRouterWithTemplates(mockService, nil, false, "goblog", "../view/templates/*.html")
+			router := NewRouterWithTemplates(mockService, nil, false, "goblog", testTemplatePattern)
 
 			req := httptest.NewRequest(http.MethodGet, "/posts", nil)
 			w := httptest.NewRecorder()
@@ -564,7 +566,7 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			mockService := &mockPostService{
 				getPublishedPostsFunc: tt.mockFunc,
 			}
-			router := NewRouterWithTemplates(mockService, nil, false, "goblog", "../view/templates/*.html")
+			router := NewRouterWithTemplates(mockService, nil, false, "goblog", testTemplatePattern)
 
 			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
 			w := httptest.NewRecorder()
@@ -597,7 +599,7 @@ func TestHandlePosts_Error(t *testing.T) {
 			return nil, fmt.Errorf("database connection error")
 		},
 	}
-	router := NewRouterWithTemplates(mockService, nil, false, "goblog", "../view/templates/*.html")
+	router := NewRouterWithTemplates(mockService, nil, false, "goblog", testTemplatePattern)
 
 	req := httptest.NewRequest(http.MethodGet, "/posts", nil)
 	w := httptest.NewRecorder()
@@ -662,7 +664,7 @@ func TestHandlePosts_BlogTitle(t *testing.T) {
 			mockService := &mockPostService{
 				getPublishedPostsFunc: tt.mockFunc,
 			}
-			router := NewRouterWithTemplates(mockService, nil, false, tt.blogTitle, "../view/templates/*.html")
+			router := NewRouterWithTemplates(mockService, nil, false, tt.blogTitle, testTemplatePattern)
 
 			req := httptest.NewRequest(http.MethodGet, "/posts", nil)
 			w := httptest.NewRecorder()
@@ -757,7 +759,7 @@ func TestHandlePostDetail(t *testing.T) {
 			mockService := &mockPostService{
 				getPostBySlugFunc: tt.mockFunc,
 			}
-			router := NewRouterWithTemplates(mockService, nil, false, "goblog", "../view/templates/*.html")
+			router := NewRouterWithTemplates(mockService, nil, false, "goblog", testTemplatePattern)
 
 			req := httptest.NewRequest(http.MethodGet, "/posts/"+tt.slug, nil)
 			w := httptest.NewRecorder()
@@ -868,7 +870,7 @@ func TestHandlePostDetail_BlogTitle(t *testing.T) {
 			mockService := &mockPostService{
 				getPostBySlugFunc: tt.mockFunc,
 			}
-			router := NewRouterWithTemplates(mockService, nil, false, tt.blogTitle, "../view/templates/*.html")
+			router := NewRouterWithTemplates(mockService, nil, false, tt.blogTitle, testTemplatePattern)
 
 			req := httptest.NewRequest(http.MethodGet, "/posts/"+tt.slug, nil)
 			w := httptest.NewRecorder()
@@ -911,7 +913,7 @@ func TestHandleAdmin(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockService := &mockPostService{}
-			router := NewRouterWithTemplates(mockService, nil, false, "goblog", "../view/templates/*.html")
+			router := NewRouterWithTemplates(mockService, nil, false, "goblog", testTemplatePattern)
 
 			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			w := httptest.NewRecorder()
