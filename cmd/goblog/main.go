@@ -11,9 +11,16 @@ import (
 	gobloghttp "github.com/capybara-translation/goblog/internal/http"
 	"github.com/capybara-translation/goblog/internal/repo"
 	"github.com/capybara-translation/goblog/internal/service"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// .envファイルから環境変数を読み込む（存在しない場合はスキップ）
+	if err := godotenv.Load(); err != nil {
+		// .envファイルが存在しない場合はログに記録するが、エラーにはしない
+		log.Printf(".env file not found or could not be loaded: %v", err)
+	}
+
 	// 設定の読み込み
 	cfg := config.Load()
 
