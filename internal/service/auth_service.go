@@ -3,9 +3,12 @@ package service
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/capybara-translation/goblog/internal/auth"
+	"github.com/capybara-translation/goblog/internal/config"
 	"github.com/capybara-translation/goblog/internal/domain"
 	"github.com/capybara-translation/goblog/internal/repo"
 	"golang.org/x/crypto/bcrypt"
@@ -18,6 +21,8 @@ var (
 	ErrUserNotFound = errors.New("user not found")
 	// ErrUsernameAlreadyExists はユーザー名が既に存在する場合のエラーです
 	ErrUsernameAlreadyExists = errors.New("username already exists")
+	// ErrWeakPassword はパスワードが弱い場合のエラーです
+	ErrWeakPassword = errors.New("password does not meet security requirements")
 )
 
 // AuthService は認証に関するビジネスロジックを提供するインターフェースです
@@ -37,17 +42,19 @@ type AuthService interface {
 
 // authService はAuthServiceの実装です
 type authService struct {
-	userRepo     repo.UserRepository
-	sessionStore auth.SessionStore
-	sessionTTL   time.Duration
+	userRepo       repo.UserRepository
+	sessionStore   auth.SessionStore
+	sessionTTL     time.Duration
+	passwordPolicy config.PasswordPolicy
 }
 
 // NewAuthService は新しいAuthServiceを作成します
-func NewAuthService(userRepo repo.UserRepository, sessionStore auth.SessionStore) AuthService {
+func NewAuthService(userRepo repo.UserRepository, sessionStore auth.SessionStore, passwordPolicy config.PasswordPolicy) AuthService {
 	return &authService{
-		userRepo:     userRepo,
-		sessionStore: sessionStore,
-		sessionTTL:   24 * time.Hour, // セッション有効期限: 24時間
+		userRepo:       userRepo,
+		sessionStore:   sessionStore,
+		sessionTTL:     24 * time.Hour, // セッション有効期限: 24時間
+		passwordPolicy: passwordPolicy,
 	}
 }
 
@@ -112,6 +119,11 @@ func (s *authService) CreateUser(username, password string) (*domain.User, error
 		return nil, ErrUsernameAlreadyExists
 	}
 
+	// パスワードポリシーに基づくバリデーション
+	if err := s.validatePassword(password); err != nil {
+		return nil, err
+	}
+
 	// パスワードをハッシュ化
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -132,4 +144,70 @@ func (s *authService) CreateUser(username, password string) (*domain.User, error
 	}
 
 	return user, nil
+}
+
+// validatePassword はパスワードポリシーに基づいてパスワードを検証します
+func (s *authService) validatePassword(password string) error {
+	switch s.passwordPolicy {
+	case config.PasswordPolicyNone:
+		// 制限なし
+		return nil
+	case config.PasswordPolicyStrong:
+		return s.validateStrongPassword(password)
+	default:
+		// 不明なポリシーの場合はNONEとして扱う
+		return nil
+	}
+}
+
+// validateStrongPassword は厳格なパスワードポリシーを検証します
+// - 最小15文字
+// - 大文字を1文字以上含む
+// - 小文字を1文字以上含む
+// - 数字を1文字以上含む
+// - 記号を1文字以上含む
+func (s *authService) validateStrongPassword(password string) error {
+	if len(password) < 15 {
+		return fmt.Errorf("%w: password must be at least 15 characters", ErrWeakPassword)
+	}
+
+	var (
+		hasUpper   bool
+		hasLower   bool
+		hasDigit   bool
+		hasSpecial bool
+	)
+
+	for _, char := range password {
+		switch {
+		case unicode.IsUpper(char):
+			hasUpper = true
+		case unicode.IsLower(char):
+			hasLower = true
+		case unicode.IsDigit(char):
+			hasDigit = true
+		case unicode.IsPunct(char) || unicode.IsSymbol(char):
+			hasSpecial = true
+		}
+	}
+
+	var missing []string
+	if !hasUpper {
+		missing = append(missing, "uppercase letter")
+	}
+	if !hasLower {
+		missing = append(missing, "lowercase letter")
+	}
+	if !hasDigit {
+		missing = append(missing, "digit")
+	}
+	if !hasSpecial {
+		missing = append(missing, "special character")
+	}
+
+	if len(missing) > 0 {
+		return fmt.Errorf("%w: password must contain at least one %s", ErrWeakPassword, strings.Join(missing, ", "))
+	}
+
+	return nil
 }

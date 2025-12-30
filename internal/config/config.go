@@ -3,6 +3,17 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
+)
+
+// PasswordPolicy はパスワードポリシーの種類を表します
+type PasswordPolicy string
+
+const (
+	// PasswordPolicyNone は制限なしのパスワードポリシーです（開発/テスト環境用）
+	PasswordPolicyNone PasswordPolicy = "NONE"
+	// PasswordPolicyStrong は厳格なパスワードポリシーです（本番環境用）
+	PasswordPolicyStrong PasswordPolicy = "STRONG"
 )
 
 // Config はアプリケーション設定を保持します
@@ -11,7 +22,8 @@ type Config struct {
 	Port string
 
 	// Security settings
-	SecureCookie bool // HTTPSを使用する場合にtrue
+	SecureCookie   bool           // HTTPSを使用する場合にtrue
+	PasswordPolicy PasswordPolicy // パスワードポリシー
 
 	// Database settings
 	DatabasePath string
@@ -23,10 +35,11 @@ type Config struct {
 // Load は環境変数から設定を読み込みます
 func Load() *Config {
 	return &Config{
-		Port:         getEnv("PORT", "8080"),
-		SecureCookie: getEnvAsBool("SECURE_COOKIE", false), // デフォルト: false（開発環境用）
-		DatabasePath: getEnv("DATABASE_PATH", "data/goblog.db"),
-		BlogTitle:    getEnv("BLOG_TITLE", "goblog"),
+		Port:           getEnv("PORT", "8080"),
+		SecureCookie:   getEnvAsBool("SECURE_COOKIE", false), // デフォルト: false（開発環境用）
+		PasswordPolicy: getPasswordPolicy("PASSWORD_POLICY", PasswordPolicyNone),
+		DatabasePath:   getEnv("DATABASE_PATH", "data/goblog.db"),
+		BlogTitle:      getEnv("BLOG_TITLE", "goblog"),
 	}
 }
 
@@ -49,4 +62,20 @@ func getEnvAsBool(key string, defaultValue bool) bool {
 		return defaultValue
 	}
 	return val
+}
+
+// getPasswordPolicy は環境変数からパスワードポリシーを取得します
+// 大文字小文字を区別しません（none/NONE/None、strong/STRONG/Strong すべて有効）
+func getPasswordPolicy(key string, defaultValue PasswordPolicy) PasswordPolicy {
+	valStr := os.Getenv(key)
+	if valStr == "" {
+		return defaultValue
+	}
+	// 大文字小文字を区別しないように大文字に変換
+	policy := PasswordPolicy(strings.ToUpper(valStr))
+	if policy == PasswordPolicyNone || policy == PasswordPolicyStrong {
+		return policy
+	}
+	// 不正な値の場合はデフォルト値を返す
+	return defaultValue
 }

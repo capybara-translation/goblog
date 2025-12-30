@@ -49,10 +49,11 @@ go run cmd/goblog/main.go
 
 ```bash
 # 環境変数で設定を指定
-SECURE_COOKIE=true PORT=3000 BLOG_TITLE="My Awesome Blog" go run cmd/goblog/main.go
+SECURE_COOKIE=true PASSWORD_POLICY=STRONG PORT=3000 BLOG_TITLE="My Awesome Blog" go run cmd/goblog/main.go
 
 # または環境変数をエクスポート
 export SECURE_COOKIE=true
+export PASSWORD_POLICY=STRONG
 export PORT=3000
 export DATABASE_PATH=/var/lib/goblog/production.db
 export BLOG_TITLE="My Awesome Blog"
@@ -65,10 +66,25 @@ go run cmd/goblog/main.go
 |---------|------|-------------|
 | `PORT` | サーバーのポート番号 | `8080` |
 | `SECURE_COOKIE` | Cookie の Secure フラグ（HTTPS環境では `true` に設定） | `false` |
+| `PASSWORD_POLICY` | パスワードポリシー（`NONE` または `STRONG`） | `NONE` |
 | `DATABASE_PATH` | データベースファイルのパス | `data/goblog.db` |
 | `BLOG_TITLE` | ブログのタイトル（ヘッダーやページタイトルに表示） | `goblog` |
 
-**注意:** 本番環境（HTTPS対応サーバー）では必ず `SECURE_COOKIE=true` を設定してください。これにより Cookie が HTTPS 接続でのみ送信されるようになります。
+**パスワードポリシーについて:**
+
+- `NONE`: 制限なし（開発/テスト環境向け）
+- `STRONG`: 厳格なポリシー（本番環境向け）
+  - 最小15文字
+  - 大文字を1文字以上含む
+  - 小文字を1文字以上含む
+  - 数字を1文字以上含む
+  - 記号を1文字以上含む
+
+※ 大文字小文字を区別しません（`none`/`NONE`/`None`、`strong`/`STRONG`/`Strong` すべて有効）
+
+**注意:**
+- 本番環境（HTTPS対応サーバー）では必ず `SECURE_COOKIE=true` を設定してください。これにより Cookie が HTTPS 接続でのみ送信されるようになります。
+- 本番環境では `PASSWORD_POLICY=STRONG` を設定することを強く推奨します。
 
 ### 5. テストの実行
 

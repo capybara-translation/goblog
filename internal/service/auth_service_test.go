@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/capybara-translation/goblog/internal/auth"
+	"github.com/capybara-translation/goblog/internal/config"
 	"github.com/capybara-translation/goblog/internal/domain"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -121,7 +122,7 @@ func TestAuthService_Login(t *testing.T) {
 		},
 	}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
 
 	// 正しいパスワードでログイン
 	sessionID, err := authService.Login("testuser", "password123")
@@ -149,7 +150,7 @@ func TestAuthService_Login_InvalidUsername(t *testing.T) {
 		},
 	}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
 
 	// 存在しないユーザー名でログイン
 	sessionID, err := authService.Login("nonexistent", "password123")
@@ -186,7 +187,7 @@ func TestAuthService_Login_InvalidPassword(t *testing.T) {
 		},
 	}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
 
 	// 間違ったパスワードでログイン
 	sessionID, err := authService.Login("testuser", "wrongpassword")
@@ -210,7 +211,7 @@ func TestAuthService_Logout(t *testing.T) {
 		},
 	}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
 
 	err := authService.Logout("test-session-id")
 	if err != nil {
@@ -247,7 +248,7 @@ func TestAuthService_GetUserBySession_Success(t *testing.T) {
 		},
 	}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
 
 	user, err := authService.GetUserBySession("valid-session")
 	if err != nil {
@@ -276,7 +277,7 @@ func TestAuthService_GetUserBySession_NotFound(t *testing.T) {
 		},
 	}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
 
 	user, err := authService.GetUserBySession("nonexistent-session-id")
 	if err != nil {
@@ -305,7 +306,7 @@ func TestAuthService_GetUserBySession_UserNotFoundInDB(t *testing.T) {
 		},
 	}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
 
 	user, err := authService.GetUserBySession("valid-session")
 	if err != nil {
@@ -335,7 +336,7 @@ func TestAuthService_CreateUser(t *testing.T) {
 
 	mockSessionStore := &mockSessionStore{}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
 
 	user, err := authService.CreateUser("newuser", "password123")
 	if err != nil {
@@ -397,7 +398,7 @@ func TestAuthService_CreateUser_DuplicateUsername(t *testing.T) {
 
 	mockSessionStore := &mockSessionStore{}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
 
 	_, err := authService.CreateUser("duplicate", "password123")
 	if !errors.Is(err, ErrUsernameAlreadyExists) {
@@ -425,7 +426,7 @@ func TestAuthService_CreateUser_PasswordHashing(t *testing.T) {
 
 	mockSessionStore := &mockSessionStore{}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
 
 	// 同じパスワードで2人のユーザーを作成
 	_, err := authService.CreateUser("user1", "samepassword")
@@ -452,5 +453,117 @@ func TestAuthService_CreateUser_PasswordHashing(t *testing.T) {
 	err = bcrypt.CompareHashAndPassword([]byte(user2Hash), []byte("samepassword"))
 	if err != nil {
 		t.Error("user2 password hash verification failed")
+	}
+}
+
+func TestAuthService_PasswordPolicy_None(t *testing.T) {
+	mockUserRepo := &mockUserRepository{
+		findByUsernameFunc: func(username string) (*domain.User, error) {
+			return nil, nil
+		},
+		createFunc: func(user *domain.User) error {
+			user.ID = 1
+			return nil
+		},
+	}
+
+	mockSessionStore := &mockSessionStore{}
+
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
+
+	// NONEポリシーでは短いパスワードでもOK
+	tests := []struct {
+		name     string
+		password string
+	}{
+		{"短いパスワード", "pass"},
+		{"数字のみ", "12345"},
+		{"記号なし", "password"},
+		{"小文字のみ", "abcdefgh"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := authService.CreateUser("testuser"+tt.name, tt.password)
+			if err != nil {
+				t.Errorf("expected no error for password %q with NONE policy, got %v", tt.password, err)
+			}
+		})
+	}
+}
+
+func TestAuthService_PasswordPolicy_Strong_Valid(t *testing.T) {
+	mockUserRepo := &mockUserRepository{
+		findByUsernameFunc: func(username string) (*domain.User, error) {
+			return nil, nil
+		},
+		createFunc: func(user *domain.User) error {
+			user.ID = 1
+			return nil
+		},
+	}
+
+	mockSessionStore := &mockSessionStore{}
+
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyStrong)
+
+	// STRONGポリシーの要件を満たすパスワード
+	validPasswords := []string{
+		"MyStr0ng#Passw0rd",  // 17文字、すべての要件を満たす
+		"Abcd1234!@#$567",    // 16文字、すべての要件を満たす
+		"VerySecure1!Pass",   // 16文字、すべての要件を満たす
+		"Test1234@Password!", // 18文字、すべての要件を満たす
+		"Str0ng&SecurePass",  // 17文字、すべての要件を満たす
+	}
+
+	for _, password := range validPasswords {
+		t.Run(password, func(t *testing.T) {
+			_, err := authService.CreateUser("testuser"+password, password)
+			if err != nil {
+				t.Errorf("expected no error for valid strong password %q, got %v", password, err)
+			}
+		})
+	}
+}
+
+func TestAuthService_PasswordPolicy_Strong_Invalid(t *testing.T) {
+	mockUserRepo := &mockUserRepository{
+		findByUsernameFunc: func(username string) (*domain.User, error) {
+			return nil, nil
+		},
+		createFunc: func(user *domain.User) error {
+			t.Error("Create should not be called for invalid password")
+			return nil
+		},
+	}
+
+	mockSessionStore := &mockSessionStore{}
+
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyStrong)
+
+	tests := []struct {
+		name     string
+		password string
+	}{
+		{"短すぎる", "Pass1!"},        // 6文字
+		{"大文字なし", "password123!"}, // 大文字なし
+		{"小文字なし", "PASSWORD123!"}, // 小文字なし
+		{"数字なし", "Password!@#$"},  // 数字なし
+		{"記号なし", "Password1234"},  // 記号なし
+		{"14文字", "Passw0rd!1234"}, // 14文字（15文字未満）
+		{"12文字", "Passw0rd!12"},   // 12文字（15文字未満）
+		{"複数要件不足", "password"},    // 大文字、数字、記号なし
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := authService.CreateUser("testuser", tt.password)
+			if err == nil {
+				t.Errorf("expected error for invalid strong password %q, got nil", tt.password)
+			}
+			if !errors.Is(err, ErrWeakPassword) {
+				t.Errorf("expected ErrWeakPassword, got %v", err)
+			}
+		})
 	}
 }

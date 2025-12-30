@@ -40,7 +40,7 @@ func main() {
 
 	// Service層の初期化
 	postService := service.NewPostService(postRepo)
-	authService := service.NewAuthService(userRepo, sessionStore)
+	authService := service.NewAuthService(userRepo, sessionStore, cfg.PasswordPolicy)
 
 	// ルーターの初期化
 	r := gobloghttp.NewRouter(postService, authService, cfg.SecureCookie, cfg.BlogTitle)

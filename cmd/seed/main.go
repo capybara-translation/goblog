@@ -342,7 +342,7 @@ func main() {
 
 	// SessionStoreとAuthServiceの初期化
 	sessionStore := auth.NewInMemorySessionStore()
-	authService := service.NewAuthService(userRepo, sessionStore)
+	authService := service.NewAuthService(userRepo, sessionStore, config.PasswordPolicyNone)
 
 	// 既存のデータを削除（開発環境用）
 	fmt.Println("Clearing existing data...")

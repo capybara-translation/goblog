@@ -27,6 +27,10 @@ func TestLoad_DefaultValues(t *testing.T) {
 	if cfg.BlogTitle != "goblog" {
 		t.Errorf("expected default BlogTitle to be %q, got %q", "goblog", cfg.BlogTitle)
 	}
+
+	if cfg.PasswordPolicy != PasswordPolicyNone {
+		t.Errorf("expected default PasswordPolicy to be %q, got %q", PasswordPolicyNone, cfg.PasswordPolicy)
+	}
 }
 
 func TestLoad_WithEnvironmentVariables(t *testing.T) {
@@ -36,11 +40,13 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 	// 環境変数を設定
 	os.Setenv("PORT", "3000")
 	os.Setenv("SECURE_COOKIE", "true")
+	os.Setenv("PASSWORD_POLICY", "STRONG")
 	os.Setenv("DATABASE_PATH", "/var/lib/goblog/production.db")
 	os.Setenv("BLOG_TITLE", "My Awesome Blog")
 	t.Cleanup(func() {
 		os.Unsetenv("PORT")
 		os.Unsetenv("SECURE_COOKIE")
+		os.Unsetenv("PASSWORD_POLICY")
 		os.Unsetenv("DATABASE_PATH")
 		os.Unsetenv("BLOG_TITLE")
 	})
@@ -62,6 +68,10 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 
 	if cfg.BlogTitle != "My Awesome Blog" {
 		t.Errorf("expected BlogTitle to be %q, got %q", "My Awesome Blog", cfg.BlogTitle)
+	}
+
+	if cfg.PasswordPolicy != PasswordPolicyStrong {
+		t.Errorf("expected PasswordPolicy to be %q, got %q", PasswordPolicyStrong, cfg.PasswordPolicy)
 	}
 }
 
@@ -239,11 +249,97 @@ func TestGetEnvAsBool(t *testing.T) {
 	}
 }
 
+func TestGetPasswordPolicy(t *testing.T) {
+	tests := []struct {
+		name         string
+		key          string
+		defaultValue PasswordPolicy
+		envValue     string
+		expected     PasswordPolicy
+	}{
+		{
+			name:         "NONE",
+			key:          "TEST_PASSWORD_POLICY",
+			defaultValue: PasswordPolicyStrong,
+			envValue:     "NONE",
+			expected:     PasswordPolicyNone,
+		},
+		{
+			name:         "STRONG",
+			key:          "TEST_PASSWORD_POLICY",
+			defaultValue: PasswordPolicyNone,
+			envValue:     "STRONG",
+			expected:     PasswordPolicyStrong,
+		},
+		{
+			name:         "環境変数が設定されていない",
+			key:          "TEST_PASSWORD_POLICY",
+			defaultValue: PasswordPolicyNone,
+			envValue:     "",
+			expected:     PasswordPolicyNone,
+		},
+		{
+			name:         "無効な値（デフォルトを返す）",
+			key:          "TEST_PASSWORD_POLICY",
+			defaultValue: PasswordPolicyNone,
+			envValue:     "INVALID",
+			expected:     PasswordPolicyNone,
+		},
+		{
+			name:         "小文字のnone",
+			key:          "TEST_PASSWORD_POLICY",
+			defaultValue: PasswordPolicyStrong,
+			envValue:     "none",
+			expected:     PasswordPolicyNone,
+		},
+		{
+			name:         "小文字のstrong",
+			key:          "TEST_PASSWORD_POLICY",
+			defaultValue: PasswordPolicyNone,
+			envValue:     "strong",
+			expected:     PasswordPolicyStrong,
+		},
+		{
+			name:         "混在ケース：None",
+			key:          "TEST_PASSWORD_POLICY",
+			defaultValue: PasswordPolicyStrong,
+			envValue:     "None",
+			expected:     PasswordPolicyNone,
+		},
+		{
+			name:         "混在ケース：Strong",
+			key:          "TEST_PASSWORD_POLICY",
+			defaultValue: PasswordPolicyNone,
+			envValue:     "Strong",
+			expected:     PasswordPolicyStrong,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envValue != "" {
+				os.Setenv(tt.key, tt.envValue)
+				t.Cleanup(func() {
+					os.Unsetenv(tt.key)
+				})
+			} else {
+				os.Unsetenv(tt.key)
+			}
+
+			result := getPasswordPolicy(tt.key, tt.defaultValue)
+			if result != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, result)
+			}
+		})
+	}
+}
+
 // clearEnv はテスト用の環境変数をクリアします
 func clearEnv(t *testing.T) {
 	t.Helper()
 	os.Unsetenv("PORT")
 	os.Unsetenv("SECURE_COOKIE")
+	os.Unsetenv("PASSWORD_POLICY")
 	os.Unsetenv("DATABASE_PATH")
 	os.Unsetenv("BLOG_TITLE")
 }
