@@ -165,6 +165,90 @@ func TestHandleHome(t *testing.T) {
 	}
 }
 
+func TestHandleHome_BlogTitle(t *testing.T) {
+	tests := []struct {
+		name         string
+		blogTitle    string
+		mockFunc     func(limit, offset int) ([]*domain.Post, error)
+		containsText []string
+	}{
+		{
+			name:      "デフォルトのブログタイトル",
+			blogTitle: "goblog",
+			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
+				return []*domain.Post{}, nil
+			},
+			containsText: []string{
+				"<title>goblog - ホーム</title>",
+				"<h1><a href=\"/\">goblog</a></h1>",
+				"ようこそgoblogへ",
+				"&copy; 2025 goblog. All rights reserved.",
+			},
+		},
+		{
+			name:      "カスタムブログタイトル",
+			blogTitle: "My Awesome Blog",
+			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
+				return []*domain.Post{}, nil
+			},
+			containsText: []string{
+				"<title>My Awesome Blog - ホーム</title>",
+				"<h1><a href=\"/\">My Awesome Blog</a></h1>",
+				"ようこそMy Awesome Blogへ",
+				"&copy; 2025 My Awesome Blog. All rights reserved.",
+			},
+		},
+		{
+			name:      "日本語のブログタイトル",
+			blogTitle: "テストブログ",
+			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
+				publishedAt := time.Now()
+				return []*domain.Post{
+					{
+						ID:          1,
+						Title:       "記事1",
+						Slug:        "post-1",
+						Content:     "内容1",
+						Status:      domain.PostStatusPublished,
+						PublishedAt: &publishedAt,
+					},
+				}, nil
+			},
+			containsText: []string{
+				"<title>テストブログ - ホーム</title>",
+				"<h1><a href=\"/\">テストブログ</a></h1>",
+				"ようこそテストブログへ",
+				"&copy; 2025 テストブログ. All rights reserved.",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := &mockPostService{
+				getPublishedPostsFunc: tt.mockFunc,
+			}
+			router := NewRouterWithTemplates(mockService, nil, false, tt.blogTitle, "../view/templates/*.html")
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+			}
+
+			body := w.Body.String()
+			for _, text := range tt.containsText {
+				if !strings.Contains(body, text) {
+					t.Errorf("expected body to contain %q", text)
+				}
+			}
+		})
+	}
+}
+
 func TestHandlePosts(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -530,6 +614,75 @@ func TestHandlePosts_Error(t *testing.T) {
 	}
 }
 
+func TestHandlePosts_BlogTitle(t *testing.T) {
+	tests := []struct {
+		name         string
+		blogTitle    string
+		mockFunc     func(limit, offset int) ([]*domain.Post, error)
+		containsText []string
+	}{
+		{
+			name:      "デフォルトのブログタイトル",
+			blogTitle: "goblog",
+			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
+				return []*domain.Post{}, nil
+			},
+			containsText: []string{
+				"<title>記事一覧 - goblog</title>",
+				"<h1><a href=\"/\">goblog</a></h1>",
+				"&copy; 2025 goblog. All rights reserved.",
+			},
+		},
+		{
+			name:      "カスタムブログタイトル",
+			blogTitle: "My Tech Blog",
+			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
+				publishedAt := time.Now()
+				return []*domain.Post{
+					{
+						ID:          1,
+						Title:       "Test Post",
+						Slug:        "test-post",
+						Content:     "Test content",
+						Status:      domain.PostStatusPublished,
+						PublishedAt: &publishedAt,
+					},
+				}, nil
+			},
+			containsText: []string{
+				"<title>記事一覧 - My Tech Blog</title>",
+				"<h1><a href=\"/\">My Tech Blog</a></h1>",
+				"&copy; 2025 My Tech Blog. All rights reserved.",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := &mockPostService{
+				getPublishedPostsFunc: tt.mockFunc,
+			}
+			router := NewRouterWithTemplates(mockService, nil, false, tt.blogTitle, "../view/templates/*.html")
+
+			req := httptest.NewRequest(http.MethodGet, "/posts", nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+			}
+
+			body := w.Body.String()
+			for _, text := range tt.containsText {
+				if !strings.Contains(body, text) {
+					t.Errorf("expected body to contain %q", text)
+				}
+			}
+		})
+	}
+}
+
 func TestHandlePostDetail(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -621,6 +774,115 @@ func TestHandlePostDetail(t *testing.T) {
 					if !strings.Contains(body, text) {
 						t.Errorf("expected body to contain %q", text)
 					}
+				}
+			}
+		})
+	}
+}
+
+func TestHandlePostDetail_BlogTitle(t *testing.T) {
+	tests := []struct {
+		name         string
+		blogTitle    string
+		slug         string
+		mockFunc     func(slug string) (*domain.Post, error)
+		containsText []string
+	}{
+		{
+			name:      "デフォルトのブログタイトル",
+			blogTitle: "goblog",
+			slug:      "test-article",
+			mockFunc: func(slug string) (*domain.Post, error) {
+				if slug == "test-article" {
+					publishedAt := time.Now()
+					return &domain.Post{
+						ID:          1,
+						Title:       "テスト記事",
+						Slug:        "test-article",
+						Content:     "記事の本文です",
+						Status:      domain.PostStatusPublished,
+						PublishedAt: &publishedAt,
+					}, nil
+				}
+				return nil, nil
+			},
+			containsText: []string{
+				"<title>テスト記事 - goblog</title>",
+				"<h1><a href=\"/\">goblog</a></h1>",
+				"&copy; 2025 goblog. All rights reserved.",
+			},
+		},
+		{
+			name:      "カスタムブログタイトル",
+			blogTitle: "開発ブログ",
+			slug:      "golang-tips",
+			mockFunc: func(slug string) (*domain.Post, error) {
+				if slug == "golang-tips" {
+					publishedAt := time.Now()
+					return &domain.Post{
+						ID:          2,
+						Title:       "Go言語のTips",
+						Slug:        "golang-tips",
+						Content:     "Goの便利な機能について",
+						Status:      domain.PostStatusPublished,
+						Tags:        "Go,プログラミング",
+						PublishedAt: &publishedAt,
+					}, nil
+				}
+				return nil, nil
+			},
+			containsText: []string{
+				"<title>Go言語のTips - 開発ブログ</title>",
+				"<h1><a href=\"/\">開発ブログ</a></h1>",
+				"&copy; 2025 開発ブログ. All rights reserved.",
+			},
+		},
+		{
+			name:      "英語のブログタイトル",
+			blogTitle: "Tech Insights",
+			slug:      "first-post",
+			mockFunc: func(slug string) (*domain.Post, error) {
+				if slug == "first-post" {
+					publishedAt := time.Now()
+					return &domain.Post{
+						ID:          3,
+						Title:       "My First Post",
+						Slug:        "first-post",
+						Content:     "Welcome to my blog!",
+						Status:      domain.PostStatusPublished,
+						PublishedAt: &publishedAt,
+					}, nil
+				}
+				return nil, nil
+			},
+			containsText: []string{
+				"<title>My First Post - Tech Insights</title>",
+				"<h1><a href=\"/\">Tech Insights</a></h1>",
+				"&copy; 2025 Tech Insights. All rights reserved.",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := &mockPostService{
+				getPostBySlugFunc: tt.mockFunc,
+			}
+			router := NewRouterWithTemplates(mockService, nil, false, tt.blogTitle, "../view/templates/*.html")
+
+			req := httptest.NewRequest(http.MethodGet, "/posts/"+tt.slug, nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+			}
+
+			body := w.Body.String()
+			for _, text := range tt.containsText {
+				if !strings.Contains(body, text) {
+					t.Errorf("expected body to contain %q", text)
 				}
 			}
 		})
