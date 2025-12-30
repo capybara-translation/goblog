@@ -21,7 +21,7 @@ func setupTestDB(t *testing.T) *sqlx.DB {
 	}
 
 	// マイグレーションファイルを読み込んで実行
-	schema, err := os.ReadFile("../../migrations/001_init.sql")
+	schema, err := os.ReadFile("../../migrations/001_create_posts.sql")
 	if err != nil {
 		t.Fatalf("failed to read migration file: %v", err)
 	}

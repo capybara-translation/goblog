@@ -90,6 +90,7 @@ make test-cover
 ```bash
 make help        # ヘルプを表示
 make run         # サーバーを起動
+make stop        # 起動中のサーバーを停止
 make test        # テストを実行
 make test-v      # テストを詳細出力で実行
 make test-cover  # テストカバレッジを表示

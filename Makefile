@@ -1,9 +1,10 @@
-.PHONY: help run test test-v test-cover clean seed reset build install deps
+.PHONY: help run stop test test-v test-cover clean seed reset build install deps
 
 # デフォルトターゲット: ヘルプを表示
 help:
 	@echo "利用可能なコマンド:"
 	@echo "  make run         - サーバーを起動"
+	@echo "  make stop        - 起動中のサーバーを停止"
 	@echo "  make test        - テストを実行"
 	@echo "  make test-v      - テストを詳細出力で実行"
 	@echo "  make test-cover  - テストカバレッジを表示"
@@ -18,6 +19,14 @@ help:
 run:
 	@echo "サーバーを起動中..."
 	go run cmd/goblog/main.go
+
+# サーバーを停止
+stop:
+	@echo "goblogプロセスを停止中..."
+	@lsof -ti :8080 | xargs kill -9 2>/dev/null || true
+	@pkill -f "go run cmd/goblog/main.go" 2>/dev/null || true
+	@pkill -f "goblog" 2>/dev/null || true
+	@echo "停止しました"
 
 # テストを実行
 test:

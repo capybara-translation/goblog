@@ -2,10 +2,10 @@
     {{template "layout" .}}
 {{end}}
 
-{{define "title"}}goblog - ホーム{{end}}
+{{define "title"}}{{.SiteTitle}} - ホーム{{end}}
 
 {{define "content"}}
-<h2>ようこそgoblogへ</h2>
+<h2>ようこそ{{.SiteTitle}}へ</h2>
 <p>Go言語で作られたシンプルなブログシステムです。</p>
 
 <h3 style="margin-top: 30px;">最近の記事</h3>

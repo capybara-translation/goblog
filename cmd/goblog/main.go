@@ -25,7 +25,7 @@ func main() {
 	defer database.Close()
 
 	// マイグレーションの実行
-	if err := db.RunMigrations(database, "migrations/001_init.sql", "migrations/002_create_users.sql"); err != nil {
+	if err := db.RunMigrations(database, "migrations/001_create_posts.sql", "migrations/002_create_users.sql"); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 

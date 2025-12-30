@@ -2,7 +2,7 @@
     {{template "layout" .}}
 {{end}}
 
-{{define "title"}}{{.Post.Title}} - goblog{{end}}
+{{define "title"}}{{.Post.Title}} - {{.SiteTitle}}{{end}}
 
 {{define "content"}}
 <article>
