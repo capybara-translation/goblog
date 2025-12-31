@@ -239,3 +239,207 @@ func TestGetUserIDFromContext_NotFound(t *testing.T) {
 		t.Errorf("expected user ID to be 0 when not found, got %d", userID)
 	}
 }
+
+func TestCSRFMiddleware_GetRequest_Skip(t *testing.T) {
+	// GETリクエストはCSRFチェックをスキップ
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	middleware := CSRFMiddleware()
+	protectedHandler := middleware(handler)
+
+	// CSRFトークンなしでGETリクエスト
+	req := httptest.NewRequest(http.MethodGet, "/api/posts", nil)
+	rec := httptest.NewRecorder()
+
+	protectedHandler.ServeHTTP(rec, req)
+
+	// GETリクエストはCSRFチェックをスキップするのでOK
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+func TestCSRFMiddleware_PostRequest_Success(t *testing.T) {
+	// POSTリクエストで正しいCSRFトークンがある場合は成功
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	middleware := CSRFMiddleware()
+	protectedHandler := middleware(handler)
+
+	csrfToken := "test-csrf-token"
+
+	// CookieとヘッダーにCSRFトークンを設定
+	req := httptest.NewRequest(http.MethodPost, "/api/posts", nil)
+	req.AddCookie(&http.Cookie{
+		Name:  csrfCookieName,
+		Value: csrfToken,
+	})
+	req.Header.Set(csrfHeaderName, csrfToken)
+	rec := httptest.NewRecorder()
+
+	protectedHandler.ServeHTTP(rec, req)
+
+	// CSRFトークンが一致するので成功
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+func TestCSRFMiddleware_NoCookie(t *testing.T) {
+	// CSRFトークンCookieがない場合は403
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("handler should not be called when CSRF cookie is missing")
+		w.WriteHeader(http.StatusOK)
+	})
+
+	middleware := CSRFMiddleware()
+	protectedHandler := middleware(handler)
+
+	// CSRFトークンCookieなしでPOSTリクエスト
+	req := httptest.NewRequest(http.MethodPost, "/api/posts", nil)
+	req.Header.Set(csrfHeaderName, "some-token")
+	rec := httptest.NewRecorder()
+
+	protectedHandler.ServeHTTP(rec, req)
+
+	// CSRFトークンCookieがないので403
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("expected status %d, got %d", http.StatusForbidden, rec.Code)
+	}
+
+	expectedError := "CSRF token cookie missing"
+	if !strings.Contains(rec.Body.String(), expectedError) {
+		t.Errorf("expected error message to contain %q, got %q", expectedError, rec.Body.String())
+	}
+}
+
+func TestCSRFMiddleware_NoHeader(t *testing.T) {
+	// CSRFトークンヘッダーがない場合は403
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("handler should not be called when CSRF header is missing")
+		w.WriteHeader(http.StatusOK)
+	})
+
+	middleware := CSRFMiddleware()
+	protectedHandler := middleware(handler)
+
+	// CSRFトークンヘッダーなしでPOSTリクエスト
+	req := httptest.NewRequest(http.MethodPost, "/api/posts", nil)
+	req.AddCookie(&http.Cookie{
+		Name:  csrfCookieName,
+		Value: "some-token",
+	})
+	rec := httptest.NewRecorder()
+
+	protectedHandler.ServeHTTP(rec, req)
+
+	// CSRFトークンヘッダーがないので403
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("expected status %d, got %d", http.StatusForbidden, rec.Code)
+	}
+
+	expectedError := "CSRF token header missing"
+	if !strings.Contains(rec.Body.String(), expectedError) {
+		t.Errorf("expected error message to contain %q, got %q", expectedError, rec.Body.String())
+	}
+}
+
+func TestCSRFMiddleware_TokenMismatch(t *testing.T) {
+	// CSRFトークンが一致しない場合は403
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("handler should not be called when CSRF tokens mismatch")
+		w.WriteHeader(http.StatusOK)
+	})
+
+	middleware := CSRFMiddleware()
+	protectedHandler := middleware(handler)
+
+	// CookieとヘッダーのCSRFトークンが異なる
+	req := httptest.NewRequest(http.MethodPost, "/api/posts", nil)
+	req.AddCookie(&http.Cookie{
+		Name:  csrfCookieName,
+		Value: "token-in-cookie",
+	})
+	req.Header.Set(csrfHeaderName, "token-in-header")
+	rec := httptest.NewRecorder()
+
+	protectedHandler.ServeHTTP(rec, req)
+
+	// CSRFトークンが一致しないので403
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("expected status %d, got %d", http.StatusForbidden, rec.Code)
+	}
+
+	expectedError := "CSRF token mismatch"
+	if !strings.Contains(rec.Body.String(), expectedError) {
+		t.Errorf("expected error message to contain %q, got %q", expectedError, rec.Body.String())
+	}
+}
+
+func TestCSRFMiddleware_PutRequest(t *testing.T) {
+	// PUT、DELETE、PATCHリクエストもCSRFチェックが必要
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	middleware := CSRFMiddleware()
+	protectedHandler := middleware(handler)
+
+	csrfToken := "test-csrf-token"
+
+	tests := []struct {
+		name   string
+		method string
+	}{
+		{"PUT", http.MethodPut},
+		{"DELETE", http.MethodDelete},
+		{"PATCH", http.MethodPatch},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, "/api/posts/1", nil)
+			req.AddCookie(&http.Cookie{
+				Name:  csrfCookieName,
+				Value: csrfToken,
+			})
+			req.Header.Set(csrfHeaderName, csrfToken)
+			rec := httptest.NewRecorder()
+
+			protectedHandler.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
+			}
+		})
+	}
+}
+
+func TestGenerateCSRFToken(t *testing.T) {
+	// CSRFトークン生成のテスト
+	token1, err := generateCSRFToken()
+	if err != nil {
+		t.Fatalf("failed to generate CSRF token: %v", err)
+	}
+
+	if token1 == "" {
+		t.Error("expected non-empty CSRF token")
+	}
+
+	// 2回目の生成で異なるトークンが生成されることを確認
+	token2, err := generateCSRFToken()
+	if err != nil {
+		t.Fatalf("failed to generate CSRF token: %v", err)
+	}
+
+	if token1 == token2 {
+		t.Error("expected different CSRF tokens on each generation")
+	}
+}

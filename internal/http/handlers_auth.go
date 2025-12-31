@@ -84,6 +84,24 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		Secure:   h.secureCookie,       // HTTPS必須（本番環境ではtrue）
 	})
 
+	// CSRFトークンを生成してCookieに設定
+	csrfToken, err := generateCSRFToken()
+	if err != nil {
+		log.Printf("failed to generate CSRF token: %v", err)
+		respondJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "Internal server error"})
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     csrfCookieName,
+		Value:    csrfToken,
+		Path:     sessionCookiePath,
+		HttpOnly: false,                // JavaScriptからアクセス可能（Double Submit Cookie方式のため）
+		SameSite: http.SameSiteLaxMode, // CSRF対策
+		MaxAge:   24 * 60 * 60,         // 24時間
+		Secure:   h.secureCookie,       // HTTPS必須（本番環境ではtrue）
+	})
+
 	// ユーザー情報を返す（PasswordHashは json:"-" で除外される）
 	respondJSON(w, http.StatusOK, user)
 }
@@ -103,12 +121,23 @@ func (h *AuthHandlers) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		log.Printf("logout error: %v", err)
 	}
 
-	// Cookieを削除（設定時と同じ属性を指定する必要がある）
+	// セッションCookieを削除（設定時と同じ属性を指定する必要がある）
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    "",
 		Path:     sessionCookiePath,
 		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,             // 即座に削除
+		Secure:   h.secureCookie, // 設定時と同じ
+	})
+
+	// CSRFトークンCookieも削除
+	http.SetCookie(w, &http.Cookie{
+		Name:     csrfCookieName,
+		Value:    "",
+		Path:     sessionCookiePath,
+		HttpOnly: false,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,             // 即座に削除
 		Secure:   h.secureCookie, // 設定時と同じ

@@ -34,21 +34,28 @@ func NewRouterWithTemplates(postService service.PostService, authService service
 
 	// API（管理画面が叩く）
 	api := r.PathPrefix("/api/v1").Subrouter()
+
+	// 認証不要なエンドポイント
 	api.HandleFunc("/health", HandleHealth).Methods("GET")
-
-	// 認証API（認証不要）
 	api.HandleFunc("/auth/login", authHandlers.HandleLogin).Methods("POST")
-	api.HandleFunc("/auth/logout", authHandlers.HandleLogout).Methods("POST")
-	api.HandleFunc("/auth/me", authHandlers.HandleMe).Methods("GET")
 
-	// 記事管理API（現時点では認証不要だが、将来的に認証ミドルウェアを適用する）
-	api.HandleFunc("/posts", apiHandlers.HandleGetPosts).Methods("GET")
-	api.HandleFunc("/posts", apiHandlers.HandleCreatePost).Methods("POST")
-	api.HandleFunc("/posts/{id}", apiHandlers.HandleGetPost).Methods("GET")
-	api.HandleFunc("/posts/{id}", apiHandlers.HandleUpdatePost).Methods("PUT")
-	api.HandleFunc("/posts/{id}", apiHandlers.HandleDeletePost).Methods("DELETE")
-	api.HandleFunc("/posts/{id}/publish", apiHandlers.HandlePublishPost).Methods("POST")
-	api.HandleFunc("/posts/{id}/unpublish", apiHandlers.HandleUnpublishPost).Methods("POST")
+	// 認証が必要なエンドポイント
+	protectedAPI := api.PathPrefix("").Subrouter()
+	protectedAPI.Use(AuthMiddleware(authService))
+	protectedAPI.Use(CSRFMiddleware())
+
+	// 認証API
+	protectedAPI.HandleFunc("/auth/logout", authHandlers.HandleLogout).Methods("POST")
+	protectedAPI.HandleFunc("/auth/me", authHandlers.HandleMe).Methods("GET")
+
+	// 記事管理API
+	protectedAPI.HandleFunc("/posts", apiHandlers.HandleGetPosts).Methods("GET")
+	protectedAPI.HandleFunc("/posts", apiHandlers.HandleCreatePost).Methods("POST")
+	protectedAPI.HandleFunc("/posts/{id}", apiHandlers.HandleGetPost).Methods("GET")
+	protectedAPI.HandleFunc("/posts/{id}", apiHandlers.HandleUpdatePost).Methods("PUT")
+	protectedAPI.HandleFunc("/posts/{id}", apiHandlers.HandleDeletePost).Methods("DELETE")
+	protectedAPI.HandleFunc("/posts/{id}/publish", apiHandlers.HandlePublishPost).Methods("POST")
+	protectedAPI.HandleFunc("/posts/{id}/unpublish", apiHandlers.HandleUnpublishPost).Methods("POST")
 
 	return r
 }
