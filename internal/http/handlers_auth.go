@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/capybara-translation/goblog/internal/service"
 )
@@ -48,8 +49,11 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// クライアントのIPアドレスを取得（ブルートフォース対策用）
+	ipAddress := getClientIP(r)
+
 	// 認証
-	sessionID, err := h.authService.Login(req.Username, req.Password)
+	sessionID, err := h.authService.Login(req.Username, req.Password, ipAddress)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) {
 			respondJSON(w, http.StatusUnauthorized, ErrorResponse{Error: "Invalid username or password"})
@@ -170,6 +174,33 @@ func (h *AuthHandlers) HandleMe(w http.ResponseWriter, r *http.Request) {
 
 	// ユーザー情報を返す（PasswordHashは json:"-" で除外される）
 	respondJSON(w, http.StatusOK, user)
+}
+
+// getClientIP はリクエストからクライアントのIPアドレスを取得します
+// プロキシ/ロードバランサー経由の場合はX-Forwarded-ForまたはX-Real-IPヘッダーから取得します
+func getClientIP(r *http.Request) string {
+	// X-Forwarded-Forヘッダーをチェック（プロキシ経由の場合）
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		// X-Forwarded-Forは "client, proxy1, proxy2" の形式
+		// 最初のIPアドレスがクライアントのIP
+		if idx := strings.Index(xff, ","); idx != -1 {
+			return strings.TrimSpace(xff[:idx])
+		}
+		return strings.TrimSpace(xff)
+	}
+
+	// X-Real-IPヘッダーをチェック（代替のプロキシヘッダー）
+	if xri := r.Header.Get("X-Real-IP"); xri != "" {
+		return strings.TrimSpace(xri)
+	}
+
+	// RemoteAddrから取得（フォールバック）
+	// RemoteAddrは "IP:port" の形式なのでIPのみを抽出
+	ip := r.RemoteAddr
+	if idx := strings.LastIndex(ip, ":"); idx != -1 {
+		return ip[:idx]
+	}
+	return ip
 }
 
 // respondJSON はJSONレスポンスを返すヘルパー関数です

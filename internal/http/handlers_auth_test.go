@@ -14,15 +14,15 @@ import (
 
 // mockAuthService は AuthService のモック実装です
 type mockAuthService struct {
-	loginFunc            func(username, password string) (string, error)
+	loginFunc            func(username, password, ipAddress string) (string, error)
 	logoutFunc           func(sessionID string) error
 	getUserBySessionFunc func(sessionID string) (*domain.User, error)
 	createUserFunc       func(username, password string) (*domain.User, error)
 }
 
-func (m *mockAuthService) Login(username, password string) (string, error) {
+func (m *mockAuthService) Login(username, password, ipAddress string) (string, error) {
 	if m.loginFunc != nil {
-		return m.loginFunc(username, password)
+		return m.loginFunc(username, password, ipAddress)
 	}
 	return "", nil
 }
@@ -53,7 +53,7 @@ var _ service.AuthService = (*mockAuthService)(nil)
 func TestHandleLogin_Success(t *testing.T) {
 	now := time.Now()
 	mockService := &mockAuthService{
-		loginFunc: func(username, password string) (string, error) {
+		loginFunc: func(username, password, ipAddress string) (string, error) {
 			if username == "testuser" && password == "password123" {
 				return "test-session-id", nil
 			}
@@ -140,7 +140,7 @@ func TestHandleLogin_Success(t *testing.T) {
 
 func TestHandleLogin_InvalidUsername(t *testing.T) {
 	mockService := &mockAuthService{
-		loginFunc: func(username, password string) (string, error) {
+		loginFunc: func(username, password, ipAddress string) (string, error) {
 			return "", service.ErrInvalidCredentials
 		},
 	}
@@ -178,7 +178,7 @@ func TestHandleLogin_InvalidUsername(t *testing.T) {
 
 func TestHandleLogin_InvalidPassword(t *testing.T) {
 	mockService := &mockAuthService{
-		loginFunc: func(username, password string) (string, error) {
+		loginFunc: func(username, password, ipAddress string) (string, error) {
 			return "", service.ErrInvalidCredentials
 		},
 	}
@@ -206,7 +206,7 @@ func TestHandleLogin_InvalidPassword(t *testing.T) {
 
 func TestHandleLogin_MissingCredentials(t *testing.T) {
 	mockService := &mockAuthService{
-		loginFunc: func(username, password string) (string, error) {
+		loginFunc: func(username, password, ipAddress string) (string, error) {
 			t.Error("Login should not be called for missing credentials")
 			return "", nil
 		},
@@ -258,7 +258,7 @@ func TestHandleLogin_MissingCredentials(t *testing.T) {
 
 func TestHandleLogin_InvalidJSON(t *testing.T) {
 	mockService := &mockAuthService{
-		loginFunc: func(username, password string) (string, error) {
+		loginFunc: func(username, password, ipAddress string) (string, error) {
 			t.Error("Login should not be called for invalid JSON")
 			return "", nil
 		},

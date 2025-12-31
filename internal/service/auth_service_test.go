@@ -125,7 +125,7 @@ func TestAuthService_Login(t *testing.T) {
 	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
 
 	// 正しいパスワードでログイン
-	sessionID, err := authService.Login("testuser", "password123")
+	sessionID, err := authService.Login("testuser", "password123", "127.0.0.1")
 	if err != nil {
 		t.Fatalf("failed to login: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestAuthService_Login_InvalidUsername(t *testing.T) {
 	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
 
 	// 存在しないユーザー名でログイン
-	sessionID, err := authService.Login("nonexistent", "password123")
+	sessionID, err := authService.Login("nonexistent", "password123", "127.0.0.1")
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Errorf("expected ErrInvalidCredentials, got %v", err)
 	}
@@ -190,7 +190,7 @@ func TestAuthService_Login_InvalidPassword(t *testing.T) {
 	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
 
 	// 間違ったパスワードでログイン
-	sessionID, err := authService.Login("testuser", "wrongpassword")
+	sessionID, err := authService.Login("testuser", "wrongpassword", "127.0.0.1")
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Errorf("expected ErrInvalidCredentials, got %v", err)
 	}
@@ -565,5 +565,223 @@ func TestAuthService_PasswordPolicy_Strong_Invalid(t *testing.T) {
 				t.Errorf("expected ErrWeakPassword, got %v", err)
 			}
 		})
+	}
+}
+
+func TestAuthService_BruteForce_MultipleFailures(t *testing.T) {
+	// テスト用のパスワードハッシュを生成
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatalf("failed to hash password: %v", err)
+	}
+
+	mockUserRepo := &mockUserRepository{
+		findByUsernameFunc: func(username string) (*domain.User, error) {
+			if username == "testuser" {
+				return &domain.User{
+					ID:           1,
+					Username:     "testuser",
+					PasswordHash: string(hashedPassword),
+				}, nil
+			}
+			return nil, nil
+		},
+	}
+
+	mockSessionStore := &mockSessionStore{
+		createFunc: func(userID int64, ttl time.Duration) (string, error) {
+			return "test-session-id", nil
+		},
+	}
+
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
+
+	ipAddress := "192.168.1.100"
+
+	// 最初の3回の失敗は遅延なし
+	start := time.Now()
+	for i := 0; i < 3; i++ {
+		_, err := authService.Login("testuser", "wrongpassword", ipAddress)
+		if !errors.Is(err, ErrInvalidCredentials) {
+			t.Errorf("attempt %d: expected ErrInvalidCredentials, got %v", i+1, err)
+		}
+	}
+	elapsed := time.Since(start)
+
+	// 最初の3回は遅延がないので、1秒未満で完了するはず
+	if elapsed > 1*time.Second {
+		t.Errorf("expected first 3 failures to complete quickly, took %v", elapsed)
+	}
+
+	// 4回目の失敗から遅延が発生する（2秒）
+	start = time.Now()
+	_, err = authService.Login("testuser", "wrongpassword", ipAddress)
+	if !errors.Is(err, ErrInvalidCredentials) {
+		t.Errorf("expected ErrInvalidCredentials, got %v", err)
+	}
+	elapsed = time.Since(start)
+
+	// 4回目は2秒の遅延があるはず
+	if elapsed < 2*time.Second {
+		t.Errorf("expected 4th failure to have 2s delay, took only %v", elapsed)
+	}
+	if elapsed > 3*time.Second {
+		t.Errorf("expected 4th failure to complete in ~2s, took %v", elapsed)
+	}
+}
+
+func TestAuthService_BruteForce_SuccessResetsCounter(t *testing.T) {
+	// テスト用のパスワードハッシュを生成
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatalf("failed to hash password: %v", err)
+	}
+
+	mockUserRepo := &mockUserRepository{
+		findByUsernameFunc: func(username string) (*domain.User, error) {
+			if username == "testuser" {
+				return &domain.User{
+					ID:           1,
+					Username:     "testuser",
+					PasswordHash: string(hashedPassword),
+				}, nil
+			}
+			return nil, nil
+		},
+	}
+
+	mockSessionStore := &mockSessionStore{
+		createFunc: func(userID int64, ttl time.Duration) (string, error) {
+			return "test-session-id", nil
+		},
+	}
+
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
+
+	ipAddress := "192.168.1.101"
+
+	// 2回失敗
+	for i := 0; i < 2; i++ {
+		_, err := authService.Login("testuser", "wrongpassword", ipAddress)
+		if !errors.Is(err, ErrInvalidCredentials) {
+			t.Errorf("attempt %d: expected ErrInvalidCredentials, got %v", i+1, err)
+		}
+	}
+
+	// 成功
+	_, err = authService.Login("testuser", "password123", ipAddress)
+	if err != nil {
+		t.Fatalf("expected successful login, got %v", err)
+	}
+
+	// カウンターがリセットされているはず
+	// 再度失敗してもすぐに完了するはず（遅延なし）
+	start := time.Now()
+	_, err = authService.Login("testuser", "wrongpassword", ipAddress)
+	if !errors.Is(err, ErrInvalidCredentials) {
+		t.Errorf("expected ErrInvalidCredentials, got %v", err)
+	}
+	elapsed := time.Since(start)
+
+	// 遅延がないので1秒未満で完了するはず
+	if elapsed > 1*time.Second {
+		t.Errorf("expected failure after success to complete quickly (counter reset), took %v", elapsed)
+	}
+}
+
+func TestAuthService_BruteForce_DifferentIPsIndependent(t *testing.T) {
+	// テスト用のパスワードハッシュを生成
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatalf("failed to hash password: %v", err)
+	}
+
+	mockUserRepo := &mockUserRepository{
+		findByUsernameFunc: func(username string) (*domain.User, error) {
+			if username == "testuser" {
+				return &domain.User{
+					ID:           1,
+					Username:     "testuser",
+					PasswordHash: string(hashedPassword),
+				}, nil
+			}
+			return nil, nil
+		},
+	}
+
+	mockSessionStore := &mockSessionStore{
+		createFunc: func(userID int64, ttl time.Duration) (string, error) {
+			return "test-session-id", nil
+		},
+	}
+
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
+
+	// IP1から3回失敗（遅延が発生する状態にする）
+	ip1 := "192.168.1.100"
+	for i := 0; i < 3; i++ {
+		_, err := authService.Login("testuser", "wrongpassword", ip1)
+		if !errors.Is(err, ErrInvalidCredentials) {
+			t.Errorf("IP1 attempt %d: expected ErrInvalidCredentials, got %v", i+1, err)
+		}
+	}
+
+	// IP2からの最初の失敗は遅延なし（独立したカウンター）
+	ip2 := "192.168.1.200"
+	start := time.Now()
+	_, err = authService.Login("testuser", "wrongpassword", ip2)
+	if !errors.Is(err, ErrInvalidCredentials) {
+		t.Errorf("expected ErrInvalidCredentials, got %v", err)
+	}
+	elapsed := time.Since(start)
+
+	// IP2は新しいカウンターなので遅延なし
+	if elapsed > 1*time.Second {
+		t.Errorf("expected IP2 first failure to complete quickly (independent counter), took %v", elapsed)
+	}
+}
+
+func TestAuthService_BruteForce_EmptyIPAddress(t *testing.T) {
+	// テスト用のパスワードハッシュを生成
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatalf("failed to hash password: %v", err)
+	}
+
+	mockUserRepo := &mockUserRepository{
+		findByUsernameFunc: func(username string) (*domain.User, error) {
+			if username == "testuser" {
+				return &domain.User{
+					ID:           1,
+					Username:     "testuser",
+					PasswordHash: string(hashedPassword),
+				}, nil
+			}
+			return nil, nil
+		},
+	}
+
+	mockSessionStore := &mockSessionStore{
+		createFunc: func(userID int64, ttl time.Duration) (string, error) {
+			return "test-session-id", nil
+		},
+	}
+
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
+
+	// IPアドレスが空の場合、ブルートフォース対策は無効
+	// 何回失敗しても遅延なし
+	start := time.Now()
+	for i := 0; i < 5; i++ {
+		_, err := authService.Login("testuser", "wrongpassword", "")
+		if !errors.Is(err, ErrInvalidCredentials) {
+			t.Errorf("attempt %d: expected ErrInvalidCredentials, got %v", i+1, err)
+		}
+	}
+	elapsed := time.Since(start)
+
+	// 遅延がないので1秒未満で完了するはず
+	if elapsed > 1*time.Second {
+		t.Errorf("expected failures with empty IP to complete quickly (no brute force protection), took %v", elapsed)
 	}
 }

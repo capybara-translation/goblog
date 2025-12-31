@@ -86,15 +86,15 @@ var _ service.PostService = (*mockPostServiceForAPI)(nil)
 
 // mockAuthServiceForAPI は AuthService のモック実装です（API用）
 type mockAuthServiceForAPI struct {
-	loginFunc            func(username, password string) (string, error)
+	loginFunc            func(username, password, ipAddress string) (string, error)
 	logoutFunc           func(sessionID string) error
 	getUserBySessionFunc func(sessionID string) (*domain.User, error)
 	createUserFunc       func(username, password string) (*domain.User, error)
 }
 
-func (m *mockAuthServiceForAPI) Login(username, password string) (string, error) {
+func (m *mockAuthServiceForAPI) Login(username, password, ipAddress string) (string, error) {
 	if m.loginFunc != nil {
-		return m.loginFunc(username, password)
+		return m.loginFunc(username, password, ipAddress)
 	}
 	return "", nil
 }

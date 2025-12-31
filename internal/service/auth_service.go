@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -28,7 +29,8 @@ var (
 // AuthService は認証に関するビジネスロジックを提供するインターフェースです
 type AuthService interface {
 	// Login はユーザー名とパスワードで認証し、セッションIDを返します
-	Login(username, password string) (string, error)
+	// ipAddress はブルートフォース対策のために使用されます
+	Login(username, password, ipAddress string) (string, error)
 
 	// Logout はセッションを削除します
 	Logout(sessionID string) error
@@ -40,39 +42,62 @@ type AuthService interface {
 	CreateUser(username, password string) (*domain.User, error)
 }
 
+// loginAttempt はログイン失敗の試行情報を保持します
+type loginAttempt struct {
+	failCount  int       // 失敗回数
+	lastFailed time.Time // 最後の失敗時刻
+}
+
 // authService はAuthServiceの実装です
 type authService struct {
 	userRepo       repo.UserRepository
 	sessionStore   auth.SessionStore
 	sessionTTL     time.Duration
 	passwordPolicy config.PasswordPolicy
+	// ブルートフォース対策
+	loginAttempts map[string]*loginAttempt // IPアドレスごとの失敗情報
+	attemptsMutex sync.RWMutex             // loginAttemptsへのアクセス制御
 }
 
 // NewAuthService は新しいAuthServiceを作成します
 func NewAuthService(userRepo repo.UserRepository, sessionStore auth.SessionStore, passwordPolicy config.PasswordPolicy) AuthService {
-	return &authService{
+	s := &authService{
 		userRepo:       userRepo,
 		sessionStore:   sessionStore,
 		sessionTTL:     24 * time.Hour, // セッション有効期限: 24時間
 		passwordPolicy: passwordPolicy,
+		loginAttempts:  make(map[string]*loginAttempt),
 	}
+
+	// 古いログイン失敗記録を定期的にクリーンアップ
+	go s.cleanupLoginAttempts()
+
+	return s
 }
 
 // Login はユーザー名とパスワードで認証し、セッションIDを返します
-func (s *authService) Login(username, password string) (string, error) {
+func (s *authService) Login(username, password, ipAddress string) (string, error) {
+	// ブルートフォース対策: 失敗回数に基づく遅延
+	s.applyLoginDelay(ipAddress)
+
 	// ユーザー名でユーザーを検索
 	user, err := s.userRepo.FindByUsername(username)
 	if err != nil {
 		return "", fmt.Errorf("failed to find user: %w", err)
 	}
 	if user == nil {
+		s.recordLoginFailure(ipAddress)
 		return "", ErrInvalidCredentials
 	}
 
 	// パスワードを検証
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		s.recordLoginFailure(ipAddress)
 		return "", ErrInvalidCredentials
 	}
+
+	// ログイン成功: 失敗カウントをリセット
+	s.resetLoginAttempts(ipAddress)
 
 	// セッションを作成
 	sessionID, err := s.sessionStore.Create(user.ID, s.sessionTTL)
@@ -210,4 +235,85 @@ func (s *authService) validateStrongPassword(password string) error {
 	}
 
 	return nil
+}
+
+// applyLoginDelay はログイン失敗回数に基づいて遅延を適用します
+func (s *authService) applyLoginDelay(ipAddress string) {
+	if ipAddress == "" {
+		return
+	}
+
+	s.attemptsMutex.RLock()
+	attempt, exists := s.loginAttempts[ipAddress]
+	s.attemptsMutex.RUnlock()
+
+	if !exists {
+		return
+	}
+
+	// 失敗回数に応じた遅延
+	var delay time.Duration
+	switch {
+	case attempt.failCount >= 10:
+		delay = 30 * time.Second
+	case attempt.failCount >= 5:
+		delay = 5 * time.Second
+	case attempt.failCount >= 3:
+		delay = 2 * time.Second
+	}
+
+	if delay > 0 {
+		time.Sleep(delay)
+	}
+}
+
+// recordLoginFailure はログイン失敗を記録します
+func (s *authService) recordLoginFailure(ipAddress string) {
+	if ipAddress == "" {
+		return
+	}
+
+	s.attemptsMutex.Lock()
+	defer s.attemptsMutex.Unlock()
+
+	attempt, exists := s.loginAttempts[ipAddress]
+	if !exists {
+		s.loginAttempts[ipAddress] = &loginAttempt{
+			failCount:  1,
+			lastFailed: time.Now(),
+		}
+	} else {
+		attempt.failCount++
+		attempt.lastFailed = time.Now()
+	}
+}
+
+// resetLoginAttempts はログイン成功時に失敗カウントをリセットします
+func (s *authService) resetLoginAttempts(ipAddress string) {
+	if ipAddress == "" {
+		return
+	}
+
+	s.attemptsMutex.Lock()
+	defer s.attemptsMutex.Unlock()
+
+	delete(s.loginAttempts, ipAddress)
+}
+
+// cleanupLoginAttempts は古いログイン失敗記録を定期的にクリーンアップします
+func (s *authService) cleanupLoginAttempts() {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		s.attemptsMutex.Lock()
+		now := time.Now()
+		for ip, attempt := range s.loginAttempts {
+			// 最後の失敗から30分経過したら削除
+			if now.Sub(attempt.lastFailed) > 30*time.Minute {
+				delete(s.loginAttempts, ip)
+			}
+		}
+		s.attemptsMutex.Unlock()
+	}
 }
