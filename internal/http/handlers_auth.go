@@ -67,6 +67,11 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	// セッションからユーザー情報を取得
 	user, err := h.authService.GetUserBySession(sessionID)
 	if err != nil {
+		// ユーザーが削除された場合は認証失敗として扱う
+		if errors.Is(err, service.ErrUserNotFound) {
+			respondJSON(w, http.StatusUnauthorized, ErrorResponse{Error: "Authentication failed"})
+			return
+		}
 		log.Printf("get user by session error: %v", err)
 		respondJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "Internal server error"})
 		return
@@ -162,6 +167,11 @@ func (h *AuthHandlers) HandleMe(w http.ResponseWriter, r *http.Request) {
 	// セッションからユーザー情報を取得
 	user, err := h.authService.GetUserBySession(cookie.Value)
 	if err != nil {
+		// ユーザーが削除された場合は401を返す
+		if errors.Is(err, service.ErrUserNotFound) {
+			respondJSON(w, http.StatusUnauthorized, ErrorResponse{Error: "Session expired or invalid"})
+			return
+		}
 		log.Printf("get user by session error: %v", err)
 		respondJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "Internal server error"})
 		return

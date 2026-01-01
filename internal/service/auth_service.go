@@ -129,6 +129,9 @@ func (s *authService) GetUserBySession(sessionID string) (*domain.User, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to find user: %w", err)
 	}
+	if user == nil {
+		return nil, ErrUserNotFound
+	}
 
 	return user, nil
 }

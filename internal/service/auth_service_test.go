@@ -309,8 +309,12 @@ func TestAuthService_GetUserBySession_UserNotFoundInDB(t *testing.T) {
 	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
 
 	user, err := authService.GetUserBySession("valid-session")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if err == nil {
+		t.Fatal("expected error but got nil")
+	}
+
+	if !errors.Is(err, ErrUserNotFound) {
+		t.Errorf("expected ErrUserNotFound but got: %v", err)
 	}
 
 	if user != nil {

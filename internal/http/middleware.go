@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"log"
 	"net/http"
 
@@ -41,6 +42,11 @@ func AuthMiddleware(authService service.AuthService) func(http.Handler) http.Han
 			// セッションからユーザー情報を取得
 			user, err := authService.GetUserBySession(cookie.Value)
 			if err != nil {
+				// ユーザーが削除された場合は401を返す
+				if errors.Is(err, service.ErrUserNotFound) {
+					respondJSON(w, http.StatusUnauthorized, ErrorResponse{Error: "Session expired or invalid"})
+					return
+				}
 				log.Printf("get user by session error: %v", err)
 				respondJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "Internal server error"})
 				return

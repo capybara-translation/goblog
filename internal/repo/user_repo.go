@@ -2,6 +2,7 @@ package repo
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/capybara-translation/goblog/internal/domain"
@@ -42,7 +43,7 @@ func (r *userRepository) FindByUsername(username string) (*domain.User, error) {
 	query := "SELECT * FROM users WHERE username = ?"
 
 	err := r.db.Get(&user, query, username)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -58,7 +59,7 @@ func (r *userRepository) FindByID(id int64) (*domain.User, error) {
 	query := "SELECT * FROM users WHERE id = ?"
 
 	err := r.db.Get(&user, query, id)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {

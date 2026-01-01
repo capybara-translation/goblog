@@ -2,6 +2,7 @@ package repo
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -75,7 +76,7 @@ func (r *postRepository) FindBySlug(slug string) (*domain.Post, error) {
 	query := "SELECT * FROM posts WHERE slug = ?"
 
 	err := r.db.Get(&post, query, slug)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -91,7 +92,7 @@ func (r *postRepository) FindByID(id int64) (*domain.Post, error) {
 	query := "SELECT * FROM posts WHERE id = ?"
 
 	err := r.db.Get(&post, query, id)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
