@@ -182,7 +182,8 @@ func TestHandleHome_BlogTitle(t *testing.T) {
 			},
 			containsText: []string{
 				"<title>goblog - ホーム</title>",
-				"<h1><a href=\"/\">goblog</a></h1>",
+				"<a href=\"/\"",
+				">goblog</a>",
 				"ようこそgoblogへ",
 				"&copy; 2025 goblog. All rights reserved.",
 			},
@@ -195,7 +196,8 @@ func TestHandleHome_BlogTitle(t *testing.T) {
 			},
 			containsText: []string{
 				"<title>My Awesome Blog - ホーム</title>",
-				"<h1><a href=\"/\">My Awesome Blog</a></h1>",
+				"<a href=\"/\"",
+				">My Awesome Blog</a>",
 				"ようこそMy Awesome Blogへ",
 				"&copy; 2025 My Awesome Blog. All rights reserved.",
 			},
@@ -218,7 +220,8 @@ func TestHandleHome_BlogTitle(t *testing.T) {
 			},
 			containsText: []string{
 				"<title>テストブログ - ホーム</title>",
-				"<h1><a href=\"/\">テストブログ</a></h1>",
+				"<a href=\"/\"",
+				">テストブログ</a>",
 				"ようこそテストブログへ",
 				"&copy; 2025 テストブログ. All rights reserved.",
 			},
@@ -383,7 +386,8 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"ページ 1",
+				"ページ",
+				">1</span>",
 				"次のページ",
 				"/posts?page=2",
 			},
@@ -415,7 +419,8 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"ページ 2",
+				"ページ",
+				">2</span>",
 				"前のページ",
 				"/posts?page=1",
 				"次のページ",
@@ -446,7 +451,8 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"ページ 3",
+				"ページ",
+				">3</span>",
 				"前のページ",
 				"/posts?page=2",
 			},
@@ -477,7 +483,8 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"ページ 1",
+				"ページ",
+				">1</span>",
 			},
 		},
 		{
@@ -503,7 +510,8 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"ページ 1",
+				"ページ",
+				">1</span>",
 			},
 		},
 		{
@@ -529,7 +537,8 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"ページ 1",
+				"ページ",
+				">1</span>",
 			},
 		},
 		{
@@ -555,7 +564,8 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"ページ 1",
+				"ページ",
+				">1</span>",
 				"次のページ",
 			},
 		},
@@ -631,7 +641,8 @@ func TestHandlePosts_BlogTitle(t *testing.T) {
 			},
 			containsText: []string{
 				"<title>記事一覧 - goblog</title>",
-				"<h1><a href=\"/\">goblog</a></h1>",
+				"<a href=\"/\"",
+				">goblog</a>",
 				"&copy; 2025 goblog. All rights reserved.",
 			},
 		},
@@ -653,7 +664,8 @@ func TestHandlePosts_BlogTitle(t *testing.T) {
 			},
 			containsText: []string{
 				"<title>記事一覧 - My Tech Blog</title>",
-				"<h1><a href=\"/\">My Tech Blog</a></h1>",
+				"<a href=\"/\"",
+				">My Tech Blog</a>",
 				"&copy; 2025 My Tech Blog. All rights reserved.",
 			},
 		},
@@ -810,7 +822,8 @@ func TestHandlePostDetail_BlogTitle(t *testing.T) {
 			},
 			containsText: []string{
 				"<title>テスト記事 - goblog</title>",
-				"<h1><a href=\"/\">goblog</a></h1>",
+				"<a href=\"/\"",
+				">goblog</a>",
 				"&copy; 2025 goblog. All rights reserved.",
 			},
 		},
@@ -835,7 +848,8 @@ func TestHandlePostDetail_BlogTitle(t *testing.T) {
 			},
 			containsText: []string{
 				"<title>Go言語のTips - 開発ブログ</title>",
-				"<h1><a href=\"/\">開発ブログ</a></h1>",
+				"<a href=\"/\"",
+				">開発ブログ</a>",
 				"&copy; 2025 開発ブログ. All rights reserved.",
 			},
 		},
@@ -859,7 +873,8 @@ func TestHandlePostDetail_BlogTitle(t *testing.T) {
 			},
 			containsText: []string{
 				"<title>My First Post - Tech Insights</title>",
-				"<h1><a href=\"/\">Tech Insights</a></h1>",
+				"<a href=\"/\"",
+				">Tech Insights</a>",
 				"&copy; 2025 Tech Insights. All rights reserved.",
 			},
 		},
@@ -936,6 +951,84 @@ func TestHandleAdmin(t *testing.T) {
 			}
 			if !strings.Contains(body, "React SPA") {
 				t.Error("expected body to contain 'React SPA'")
+			}
+		})
+	}
+}
+
+func TestTruncateRunes(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		maxRunes int
+		expected string
+	}{
+		{
+			name:     "English text - no truncation needed",
+			input:    "Hello World",
+			maxRunes: 20,
+			expected: "Hello World",
+		},
+		{
+			name:     "English text - truncation needed",
+			input:    "Hello World, this is a long text",
+			maxRunes: 11,
+			expected: "Hello World",
+		},
+		{
+			name:     "Japanese text - no truncation needed",
+			input:    "こんにちは世界",
+			maxRunes: 10,
+			expected: "こんにちは世界",
+		},
+		{
+			name:     "Japanese text - truncation needed",
+			input:    "Goを使ってシンプルなブログシステムを構築しました。このブログシステムは以下の機能を持っています：",
+			maxRunes: 30,
+			expected: "Goを使ってシンプルなブログシステムを構築しました。このブロ",
+		},
+		{
+			name:     "Japanese text - exactly 200 runes",
+			input:    "Goを使ってシンプルなブログシステムを構築しました。このブログシステムは以下の機能を持っています：記事の作成・編集・削除、公開・非公開の切り替え、記事一覧表示。また、セキュリティ機能として、パスワードポリシーの適用、bcryptによるパスワードハッシュ化、セッション管理、CSRF保護、ブルートフォース対策なども実装されています。シンプルで使いやすいインターフェースが特徴です。",
+			maxRunes: 200,
+			expected: "Goを使ってシンプルなブログシステムを構築しました。このブログシステムは以下の機能を持っています：記事の作成・編集・削除、公開・非公開の切り替え、記事一覧表示。また、セキュリティ機能として、パスワードポリシーの適用、bcryptによるパスワードハッシュ化、セッション管理、CSRF保護、ブルートフォース対策なども実装されています。シンプルで使いやすいインターフェースが特徴です。",
+		},
+		{
+			name:     "Mixed Japanese and English",
+			input:    "Hello世界、これはTest文章です",
+			maxRunes: 10,
+			expected: "Hello世界、これ",
+		},
+		{
+			name:     "Emoji handling",
+			input:    "こんにちは🎉世界😊",
+			maxRunes: 6,
+			expected: "こんにちは🎉",
+		},
+		{
+			name:     "Empty string",
+			input:    "",
+			maxRunes: 10,
+			expected: "",
+		},
+		{
+			name:     "Zero maxRunes",
+			input:    "Hello",
+			maxRunes: 0,
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := truncateRunes(tt.input, tt.maxRunes)
+			if result != tt.expected {
+				t.Errorf("truncateRunes() = %q, want %q", result, tt.expected)
+			}
+
+			// 重要: 切り詰めた結果に不正なUTF-8シーケンス（�）が含まれていないことを確認
+			if strings.Contains(result, "�") {
+				t.Errorf("truncateRunes() produced invalid UTF-8 sequence (�) for input %q", tt.input)
 			}
 		})
 	}

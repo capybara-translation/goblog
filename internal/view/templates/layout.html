@@ -1,81 +1,70 @@
 {{define "layout"}}
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{block "title" .}}{{.SiteTitle}}{{end}}</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&family=Noto+Serif+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#f8f9fa',
+                            100: '#f1f3f5',
+                            200: '#e9ecef',
+                            300: '#dee2e6',
+                            400: '#ced4da',
+                            500: '#adb5bd',
+                            600: '#868e96',
+                            700: '#495057',
+                            800: '#343a40',
+                            900: '#212529',
+                        }
+                    },
+                    fontFamily: {
+                        'serif': ['"Noto Serif JP"', 'Georgia', 'serif'],
+                        'sans': ['"Noto Sans JP"', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                    }
+                }
+            }
         }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background-color: #f5f5f5;
-        }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        header {
-            background-color: #fff;
-            padding: 20px 0;
-            margin-bottom: 30px;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        header h1 {
-            font-size: 28px;
-            margin-bottom: 10px;
-        }
-        header h1 a {
-            color: #333;
-            text-decoration: none;
-        }
-        nav a {
-            margin-right: 20px;
-            color: #666;
-            text-decoration: none;
-        }
-        nav a:hover {
-            color: #333;
-        }
-        main {
-            background-color: #fff;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        footer {
-            text-align: center;
-            padding: 30px 0;
-            color: #666;
-            font-size: 14px;
+    </script>
+    <style type="text/tailwindcss">
+        @layer base {
+            body {
+                @apply font-serif text-primary-800 antialiased;
+            }
         }
     </style>
 </head>
-<body>
-    <header>
-        <div class="container">
-            <h1><a href="/">{{.SiteTitle}}</a></h1>
-            <nav>
-                <a href="/">ホーム</a>
-                <a href="/posts">記事一覧</a>
+<body class="bg-stone-50 min-h-screen flex flex-col">
+    <header class="bg-white border-b border-stone-200">
+        <div class="max-w-3xl mx-auto px-6 py-8">
+            <h1 class="text-3xl font-sans font-bold mb-4 tracking-tight">
+                <a href="/" class="text-primary-900 hover:text-primary-700 transition-colors duration-200">{{.SiteTitle}}</a>
+            </h1>
+            <nav class="font-sans text-sm">
+                <a href="/" class="text-primary-600 hover:text-primary-900 transition-colors duration-200 mr-6">ホーム</a>
+                <a href="/posts" class="text-primary-600 hover:text-primary-900 transition-colors duration-200">記事一覧</a>
             </nav>
         </div>
     </header>
-    <div class="container">
-        <main>
+
+    <main class="flex-grow">
+        <div class="max-w-3xl mx-auto px-6 py-12">
             {{block "content" .}}{{end}}
-        </main>
-    </div>
-    <footer>
-        <div class="container">
-            <p>&copy; 2025 {{.SiteTitle}}. All rights reserved.</p>
+        </div>
+    </main>
+
+    <footer class="bg-white border-t border-stone-200 mt-auto">
+        <div class="max-w-3xl mx-auto px-6 py-8">
+            <p class="text-center text-sm text-primary-500 font-sans">&copy; 2025 {{.SiteTitle}}. All rights reserved.</p>
         </div>
     </footer>
 </body>

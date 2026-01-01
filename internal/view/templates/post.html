@@ -5,18 +5,29 @@
 {{define "title"}}{{.Post.Title}} - {{.SiteTitle}}{{end}}
 
 {{define "content"}}
-<article>
-    <h2 style="margin-bottom: 10px;">{{.Post.Title}}</h2>
-    <div style="color: #666; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #e0e0e0;">
-        <small>{{.Post.PublishedAt.Format "2006年01月02日"}}</small>
-        {{if .Post.Tags}}
-            <small style="margin-left: 10px;">タグ: {{.Post.Tags}}</small>
-        {{end}}
+<article class="space-y-8">
+    <header class="space-y-4">
+        <h1 class="text-4xl md:text-5xl font-sans font-bold text-primary-900 tracking-tight leading-tight">{{.Post.Title}}</h1>
+        <div class="flex items-center gap-3 text-sm text-primary-500 font-sans pb-6 border-b border-stone-200">
+            <time datetime="{{.Post.PublishedAt.Format "2006-01-02"}}">{{.Post.PublishedAt.Format "2006年01月02日"}}</time>
+            {{if .Post.Tags}}
+                <span class="text-primary-400">•</span>
+                <span class="text-primary-500">{{.Post.Tags}}</span>
+            {{end}}
+        </div>
+    </header>
+
+    <div class="prose prose-lg prose-stone max-w-none">
+        <div class="text-primary-700 leading-relaxed whitespace-pre-wrap text-lg">{{.Post.Content}}</div>
     </div>
-    <div style="line-height: 1.8; white-space: pre-wrap;">{{.Post.Content}}</div>
 </article>
 
-<div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
-    <a href="/posts" style="color: #0066cc; text-decoration: none;">&larr; 記事一覧に戻る</a>
-</div>
+<nav class="mt-12 pt-8 border-t border-stone-200">
+    <a href="/posts" class="inline-flex items-center text-primary-700 hover:text-primary-900 font-sans text-sm font-medium transition-colors duration-200">
+        <svg class="mr-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+        </svg>
+        記事一覧に戻る
+    </a>
+</nav>
 {{end}}

@@ -5,30 +5,42 @@
 {{define "title"}}{{.SiteTitle}} - ホーム{{end}}
 
 {{define "content"}}
-<h2>ようこそ{{.SiteTitle}}へ</h2>
-<p>Go言語で作られたシンプルなブログシステムです。</p>
+<div class="space-y-12">
+    <section>
+        <h2 class="text-4xl font-sans font-bold text-primary-900 mb-4 tracking-tight">ようこそ{{.SiteTitle}}へ</h2>
+        <p class="text-lg text-primary-600 leading-relaxed">Go言語で作られたシンプルなブログシステムです。</p>
+    </section>
 
-<h3 style="margin-top: 30px;">最近の記事</h3>
-{{if .Posts}}
-    <ul style="list-style: none; padding: 0;">
-    {{range .Posts}}
-        <li style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #e0e0e0;">
-            <h4 style="margin-bottom: 5px;">
-                <a href="/posts/{{.Slug}}" style="color: #333; text-decoration: none;">{{.Title}}</a>
-            </h4>
-            <small style="color: #666;">{{.PublishedAt.Format "2006年01月02日"}}</small>
-            {{if .Tags}}
-                <div style="margin-top: 5px;">
-                    <small style="color: #999;">タグ: {{.Tags}}</small>
-                </div>
+    <section>
+        <h3 class="text-2xl font-sans font-bold text-primary-900 mb-8 tracking-tight">最近の記事</h3>
+        {{if .Posts}}
+            <div class="space-y-8">
+            {{range .Posts}}
+                <article class="pb-8 border-b border-stone-200 last:border-b-0">
+                    <h4 class="text-xl font-sans font-bold mb-2 tracking-tight">
+                        <a href="/posts/{{.Slug}}" class="text-primary-900 hover:text-primary-700 transition-colors duration-200">{{.Title}}</a>
+                    </h4>
+                    <div class="flex items-center gap-3 text-sm text-primary-500 font-sans mb-3">
+                        <time datetime="{{.PublishedAt.Format "2006-01-02"}}">{{.PublishedAt.Format "2006年01月02日"}}</time>
+                        {{if .Tags}}
+                            <span class="text-primary-400">•</span>
+                            <span class="text-primary-500">{{.Tags}}</span>
+                        {{end}}
+                    </div>
+                </article>
             {{end}}
-        </li>
-    {{end}}
-    </ul>
-    <p style="margin-top: 20px;">
-        <a href="/posts" style="color: #0066cc;">すべての記事を見る &rarr;</a>
-    </p>
-{{else}}
-    <p style="color: #666;">まだ記事がありません。</p>
-{{end}}
+            </div>
+            <div class="mt-10">
+                <a href="/posts" class="inline-flex items-center text-primary-700 hover:text-primary-900 font-sans text-sm font-medium transition-colors duration-200">
+                    すべての記事を見る
+                    <svg class="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </a>
+            </div>
+        {{else}}
+            <p class="text-primary-500 font-sans">まだ記事がありません。</p>
+        {{end}}
+    </section>
+</div>
 {{end}}

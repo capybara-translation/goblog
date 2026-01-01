@@ -20,15 +20,30 @@ type PublicHandlers struct {
 	postTemplate  *template.Template
 }
 
+// truncateRunes は文字列をルーン（文字）単位で切り詰めます
+// バイト単位ではなくルーン単位で切り詰めることで、日本語などのマルチバイト文字を安全に扱えます
+func truncateRunes(s string, maxRunes int) string {
+	runes := []rune(s)
+	if len(runes) <= maxRunes {
+		return s
+	}
+	return string(runes[:maxRunes])
+}
+
 // NewPublicHandlers はテンプレートパスを指定してPublicHandlersを作成します
 func NewPublicHandlers(postService service.PostService, blogTitle string, templatePattern string) *PublicHandlers {
 	dir := filepath.Dir(templatePattern)
 	layoutPath := filepath.Join(dir, "layout.html")
 
+	// カスタムテンプレート関数を定義
+	funcMap := template.FuncMap{
+		"truncate": truncateRunes,
+	}
+
 	// 各ページごとに独立したテンプレートセットを作成
-	homeTemplate := template.Must(template.ParseFiles(layoutPath, filepath.Join(dir, "home.html")))
-	postsTemplate := template.Must(template.ParseFiles(layoutPath, filepath.Join(dir, "posts.html")))
-	postTemplate := template.Must(template.ParseFiles(layoutPath, filepath.Join(dir, "post.html")))
+	homeTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "home.html")))
+	postsTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "posts.html")))
+	postTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "post.html")))
 
 	return &PublicHandlers{
 		postService:   postService,

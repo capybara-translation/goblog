@@ -5,55 +5,84 @@
 {{define "title"}}記事一覧 - {{.SiteTitle}}{{end}}
 
 {{define "content"}}
-<h2>記事一覧</h2>
+<div class="space-y-12">
+    <header>
+        <h2 class="text-4xl font-sans font-bold text-primary-900 tracking-tight">記事一覧</h2>
+    </header>
 
-{{if .Posts}}
-    <ul style="list-style: none; padding: 0; margin-top: 20px;">
-    {{range .Posts}}
-        <li style="margin-bottom: 30px; padding-bottom: 30px; border-bottom: 1px solid #e0e0e0;">
-            <h3 style="margin-bottom: 10px;">
-                <a href="/posts/{{.Slug}}" style="color: #333; text-decoration: none;">{{.Title}}</a>
-            </h3>
-            <div style="color: #666; margin-bottom: 10px;">
-                <small>{{.PublishedAt.Format "2006年01月02日"}}</small>
-                {{if .Tags}}
-                    <small style="margin-left: 10px;">タグ: {{.Tags}}</small>
+    {{if .Posts}}
+        <div class="space-y-12">
+        {{range .Posts}}
+            <article class="pb-12 border-b border-stone-200 last:border-b-0">
+                <h3 class="text-2xl font-sans font-bold mb-3 tracking-tight">
+                    <a href="/posts/{{.Slug}}" class="text-primary-900 hover:text-primary-700 transition-colors duration-200">{{.Title}}</a>
+                </h3>
+                <div class="flex items-center gap-3 text-sm text-primary-500 font-sans mb-4">
+                    <time datetime="{{.PublishedAt.Format "2006-01-02"}}">{{.PublishedAt.Format "2006年01月02日"}}</time>
+                    {{if .Tags}}
+                        <span class="text-primary-400">•</span>
+                        <span class="text-primary-500">{{.Tags}}</span>
+                    {{end}}
+                </div>
+                <p class="text-primary-600 leading-relaxed mb-4">
+                    {{if gt (len .Content) 200}}
+                        {{truncate .Content 200}}...
+                    {{else}}
+                        {{.Content}}
+                    {{end}}
+                </p>
+                <a href="/posts/{{.Slug}}" class="inline-flex items-center text-primary-700 hover:text-primary-900 font-sans text-sm font-medium transition-colors duration-200">
+                    続きを読む
+                    <svg class="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </a>
+            </article>
+        {{end}}
+        </div>
+
+        <!-- ページネーション -->
+        <nav class="flex items-center justify-between pt-8 border-t border-stone-200 font-sans" aria-label="ページネーション">
+            <div>
+                {{if .HasPrev}}
+                    <a href="/posts?page={{.PrevPage}}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-primary-700 hover:text-primary-900 border border-stone-300 hover:border-primary-700 rounded transition-all duration-200">
+                        <svg class="mr-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                        </svg>
+                        前のページ
+                    </a>
+                {{else}}
+                    <span class="inline-flex items-center px-4 py-2 text-sm font-medium text-primary-400 border border-stone-200 rounded cursor-not-allowed">
+                        <svg class="mr-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                        </svg>
+                        前のページ
+                    </span>
                 {{end}}
             </div>
-            <p style="color: #666; line-height: 1.6;">
-                {{if gt (len .Content) 200}}
-                    {{slice .Content 0 200}}...
+            <div class="text-sm text-primary-600">
+                ページ <span class="font-medium">{{.CurrentPage}}</span>
+            </div>
+            <div>
+                {{if .HasNext}}
+                    <a href="/posts?page={{.NextPage}}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-primary-700 hover:text-primary-900 border border-stone-300 hover:border-primary-700 rounded transition-all duration-200">
+                        次のページ
+                        <svg class="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </a>
                 {{else}}
-                    {{.Content}}
+                    <span class="inline-flex items-center px-4 py-2 text-sm font-medium text-primary-400 border border-stone-200 rounded cursor-not-allowed">
+                        次のページ
+                        <svg class="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </span>
                 {{end}}
-            </p>
-            <a href="/posts/{{.Slug}}" style="color: #0066cc; text-decoration: none;">続きを読む &rarr;</a>
-        </li>
+            </div>
+        </nav>
+    {{else}}
+        <p class="text-primary-500 font-sans">まだ記事がありません。</p>
     {{end}}
-    </ul>
-{{else}}
-    <p style="color: #666; margin-top: 20px;">まだ記事がありません。</p>
-{{end}}
-
-{{if .Posts}}
-<div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;">
-    <div>
-        {{if .HasPrev}}
-            <a href="/posts?page={{.PrevPage}}" style="color: #0066cc; text-decoration: none; padding: 8px 16px; border: 1px solid #0066cc; border-radius: 4px;">&larr; 前のページ</a>
-        {{else}}
-            <span style="color: #ccc; padding: 8px 16px; border: 1px solid #ccc; border-radius: 4px;">&larr; 前のページ</span>
-        {{end}}
-    </div>
-    <div style="color: #666;">
-        ページ {{.CurrentPage}}
-    </div>
-    <div>
-        {{if .HasNext}}
-            <a href="/posts?page={{.NextPage}}" style="color: #0066cc; text-decoration: none; padding: 8px 16px; border: 1px solid #0066cc; border-radius: 4px;">次のページ &rarr;</a>
-        {{else}}
-            <span style="color: #ccc; padding: 8px 16px; border: 1px solid #ccc; border-radius: 4px;">次のページ &rarr;</span>
-        {{end}}
-    </div>
 </div>
-{{end}}
 {{end}}
