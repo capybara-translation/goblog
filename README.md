@@ -254,7 +254,8 @@ make deps        # 依存関係をダウンロード
 - GET /（トップ）
 - GET /posts（一覧）
 - GET /posts/{slug}（詳細）
-- GET /tags/{tag}（タグ別）
+- GET /tags（タグ一覧）
+- GET /tags/{tag}（タグ別記事一覧）
 - GET /rss.xml
 - GET /sitemap.xml
 
@@ -269,11 +270,12 @@ make deps        # 依存関係をダウンロード
 - POST /api/v1/auth/login
 - POST /api/v1/auth/logout
 - GET  /api/v1/auth/me（ログイン状態確認）
-- GET  /api/v1/posts?status=draft|published&q=&page=&limit=
+- GET  /api/v1/posts?status=draft|published&tag=タグ名&limit=N&offset=N
 - POST /api/v1/posts
 - GET  /api/v1/posts/{id}
 - PUT  /api/v1/posts/{id}
 - DELETE /api/v1/posts/{id}
 - POST /api/v1/posts/{id}/publish（公開操作を分けたい場合）
+- POST /api/v1/posts/{id}/unpublish（非公開化）
+- GET  /api/v1/tags?status=draft|published
 - POST /api/v1/uploads（画像アップロード → URL返す）
-- （任意）GET /api/v1/tags

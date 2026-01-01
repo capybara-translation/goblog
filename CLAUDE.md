@@ -149,6 +149,8 @@ func (m *mockPostRepository) FindAll(status *domain.PostStatus, limit, offset in
 - `GET /` - トップページ
 - `GET /posts` - 記事一覧
 - `GET /posts/{slug}` - 記事詳細
+- `GET /tags` - タグ一覧
+- `GET /tags/{tag}` - タグ別記事一覧
 
 ### 管理画面（SPA）
 - `GET /admin` - SPA入口
@@ -162,7 +164,8 @@ func (m *mockPostRepository) FindAll(status *domain.PostStatus, limit, offset in
 **保護エンドポイント（認証+CSRF必須）:**
 - `POST /api/v1/auth/logout` - ログアウト
 - `GET /api/v1/auth/me` - ログイン状態確認
-- `GET /api/v1/posts` - 記事一覧取得
+- `GET /api/v1/posts` - 記事一覧取得（`?status=draft|published&tag=タグ名&limit=N&offset=N`）
+- `GET /api/v1/tags` - タグ一覧取得（`?status=draft|published`）
 - `POST /api/v1/posts` - 記事作成
 - `GET /api/v1/posts/{id}` - 記事取得
 - `PUT /api/v1/posts/{id}` - 記事更新
