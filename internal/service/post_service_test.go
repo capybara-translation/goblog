@@ -10,17 +10,33 @@ import (
 
 // mockPostRepository はPostRepositoryのモック実装です
 type mockPostRepository struct {
-	findAllFunc    func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
-	findBySlugFunc func(slug string) (*domain.Post, error)
-	findByIDFunc   func(id int64) (*domain.Post, error)
-	createFunc     func(post *domain.Post) error
-	updateFunc     func(post *domain.Post) error
-	deleteFunc     func(id int64) error
+	findAllFunc       func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	findAllByTagFunc  func(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	getAllTagsFunc    func(status *domain.PostStatus) (map[string]int, error)
+	findBySlugFunc    func(slug string) (*domain.Post, error)
+	findByIDFunc      func(id int64) (*domain.Post, error)
+	createFunc        func(post *domain.Post) error
+	updateFunc        func(post *domain.Post) error
+	deleteFunc        func(id int64) error
 }
 
 func (m *mockPostRepository) FindAll(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
 	if m.findAllFunc != nil {
 		return m.findAllFunc(status, limit, offset)
+	}
+	return nil, nil
+}
+
+func (m *mockPostRepository) FindAllByTag(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+	if m.findAllByTagFunc != nil {
+		return m.findAllByTagFunc(tag, status, limit, offset)
+	}
+	return nil, nil
+}
+
+func (m *mockPostRepository) GetAllTags(status *domain.PostStatus) (map[string]int, error) {
+	if m.getAllTagsFunc != nil {
+		return m.getAllTagsFunc(status)
 	}
 	return nil, nil
 }
@@ -481,6 +497,321 @@ func TestPostService_DeletePost(t *testing.T) {
 
 		service := NewPostService(mockRepo)
 		err := service.DeletePost(123)
+
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+}
+
+func TestPostService_GetPublishedPostsByTag(t *testing.T) {
+	now := time.Now()
+
+	t.Run("公開済み記事をタグで取得", func(t *testing.T) {
+		expectedPosts := []*domain.Post{
+			{
+				ID:          1,
+				Title:       "Go Post",
+				Slug:        "go-post",
+				Tags:        "Go,Programming",
+				Status:      domain.PostStatusPublished,
+				PublishedAt: &now,
+			},
+		}
+
+		mockRepo := &mockPostRepository{
+			findAllByTagFunc: func(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				if tag != "Go" {
+					t.Errorf("expected tag to be 'Go', got: %s", tag)
+				}
+				if status == nil || *status != domain.PostStatusPublished {
+					t.Errorf("expected status to be published, got: %v", status)
+				}
+				return expectedPosts, nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		posts, err := service.GetPublishedPostsByTag("Go", 10, 0)
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(posts) != 1 {
+			t.Errorf("expected 1 post, got %d", len(posts))
+		}
+
+		if posts[0].Title != "Go Post" {
+			t.Errorf("expected title 'Go Post', got %s", posts[0].Title)
+		}
+	})
+
+	t.Run("空のタグでエラー", func(t *testing.T) {
+		mockRepo := &mockPostRepository{}
+		service := NewPostService(mockRepo)
+
+		_, err := service.GetPublishedPostsByTag("", 10, 0)
+
+		if err == nil {
+			t.Fatal("expected error for empty tag, got nil")
+		}
+
+		if err.Error() != "tag cannot be empty" {
+			t.Errorf("expected 'tag cannot be empty' error, got: %v", err)
+		}
+	})
+
+	t.Run("リポジトリエラー", func(t *testing.T) {
+		mockRepo := &mockPostRepository{
+			findAllByTagFunc: func(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				return nil, fmt.Errorf("database error")
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		_, err := service.GetPublishedPostsByTag("Go", 10, 0)
+
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+}
+
+func TestPostService_GetAllPostsByTag(t *testing.T) {
+	now := time.Now()
+
+	t.Run("全ステータスの記事をタグで取得", func(t *testing.T) {
+		expectedPosts := []*domain.Post{
+			{
+				ID:          1,
+				Title:       "Published Go Post",
+				Tags:        "Go",
+				Status:      domain.PostStatusPublished,
+				PublishedAt: &now,
+			},
+			{
+				ID:     2,
+				Title:  "Draft Go Post",
+				Tags:   "Go",
+				Status: domain.PostStatusDraft,
+			},
+		}
+
+		mockRepo := &mockPostRepository{
+			findAllByTagFunc: func(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				if tag != "Go" {
+					t.Errorf("expected tag to be 'Go', got: %s", tag)
+				}
+				if status != nil {
+					t.Errorf("expected status to be nil, got: %v", status)
+				}
+				return expectedPosts, nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		posts, err := service.GetAllPostsByTag("Go", nil, 10, 0)
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(posts) != 2 {
+			t.Errorf("expected 2 posts, got %d", len(posts))
+		}
+	})
+
+	t.Run("特定ステータスの記事をタグで取得", func(t *testing.T) {
+		draftStatus := domain.PostStatusDraft
+		expectedPosts := []*domain.Post{
+			{
+				ID:     1,
+				Title:  "Draft Go Post",
+				Tags:   "Go",
+				Status: domain.PostStatusDraft,
+			},
+		}
+
+		mockRepo := &mockPostRepository{
+			findAllByTagFunc: func(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				if status == nil || *status != domain.PostStatusDraft {
+					t.Errorf("expected status to be draft, got: %v", status)
+				}
+				return expectedPosts, nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		posts, err := service.GetAllPostsByTag("Go", &draftStatus, 10, 0)
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(posts) != 1 {
+			t.Errorf("expected 1 post, got %d", len(posts))
+		}
+	})
+
+	t.Run("空のタグでエラー", func(t *testing.T) {
+		mockRepo := &mockPostRepository{}
+		service := NewPostService(mockRepo)
+
+		_, err := service.GetAllPostsByTag("", nil, 10, 0)
+
+		if err == nil {
+			t.Fatal("expected error for empty tag, got nil")
+		}
+	})
+}
+
+func TestPostService_GetPublishedTags(t *testing.T) {
+	t.Run("公開記事のタグを取得", func(t *testing.T) {
+		expectedTags := map[string]int{
+			"Go":     5,
+			"React":  3,
+			"Docker": 2,
+		}
+
+		mockRepo := &mockPostRepository{
+			getAllTagsFunc: func(status *domain.PostStatus) (map[string]int, error) {
+				if status == nil || *status != domain.PostStatusPublished {
+					t.Errorf("expected status to be published, got: %v", status)
+				}
+				return expectedTags, nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		tags, err := service.GetPublishedTags()
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(tags) != 3 {
+			t.Errorf("expected 3 tags, got %d", len(tags))
+		}
+
+		if tags["Go"] != 5 {
+			t.Errorf("expected Go count to be 5, got %d", tags["Go"])
+		}
+
+		if tags["React"] != 3 {
+			t.Errorf("expected React count to be 3, got %d", tags["React"])
+		}
+
+		if tags["Docker"] != 2 {
+			t.Errorf("expected Docker count to be 2, got %d", tags["Docker"])
+		}
+	})
+
+	t.Run("リポジトリエラー", func(t *testing.T) {
+		mockRepo := &mockPostRepository{
+			getAllTagsFunc: func(status *domain.PostStatus) (map[string]int, error) {
+				return nil, fmt.Errorf("database error")
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		_, err := service.GetPublishedTags()
+
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+
+	t.Run("タグが存在しない場合", func(t *testing.T) {
+		mockRepo := &mockPostRepository{
+			getAllTagsFunc: func(status *domain.PostStatus) (map[string]int, error) {
+				return map[string]int{}, nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		tags, err := service.GetPublishedTags()
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(tags) != 0 {
+			t.Errorf("expected 0 tags, got %d", len(tags))
+		}
+	})
+}
+
+func TestPostService_GetAllTags(t *testing.T) {
+	t.Run("全記事のタグを取得（ステータス指定なし）", func(t *testing.T) {
+		expectedTags := map[string]int{
+			"Go":     8,
+			"React":  5,
+			"Python": 3,
+		}
+
+		mockRepo := &mockPostRepository{
+			getAllTagsFunc: func(status *domain.PostStatus) (map[string]int, error) {
+				if status != nil {
+					t.Errorf("expected status to be nil, got: %v", status)
+				}
+				return expectedTags, nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		tags, err := service.GetAllTags(nil)
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(tags) != 3 {
+			t.Errorf("expected 3 tags, got %d", len(tags))
+		}
+
+		if tags["Go"] != 8 {
+			t.Errorf("expected Go count to be 8, got %d", tags["Go"])
+		}
+	})
+
+	t.Run("特定ステータスのタグを取得", func(t *testing.T) {
+		draftStatus := domain.PostStatusDraft
+		expectedTags := map[string]int{
+			"Go":     3,
+			"Python": 2,
+		}
+
+		mockRepo := &mockPostRepository{
+			getAllTagsFunc: func(status *domain.PostStatus) (map[string]int, error) {
+				if status == nil || *status != domain.PostStatusDraft {
+					t.Errorf("expected status to be draft, got: %v", status)
+				}
+				return expectedTags, nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		tags, err := service.GetAllTags(&draftStatus)
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(tags) != 2 {
+			t.Errorf("expected 2 tags, got %d", len(tags))
+		}
+	})
+
+	t.Run("リポジトリエラー", func(t *testing.T) {
+		mockRepo := &mockPostRepository{
+			getAllTagsFunc: func(status *domain.PostStatus) (map[string]int, error) {
+				return nil, fmt.Errorf("database error")
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		_, err := service.GetAllTags(nil)
 
 		if err == nil {
 			t.Fatal("expected error, got nil")

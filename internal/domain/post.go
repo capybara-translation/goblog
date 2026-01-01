@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -11,6 +12,19 @@ const (
 	PostStatusDraft     PostStatus = "draft"
 	PostStatusPublished PostStatus = "published"
 )
+
+// ParsePostStatus は文字列をPostStatusに変換します
+// 不正な値の場合はエラーを返します
+func ParsePostStatus(s string) (PostStatus, error) {
+	switch s {
+	case string(PostStatusDraft):
+		return PostStatusDraft, nil
+	case string(PostStatusPublished):
+		return PostStatusPublished, nil
+	default:
+		return "", fmt.Errorf("invalid status: '%s'. Must be 'draft' or 'published'", s)
+	}
+}
 
 // Post はブログ記事を表すドメインモデルです
 type Post struct {

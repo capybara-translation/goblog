@@ -27,6 +27,8 @@ func NewRouterWithTemplates(postService service.PostService, authService service
 	r.HandleFunc("/", publicHandlers.HandleHome).Methods("GET")
 	r.HandleFunc("/posts/{slug}", publicHandlers.HandlePostDetail).Methods("GET")
 	r.HandleFunc("/posts", publicHandlers.HandlePosts).Methods("GET")
+	r.HandleFunc("/tags", publicHandlers.HandleTags).Methods("GET")
+	r.HandleFunc("/tags/{tag}", publicHandlers.HandleTagPosts).Methods("GET")
 
 	// 管理画面（SPA）
 	r.HandleFunc("/admin", HandleAdmin).Methods("GET")
@@ -56,6 +58,7 @@ func NewRouterWithTemplates(postService service.PostService, authService service
 	protectedAPI.HandleFunc("/posts/{id}", apiHandlers.HandleDeletePost).Methods("DELETE")
 	protectedAPI.HandleFunc("/posts/{id}/publish", apiHandlers.HandlePublishPost).Methods("POST")
 	protectedAPI.HandleFunc("/posts/{id}/unpublish", apiHandlers.HandleUnpublishPost).Methods("POST")
+	protectedAPI.HandleFunc("/tags", apiHandlers.HandleGetTags).Methods("GET")
 
 	return r
 }

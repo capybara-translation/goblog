@@ -36,6 +36,18 @@ type PostService interface {
 
 	// DeletePost は記事を削除します
 	DeletePost(id int64) error
+
+	// GetPublishedPostsByTag は公開済み記事をタグで取得します
+	GetPublishedPostsByTag(tag string, limit, offset int) ([]*domain.Post, error)
+
+	// GetAllPostsByTag は管理画面用にタグで記事を取得します（ステータス指定可能）
+	GetAllPostsByTag(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+
+	// GetPublishedTags は公開済み記事のタグ一覧を取得します
+	GetPublishedTags() (map[string]int, error)
+
+	// GetAllTags は管理画面用にタグ一覧を取得します（ステータス指定可能）
+	GetAllTags(status *domain.PostStatus) (map[string]int, error)
 }
 
 type postService struct {
@@ -186,4 +198,32 @@ func (s *postService) UnpublishPost(id int64) (*domain.Post, error) {
 // DeletePost は記事を削除します
 func (s *postService) DeletePost(id int64) error {
 	return s.repo.Delete(id)
+}
+
+// GetPublishedPostsByTag は公開済み記事をタグで取得します
+func (s *postService) GetPublishedPostsByTag(tag string, limit, offset int) ([]*domain.Post, error) {
+	if tag == "" {
+		return nil, fmt.Errorf("tag cannot be empty")
+	}
+	status := domain.PostStatusPublished
+	return s.repo.FindAllByTag(tag, &status, limit, offset)
+}
+
+// GetAllPostsByTag は管理画面用にタグで記事を取得します（ステータス指定可能）
+func (s *postService) GetAllPostsByTag(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+	if tag == "" {
+		return nil, fmt.Errorf("tag cannot be empty")
+	}
+	return s.repo.FindAllByTag(tag, status, limit, offset)
+}
+
+// GetPublishedTags は公開済み記事のタグ一覧を取得します
+func (s *postService) GetPublishedTags() (map[string]int, error) {
+	status := domain.PostStatusPublished
+	return s.repo.GetAllTags(&status)
+}
+
+// GetAllTags は管理画面用にタグ一覧を取得します（ステータス指定可能）
+func (s *postService) GetAllTags(status *domain.PostStatus) (map[string]int, error) {
+	return s.repo.GetAllTags(status)
 }

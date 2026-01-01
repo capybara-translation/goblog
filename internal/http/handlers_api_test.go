@@ -2,6 +2,7 @@ package http
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,17 +17,41 @@ const testSessionID = "test-session-id"
 
 // mockPostServiceForAPI は PostService のモック実装です（API用）
 type mockPostServiceForAPI struct {
-	getAllPostsFunc   func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
-	getPostByIDFunc   func(id int64) (*domain.Post, error)
-	createPostFunc    func(title, slug, content, tags string) (*domain.Post, error)
-	updatePostFunc    func(id int64, title, slug, content, tags string) (*domain.Post, error)
-	deletePostFunc    func(id int64) error
-	publishPostFunc   func(id int64) (*domain.Post, error)
-	unpublishPostFunc func(id int64) (*domain.Post, error)
+	getAllPostsFunc      func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	getAllPostsByTagFunc func(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	getAllTagsFunc       func(status *domain.PostStatus) (map[string]int, error)
+	getPostByIDFunc      func(id int64) (*domain.Post, error)
+	createPostFunc       func(title, slug, content, tags string) (*domain.Post, error)
+	updatePostFunc       func(id int64, title, slug, content, tags string) (*domain.Post, error)
+	deletePostFunc       func(id int64) error
+	publishPostFunc      func(id int64) (*domain.Post, error)
+	unpublishPostFunc    func(id int64) (*domain.Post, error)
 }
 
 func (m *mockPostServiceForAPI) GetPublishedPosts(limit, offset int) ([]*domain.Post, error) {
 	return []*domain.Post{}, nil
+}
+
+func (m *mockPostServiceForAPI) GetPublishedPostsByTag(tag string, limit, offset int) ([]*domain.Post, error) {
+	return []*domain.Post{}, nil
+}
+
+func (m *mockPostServiceForAPI) GetAllPostsByTag(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+	if m.getAllPostsByTagFunc != nil {
+		return m.getAllPostsByTagFunc(tag, status, limit, offset)
+	}
+	return []*domain.Post{}, nil
+}
+
+func (m *mockPostServiceForAPI) GetPublishedTags() (map[string]int, error) {
+	return map[string]int{}, nil
+}
+
+func (m *mockPostServiceForAPI) GetAllTags(status *domain.PostStatus) (map[string]int, error) {
+	if m.getAllTagsFunc != nil {
+		return m.getAllTagsFunc(status)
+	}
+	return map[string]int{}, nil
 }
 
 func (m *mockPostServiceForAPI) GetPostBySlug(slug string) (*domain.Post, error) {
@@ -734,5 +759,331 @@ func TestHandleGetPosts_LimitMax(t *testing.T) {
 				t.Errorf("expected service to receive limit %d, got %d", tt.expectedLimit, receivedLimit)
 			}
 		})
+	}
+}
+
+func TestHandleGetPosts_WithTagFilter(t *testing.T) {
+	mockAuthService := createTestAuthService()
+
+	t.Run("タグでフィルタリング", func(t *testing.T) {
+		receivedTag := ""
+		mockPostService := &mockPostServiceForAPI{
+			getAllPostsByTagFunc: func(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				receivedTag = tag
+				return []*domain.Post{
+					{ID: 1, Title: "Go Post", Tags: "Go"},
+				}, nil
+			},
+		}
+
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?tag=Go", nil)
+		addSessionCookie(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		if receivedTag != "Go" {
+			t.Errorf("expected tag 'Go', got '%s'", receivedTag)
+		}
+	})
+
+	t.Run("タグとステータスの両方でフィルタリング", func(t *testing.T) {
+		receivedTag := ""
+		var receivedStatus *domain.PostStatus
+
+		mockPostService := &mockPostServiceForAPI{
+			getAllPostsByTagFunc: func(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				receivedTag = tag
+				receivedStatus = status
+				return []*domain.Post{}, nil
+			},
+		}
+
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?tag=React&status=published", nil)
+		addSessionCookie(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		if receivedTag != "React" {
+			t.Errorf("expected tag 'React', got '%s'", receivedTag)
+		}
+
+		if receivedStatus == nil || *receivedStatus != domain.PostStatusPublished {
+			t.Errorf("expected status 'published', got %v", receivedStatus)
+		}
+	})
+}
+
+func TestHandleGetPosts_InvalidStatus(t *testing.T) {
+	mockPostService := &mockPostServiceForAPI{}
+	mockAuthService := createTestAuthService()
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+
+	tests := []struct {
+		name           string
+		status         string
+		expectedStatus int
+		expectedError  string
+	}{
+		{
+			name:           "無効なステータス値",
+			status:         "invalid",
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "invalid status",
+		},
+		{
+			name:           "タイポしたステータス",
+			status:         "publised",
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "invalid status",
+		},
+		{
+			name:           "大文字のステータス",
+			status:         "PUBLISHED",
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "invalid status",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?status="+tt.status, nil)
+			addSessionCookie(req)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			if w.Code != tt.expectedStatus {
+				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
+			}
+
+			var response map[string]string
+			json.NewDecoder(w.Body).Decode(&response)
+
+			if !strings.Contains(response["error"], tt.expectedError) {
+				t.Errorf("expected error to contain '%s', got '%s'", tt.expectedError, response["error"])
+			}
+		})
+	}
+}
+
+func TestHandleGetTags(t *testing.T) {
+	mockAuthService := createTestAuthService()
+
+	t.Run("全タグを取得（ソート確認）", func(t *testing.T) {
+		mockPostService := &mockPostServiceForAPI{
+			getAllTagsFunc: func(status *domain.PostStatus) (map[string]int, error) {
+				return map[string]int{
+					"Go":     10,
+					"React":  8,
+					"Docker": 5,
+					"Python": 3,
+				}, nil
+			},
+		}
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/tags", nil)
+		addSessionCookie(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		var tags []map[string]interface{}
+		json.NewDecoder(w.Body).Decode(&tags)
+
+		if len(tags) != 4 {
+			t.Errorf("expected 4 tags, got %d", len(tags))
+		}
+
+		// ソート順を確認: 記事数降順、同数なら名前昇順
+		if tags[0]["name"] != "Go" || int(tags[0]["count"].(float64)) != 10 {
+			t.Errorf("expected first tag to be Go with count 10, got %v", tags[0])
+		}
+
+		if tags[1]["name"] != "React" || int(tags[1]["count"].(float64)) != 8 {
+			t.Errorf("expected second tag to be React with count 8, got %v", tags[1])
+		}
+
+		if tags[2]["name"] != "Docker" || int(tags[2]["count"].(float64)) != 5 {
+			t.Errorf("expected third tag to be Docker with count 5, got %v", tags[2])
+		}
+
+		if tags[3]["name"] != "Python" || int(tags[3]["count"].(float64)) != 3 {
+			t.Errorf("expected fourth tag to be Python with count 3, got %v", tags[3])
+		}
+	})
+
+	t.Run("ステータスフィルタ付きでタグを取得", func(t *testing.T) {
+		var receivedStatus *domain.PostStatus
+		mockPostService := &mockPostServiceForAPI{
+			getAllTagsFunc: func(status *domain.PostStatus) (map[string]int, error) {
+				receivedStatus = status
+				return map[string]int{"Go": 5}, nil
+			},
+		}
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/tags?status=published", nil)
+		addSessionCookie(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		if receivedStatus == nil || *receivedStatus != domain.PostStatusPublished {
+			t.Errorf("expected status 'published', got %v", receivedStatus)
+		}
+	})
+
+	t.Run("無効なステータス値でエラー", func(t *testing.T) {
+		mockPostService := &mockPostServiceForAPI{}
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/tags?status=invalid", nil)
+		addSessionCookie(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+		}
+
+		var response map[string]string
+		json.NewDecoder(w.Body).Decode(&response)
+
+		if !strings.Contains(response["error"], "invalid status") {
+			t.Errorf("expected error to contain 'invalid status', got '%s'", response["error"])
+		}
+	})
+
+	t.Run("サービスエラーの伝播", func(t *testing.T) {
+		mockPostService := &mockPostServiceForAPI{
+			getAllTagsFunc: func(status *domain.PostStatus) (map[string]int, error) {
+				return nil, fmt.Errorf("database error")
+			},
+		}
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/tags", nil)
+		addSessionCookie(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+		}
+	})
+
+	t.Run("タグが存在しない場合は空配列", func(t *testing.T) {
+		mockPostService := &mockPostServiceForAPI{
+			getAllTagsFunc: func(status *domain.PostStatus) (map[string]int, error) {
+				return map[string]int{}, nil
+			},
+		}
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/tags", nil)
+		addSessionCookie(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		var tags []map[string]interface{}
+		json.NewDecoder(w.Body).Decode(&tags)
+
+		if len(tags) != 0 {
+			t.Errorf("expected 0 tags, got %d", len(tags))
+		}
+	})
+}
+
+func TestHandleGetTags_Sorting(t *testing.T) {
+	// タグのソートロジックをより詳細にテスト
+	mockAuthService := createTestAuthService()
+	mockPostService := &mockPostServiceForAPI{
+		getAllTagsFunc: func(status *domain.PostStatus) (map[string]int, error) {
+			// 同じカウントのタグを含むデータ
+			return map[string]int{
+				"Zebra":  5,
+				"Apple":  5,
+				"Docker": 10,
+				"Beta":   5,
+				"Go":     10,
+			}, nil
+		},
+	}
+
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/tags", nil)
+	addSessionCookie(req)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var tags []map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&tags)
+
+	// 期待される順序:
+	// 1. Docker (count: 10)
+	// 2. Go (count: 10)
+	// 3. Apple (count: 5)
+	// 4. Beta (count: 5)
+	// 5. Zebra (count: 5)
+
+	expectedOrder := []struct {
+		name  string
+		count int
+	}{
+		{"Docker", 10},
+		{"Go", 10},
+		{"Apple", 5},
+		{"Beta", 5},
+		{"Zebra", 5},
+	}
+
+	for i, expected := range expectedOrder {
+		if i >= len(tags) {
+			t.Fatalf("not enough tags in response, expected at least %d", i+1)
+		}
+
+		if tags[i]["name"] != expected.name {
+			t.Errorf("position %d: expected name '%s', got '%s'", i, expected.name, tags[i]["name"])
+		}
+
+		if int(tags[i]["count"].(float64)) != expected.count {
+			t.Errorf("position %d: expected count %d, got %v", i, expected.count, tags[i]["count"])
+		}
 	}
 }

@@ -1,0 +1,31 @@
+{{define "tags"}}
+    {{template "layout" .}}
+{{end}}
+
+{{define "title"}}タグ一覧 - {{.SiteTitle}}{{end}}
+
+{{define "content"}}
+<div class="space-y-12">
+    <header>
+        <h2 class="text-4xl font-sans font-bold text-primary-900 tracking-tight">タグ一覧</h2>
+        <p class="mt-4 text-lg text-primary-600">記事をタグで探す</p>
+    </header>
+
+    {{if .Tags}}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {{range .Tags}}
+            <a href="/tags/{{.Name}}" class="block p-6 bg-white border border-stone-200 rounded-lg hover:border-primary-700 hover:shadow-md transition-all duration-200">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xl font-sans font-bold text-primary-900 tracking-tight">{{.Name}}</h3>
+                    <span class="inline-flex items-center justify-center px-3 py-1 text-sm font-medium text-primary-700 bg-primary-100 rounded-full">
+                        {{.Count}}件
+                    </span>
+                </div>
+            </a>
+        {{end}}
+        </div>
+    {{else}}
+        <p class="text-primary-500 font-sans">まだタグがありません。</p>
+    {{end}}
+</div>
+{{end}}

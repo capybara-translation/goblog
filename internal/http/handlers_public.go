@@ -4,8 +4,11 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"net/url"
 	"path/filepath"
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/capybara-translation/goblog/internal/service"
 	"github.com/gorilla/mux"
@@ -13,11 +16,13 @@ import (
 
 // PublicHandlers は公開ページのハンドラーをまとめた構造体です
 type PublicHandlers struct {
-	postService   service.PostService
-	blogTitle     string // ブログのタイトル
-	homeTemplate  *template.Template
-	postsTemplate *template.Template
-	postTemplate  *template.Template
+	postService      service.PostService
+	blogTitle        string // ブログのタイトル
+	homeTemplate     *template.Template
+	postsTemplate    *template.Template
+	postTemplate     *template.Template
+	tagsTemplate     *template.Template
+	tagPostsTemplate *template.Template
 }
 
 // truncateRunes は文字列をルーン（文字）単位で切り詰めます
@@ -30,6 +35,21 @@ func truncateRunes(s string, maxRunes int) string {
 	return string(runes[:maxRunes])
 }
 
+// splitTags はカンマ区切りのタグ文字列をスライスに変換します
+func splitTags(tags string) []string {
+	if tags == "" {
+		return []string{}
+	}
+	result := []string{}
+	for _, tag := range strings.Split(tags, ",") {
+		trimmed := strings.TrimSpace(tag)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
 // NewPublicHandlers はテンプレートパスを指定してPublicHandlersを作成します
 func NewPublicHandlers(postService service.PostService, blogTitle string, templatePattern string) *PublicHandlers {
 	dir := filepath.Dir(templatePattern)
@@ -37,20 +57,25 @@ func NewPublicHandlers(postService service.PostService, blogTitle string, templa
 
 	// カスタムテンプレート関数を定義
 	funcMap := template.FuncMap{
-		"truncate": truncateRunes,
+		"truncate":  truncateRunes,
+		"splitTags": splitTags,
 	}
 
 	// 各ページごとに独立したテンプレートセットを作成
 	homeTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "home.html")))
 	postsTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "posts.html")))
 	postTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "post.html")))
+	tagsTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "tags.html")))
+	tagPostsTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "tag_posts.html")))
 
 	return &PublicHandlers{
-		postService:   postService,
-		blogTitle:     blogTitle,
-		homeTemplate:  homeTemplate,
-		postsTemplate: postsTemplate,
-		postTemplate:  postTemplate,
+		postService:      postService,
+		blogTitle:        blogTitle,
+		homeTemplate:     homeTemplate,
+		postsTemplate:    postsTemplate,
+		postTemplate:     postTemplate,
+		tagsTemplate:     tagsTemplate,
+		tagPostsTemplate: tagPostsTemplate,
 	}
 }
 
@@ -147,6 +172,116 @@ func (h *PublicHandlers) HandlePostDetail(w http.ResponseWriter, r *http.Request
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := h.postTemplate.ExecuteTemplate(w, "post", data); err != nil {
+		log.Printf("failed to execute template: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+}
+
+// HandleTags はタグ一覧ページを表示します
+func (h *PublicHandlers) HandleTags(w http.ResponseWriter, r *http.Request) {
+	// 公開済み記事のタグを取得
+	tagCounts, err := h.postService.GetPublishedTags()
+	if err != nil {
+		log.Printf("failed to get published tags: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// タグを記事数の降順でソート
+	type TagInfo struct {
+		Name  string
+		Count int
+	}
+
+	tags := make([]TagInfo, 0, len(tagCounts))
+	for name, count := range tagCounts {
+		tags = append(tags, TagInfo{Name: name, Count: count})
+	}
+
+	// 記事数の降順、同数の場合はタグ名の昇順でソート
+	slices.SortFunc(tags, func(a, b TagInfo) int {
+		// 記事数で比較（降順）
+		if a.Count != b.Count {
+			return b.Count - a.Count
+		}
+		// タグ名で比較（昇順）
+		if a.Name < b.Name {
+			return -1
+		} else if a.Name > b.Name {
+			return 1
+		}
+		return 0
+	})
+
+	data := map[string]any{
+		"SiteTitle": h.blogTitle,
+		"Tags":      tags,
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := h.tagsTemplate.ExecuteTemplate(w, "tags", data); err != nil {
+		log.Printf("failed to execute template: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+}
+
+// HandleTagPosts は特定のタグの記事一覧ページを表示します
+func (h *PublicHandlers) HandleTagPosts(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	tag := vars["tag"]
+
+	if tag == "" {
+		http.NotFound(w, r)
+		return
+	}
+
+	// URLデコード
+	decodedTag, err := url.QueryUnescape(tag)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	tag = decodedTag
+
+	// ページネーション
+	pageStr := r.URL.Query().Get("page")
+	page := 1
+	if pageStr != "" {
+		if parsed, err := strconv.Atoi(pageStr); err == nil && parsed > 0 {
+			page = parsed
+		}
+	}
+
+	const perPage = 20
+	offset := (page - 1) * perPage
+
+	// 記事を取得
+	posts, err := h.postService.GetPublishedPostsByTag(tag, perPage+1, offset)
+	if err != nil {
+		log.Printf("failed to get posts by tag: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// 次のページがあるか判定
+	hasNext := len(posts) > perPage
+	if hasNext {
+		posts = posts[:perPage]
+	}
+
+	data := map[string]any{
+		"SiteTitle":   h.blogTitle,
+		"Tag":         tag,
+		"Posts":       posts,
+		"CurrentPage": page,
+		"HasPrev":     page > 1,
+		"HasNext":     hasNext,
+		"PrevPage":    page - 1,
+		"NextPage":    page + 1,
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := h.tagPostsTemplate.ExecuteTemplate(w, "tag_posts", data); err != nil {
 		log.Printf("failed to execute template: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"github.com/capybara-translation/goblog/internal/domain"
@@ -68,10 +69,11 @@ func writeError(w http.ResponseWriter, status int, message string) {
 }
 
 // HandleGetPosts は記事一覧を取得します
-// GET /api/v1/posts?status=draft|published&limit=10&offset=0
+// GET /api/v1/posts?status=draft|published&tag=Go&limit=10&offset=0
 func (h *APIHandlers) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
 	// クエリパラメータを取得
 	statusStr := r.URL.Query().Get("status")
+	tagStr := r.URL.Query().Get("tag")
 	limitStr := r.URL.Query().Get("limit")
 	offsetStr := r.URL.Query().Get("offset")
 
@@ -96,11 +98,24 @@ func (h *APIHandlers) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
 
 	var status *domain.PostStatus
 	if statusStr != "" {
-		s := domain.PostStatus(statusStr)
+		s, err := domain.ParsePostStatus(statusStr)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		status = &s
 	}
 
-	posts, err := h.postService.GetAllPosts(status, limit, offset)
+	var posts []*domain.Post
+	var err error
+
+	// タグフィルタリング
+	if tagStr != "" {
+		posts, err = h.postService.GetAllPostsByTag(tagStr, status, limit, offset)
+	} else {
+		posts, err = h.postService.GetAllPosts(status, limit, offset)
+	}
+
 	if err != nil {
 		log.Printf("failed to get posts: %v", err)
 		writeError(w, http.StatusInternalServerError, "Failed to get posts")
@@ -247,4 +262,55 @@ func (h *APIHandlers) HandleUnpublishPost(w http.ResponseWriter, r *http.Request
 	}
 
 	writeJSON(w, http.StatusOK, post)
+}
+
+// HandleGetTags はタグ一覧を取得します
+// GET /api/v1/tags?status=published|draft
+func (h *APIHandlers) HandleGetTags(w http.ResponseWriter, r *http.Request) {
+	statusStr := r.URL.Query().Get("status")
+
+	var status *domain.PostStatus
+	if statusStr != "" {
+		s, err := domain.ParsePostStatus(statusStr)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		status = &s
+	}
+
+	tagCounts, err := h.postService.GetAllTags(status)
+	if err != nil {
+		log.Printf("failed to get tags: %v", err)
+		writeError(w, http.StatusInternalServerError, "Failed to get tags")
+		return
+	}
+
+	// レスポンス用の構造体
+	type TagResponse struct {
+		Name  string `json:"name"`
+		Count int    `json:"count"`
+	}
+
+	tags := make([]TagResponse, 0, len(tagCounts))
+	for name, count := range tagCounts {
+		tags = append(tags, TagResponse{Name: name, Count: count})
+	}
+
+	// 記事数の降順でソート、同数の場合はタグ名の昇順
+	slices.SortFunc(tags, func(a, b TagResponse) int {
+		// 記事数で比較（降順）
+		if a.Count != b.Count {
+			return b.Count - a.Count
+		}
+		// タグ名で比較（昇順）
+		if a.Name < b.Name {
+			return -1
+		} else if a.Name > b.Name {
+			return 1
+		}
+		return 0
+	})
+
+	writeJSON(w, http.StatusOK, tags)
 }

@@ -17,9 +17,11 @@ const testTemplatePattern = "../view/templates/*.html"
 
 // mockPostService は PostService のモック実装です
 type mockPostService struct {
-	getPublishedPostsFunc func(limit, offset int) ([]*domain.Post, error)
-	getPostBySlugFunc     func(slug string) (*domain.Post, error)
-	getAllPostsFunc       func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	getPublishedPostsFunc       func(limit, offset int) ([]*domain.Post, error)
+	getPublishedPostsByTagFunc  func(tag string, limit, offset int) ([]*domain.Post, error)
+	getPublishedTagsFunc        func() (map[string]int, error)
+	getPostBySlugFunc           func(slug string) (*domain.Post, error)
+	getAllPostsFunc             func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
 }
 
 func (m *mockPostService) GetPublishedPosts(limit, offset int) ([]*domain.Post, error) {
@@ -27,6 +29,28 @@ func (m *mockPostService) GetPublishedPosts(limit, offset int) ([]*domain.Post, 
 		return m.getPublishedPostsFunc(limit, offset)
 	}
 	return []*domain.Post{}, nil
+}
+
+func (m *mockPostService) GetPublishedPostsByTag(tag string, limit, offset int) ([]*domain.Post, error) {
+	if m.getPublishedPostsByTagFunc != nil {
+		return m.getPublishedPostsByTagFunc(tag, limit, offset)
+	}
+	return []*domain.Post{}, nil
+}
+
+func (m *mockPostService) GetAllPostsByTag(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+	return []*domain.Post{}, nil
+}
+
+func (m *mockPostService) GetPublishedTags() (map[string]int, error) {
+	if m.getPublishedTagsFunc != nil {
+		return m.getPublishedTagsFunc()
+	}
+	return map[string]int{}, nil
+}
+
+func (m *mockPostService) GetAllTags(status *domain.PostStatus) (map[string]int, error) {
+	return map[string]int{}, nil
 }
 
 func (m *mockPostService) GetPostBySlug(slug string) (*domain.Post, error) {
@@ -121,7 +145,8 @@ func TestHandleHome(t *testing.T) {
 				"テスト記事2",
 				"/posts/test-post-1",
 				"/posts/test-post-2",
-				"Go,テスト",
+				">Go</a>",
+				">テスト</a>",
 			},
 			notContains: []string{
 				"まだ記事がありません",
@@ -306,7 +331,8 @@ func TestHandlePosts(t *testing.T) {
 				"公開記事2",
 				"/posts/published-post-1",
 				"/posts/published-post-2",
-				"タグ1,タグ2",
+				">タグ1</a>",
+				">タグ2</a>",
 				"続きを読む",
 			},
 			notContains: []string{
@@ -728,7 +754,10 @@ func TestHandlePostDetail(t *testing.T) {
 				"<!DOCTYPE html>",
 				"テスト記事のタイトル",
 				"これはテスト記事の本文です",
-				"Go,テスト,ブログ",
+				`href="/tags/Go"`,
+				`>Go</a>`,
+				`>テスト</a>`,
+				`>ブログ</a>`,
 				"記事一覧に戻る",
 			},
 		},
@@ -1029,6 +1058,310 @@ func TestTruncateRunes(t *testing.T) {
 			// 重要: 切り詰めた結果に不正なUTF-8シーケンス（�）が含まれていないことを確認
 			if strings.Contains(result, "�") {
 				t.Errorf("truncateRunes() produced invalid UTF-8 sequence (�) for input %q", tt.input)
+			}
+		})
+	}
+}
+
+func TestHandleTags(t *testing.T) {
+	tests := []struct {
+		name           string
+		mockFunc       func() (map[string]int, error)
+		expectedStatus int
+		containsText   []string
+		notContains    []string
+	}{
+		{
+			name: "タグがある場合",
+			mockFunc: func() (map[string]int, error) {
+				return map[string]int{
+					"Go":     10,
+					"React":  8,
+					"Docker": 5,
+				}, nil
+			},
+			expectedStatus: http.StatusOK,
+			containsText: []string{
+				"<!DOCTYPE html>",
+				"タグ一覧",
+				`href="/tags/Go"`,
+				">Go</h3>",
+				"10件",
+				">React</h3>",
+				"8件",
+				">Docker</h3>",
+				"5件",
+			},
+		},
+		{
+			name: "タグがない場合",
+			mockFunc: func() (map[string]int, error) {
+				return map[string]int{}, nil
+			},
+			expectedStatus: http.StatusOK,
+			containsText: []string{
+				"タグ一覧",
+				"まだタグがありません",
+			},
+		},
+		{
+			name: "エラーが発生した場合",
+			mockFunc: func() (map[string]int, error) {
+				return nil, fmt.Errorf("database error")
+			},
+			expectedStatus: http.StatusInternalServerError,
+			containsText: []string{
+				"Internal Server Error",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := &mockPostService{
+				getPublishedTagsFunc: tt.mockFunc,
+			}
+			router := NewRouterWithTemplates(mockService, nil, false, "goblog", testTemplatePattern)
+
+			req := httptest.NewRequest(http.MethodGet, "/tags", nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			if w.Code != tt.expectedStatus {
+				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
+			}
+
+			body := w.Body.String()
+			for _, text := range tt.containsText {
+				if !strings.Contains(body, text) {
+					t.Errorf("expected body to contain %q", text)
+				}
+			}
+
+			for _, text := range tt.notContains {
+				if strings.Contains(body, text) {
+					t.Errorf("expected body NOT to contain %q", text)
+				}
+			}
+		})
+	}
+}
+
+func TestHandleTagPosts(t *testing.T) {
+	tests := []struct {
+		name           string
+		tag            string
+		mockFunc       func(tag string, limit, offset int) ([]*domain.Post, error)
+		expectedStatus int
+		containsText   []string
+		notContains    []string
+	}{
+		{
+			name: "タグに記事がある場合",
+			tag:  "Go",
+			mockFunc: func(tag string, limit, offset int) ([]*domain.Post, error) {
+				if tag == "Go" {
+					publishedAt := time.Now()
+					return []*domain.Post{
+						{
+							ID:          1,
+							Title:       "Go入門",
+							Slug:        "go-introduction",
+							Content:     "Goの基礎を学びましょう",
+							Status:      domain.PostStatusPublished,
+							Tags:        "Go,プログラミング",
+							PublishedAt: &publishedAt,
+						},
+						{
+							ID:          2,
+							Title:       "Goの並行処理",
+							Slug:        "go-concurrency",
+							Content:     "ゴルーチンとチャネルについて",
+							Status:      domain.PostStatusPublished,
+							Tags:        "Go,並行処理",
+							PublishedAt: &publishedAt,
+						},
+					}, nil
+				}
+				return []*domain.Post{}, nil
+			},
+			expectedStatus: http.StatusOK,
+			containsText: []string{
+				"<!DOCTYPE html>",
+				"inline-flex items-center",
+				"Go入門",
+				"Goの並行処理",
+				"/posts/go-introduction",
+				"/posts/go-concurrency",
+			},
+		},
+		{
+			name: "タグに記事がない場合",
+			tag:  "Python",
+			mockFunc: func(tag string, limit, offset int) ([]*domain.Post, error) {
+				return []*domain.Post{}, nil
+			},
+			expectedStatus: http.StatusOK,
+			containsText: []string{
+				"inline-flex items-center",
+				"このタグの記事はまだありません",
+			},
+		},
+		{
+			name: "エラーが発生した場合",
+			tag:  "Go",
+			mockFunc: func(tag string, limit, offset int) ([]*domain.Post, error) {
+				return nil, fmt.Errorf("database error")
+			},
+			expectedStatus: http.StatusInternalServerError,
+			containsText: []string{
+				"Internal Server Error",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := &mockPostService{
+				getPublishedPostsByTagFunc: tt.mockFunc,
+			}
+			router := NewRouterWithTemplates(mockService, nil, false, "goblog", testTemplatePattern)
+
+			req := httptest.NewRequest(http.MethodGet, "/tags/"+tt.tag, nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			if w.Code != tt.expectedStatus {
+				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
+			}
+
+			body := w.Body.String()
+			for _, text := range tt.containsText {
+				if !strings.Contains(body, text) {
+					t.Errorf("expected body to contain %q", text)
+				}
+			}
+
+			for _, text := range tt.notContains {
+				if strings.Contains(body, text) {
+					t.Errorf("expected body NOT to contain %q", text)
+				}
+			}
+		})
+	}
+}
+
+func TestHandleTagPosts_Pagination(t *testing.T) {
+	tests := []struct {
+		name           string
+		tag            string
+		url            string
+		mockFunc       func(tag string, limit, offset int) ([]*domain.Post, error)
+		expectedStatus int
+		containsText   []string
+		notContains    []string
+	}{
+		{
+			name: "1ページ目（次のページあり）",
+			tag:  "Go",
+			url:  "/tags/Go?page=1",
+			mockFunc: func(tag string, limit, offset int) ([]*domain.Post, error) {
+				if limit != 21 || offset != 0 {
+					t.Errorf("expected limit=21, offset=0, got limit=%d, offset=%d", limit, offset)
+				}
+				posts := make([]*domain.Post, 21)
+				publishedAt := time.Now()
+				for i := 0; i < 21; i++ {
+					posts[i] = &domain.Post{
+						ID:          int64(i + 1),
+						Title:       "Go記事" + strconv.Itoa(i+1),
+						Slug:        "go-post-" + strconv.Itoa(i+1),
+						Content:     "内容" + strconv.Itoa(i+1),
+						Status:      domain.PostStatusPublished,
+						Tags:        "Go",
+						PublishedAt: &publishedAt,
+					}
+				}
+				return posts, nil
+			},
+			expectedStatus: http.StatusOK,
+			containsText: []string{
+				"inline-flex items-center",
+				"ページ",
+				">1</span>",
+				"次のページ",
+				"/tags/Go?page=2",
+			},
+			notContains: []string{
+				"/tags/Go?page=0",
+			},
+		},
+		{
+			name: "2ページ目",
+			tag:  "React",
+			url:  "/tags/React?page=2",
+			mockFunc: func(tag string, limit, offset int) ([]*domain.Post, error) {
+				if limit != 21 || offset != 20 {
+					t.Errorf("expected limit=21, offset=20, got limit=%d, offset=%d", limit, offset)
+				}
+				posts := make([]*domain.Post, 10)
+				publishedAt := time.Now()
+				for i := 0; i < 10; i++ {
+					posts[i] = &domain.Post{
+						ID:          int64(i + 21),
+						Title:       "React記事" + strconv.Itoa(i+21),
+						Slug:        "react-post-" + strconv.Itoa(i+21),
+						Content:     "内容" + strconv.Itoa(i+21),
+						Status:      domain.PostStatusPublished,
+						Tags:        "React",
+						PublishedAt: &publishedAt,
+					}
+				}
+				return posts, nil
+			},
+			expectedStatus: http.StatusOK,
+			containsText: []string{
+				"inline-flex items-center",
+				"ページ",
+				">2</span>",
+				"前のページ",
+				"/tags/React?page=1",
+			},
+			notContains: []string{
+				"/tags/React?page=3",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := &mockPostService{
+				getPublishedPostsByTagFunc: tt.mockFunc,
+			}
+			router := NewRouterWithTemplates(mockService, nil, false, "goblog", testTemplatePattern)
+
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			if w.Code != tt.expectedStatus {
+				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
+			}
+
+			body := w.Body.String()
+			for _, text := range tt.containsText {
+				if !strings.Contains(body, text) {
+					t.Errorf("expected body to contain %q", text)
+				}
+			}
+
+			for _, text := range tt.notContains {
+				if strings.Contains(body, text) {
+					t.Errorf("expected body NOT to contain %q", text)
+				}
 			}
 		})
 	}

@@ -3,6 +3,7 @@ package repo
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/capybara-translation/goblog/internal/domain"
 	"github.com/jmoiron/sqlx"
@@ -27,6 +28,12 @@ type PostRepository interface {
 
 	// Delete は記事を削除します
 	Delete(id int64) error
+
+	// FindAllByTag は特定のタグを持つ記事を取得します
+	FindAllByTag(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+
+	// GetAllTags はすべてのユニークなタグと記事数を取得します
+	GetAllTags(status *domain.PostStatus) (map[string]int, error)
 }
 
 // postRepository はPostRepositoryのSQLite実装です
@@ -142,4 +149,73 @@ func (r *postRepository) Delete(id int64) error {
 	}
 
 	return nil
+}
+
+// FindAllByTag は特定のタグを持つ記事を取得します
+func (r *postRepository) FindAllByTag(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+	var posts []*domain.Post
+
+	// LIKEクエリでカンマ区切りタグを検索
+	// 4つのパターンで完全一致を確保:
+	// 1. tags = "Go" (単一タグ)
+	// 2. tags LIKE "Go,%" (先頭)
+	// 3. tags LIKE "%,Go,%" (中間)
+	// 4. tags LIKE "%,Go" (末尾)
+	query := `SELECT * FROM posts WHERE (
+		tags = ? OR
+		tags LIKE ? || ',%' OR
+		tags LIKE '%,' || ? || ',%' OR
+		tags LIKE '%,' || ?
+	)`
+	args := []any{tag, tag, tag, tag}
+
+	// ステータスでフィルタリング
+	if status != nil {
+		query += " AND status = ?"
+		args = append(args, *status)
+	}
+
+	// 作成日時の降順でソート
+	query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+	args = append(args, limit, offset)
+
+	if err := r.db.Select(&posts, query, args...); err != nil {
+		return nil, fmt.Errorf("failed to query posts by tag: %w", err)
+	}
+
+	return posts, nil
+}
+
+// GetAllTags はすべてのユニークなタグと記事数を取得します
+func (r *postRepository) GetAllTags(status *domain.PostStatus) (map[string]int, error) {
+	var posts []*domain.Post
+	query := "SELECT tags FROM posts"
+	args := []any{}
+
+	// ステータスでフィルタリング
+	if status != nil {
+		query += " WHERE status = ?"
+		args = append(args, *status)
+	}
+
+	if err := r.db.Select(&posts, query, args...); err != nil {
+		return nil, fmt.Errorf("failed to query tags: %w", err)
+	}
+
+	// タグをカウント
+	tagCount := make(map[string]int)
+	for _, post := range posts {
+		if post.Tags == "" {
+			continue
+		}
+		tags := strings.Split(post.Tags, ",")
+		for _, tag := range tags {
+			trimmed := strings.TrimSpace(tag)
+			if trimmed != "" {
+				tagCount[trimmed]++
+			}
+		}
+	}
+
+	return tagCount, nil
 }

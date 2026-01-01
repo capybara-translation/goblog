@@ -24,7 +24,11 @@
                         <time datetime="{{.PublishedAt.Format "2006-01-02"}}">{{.PublishedAt.Format "2006年01月02日"}}</time>
                         {{if .Tags}}
                             <span class="text-primary-400">•</span>
-                            <span class="text-primary-500">{{.Tags}}</span>
+                            <div class="flex flex-wrap gap-2">
+                            {{range splitTags .Tags}}
+                                <a href="/tags/{{.}}" class="px-2 py-1 text-xs font-medium text-primary-700 bg-primary-100 rounded hover:bg-primary-200 transition-colors duration-200">{{.}}</a>
+                            {{end}}
+                            </div>
                         {{end}}
                     </div>
                 </article>

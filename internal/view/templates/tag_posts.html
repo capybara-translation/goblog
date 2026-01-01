@@ -1,13 +1,28 @@
-{{define "posts"}}
+{{define "tag_posts"}}
     {{template "layout" .}}
 {{end}}
 
-{{define "title"}}記事一覧 - {{.SiteTitle}}{{end}}
+{{define "title"}}{{.Tag}} - タグ - {{.SiteTitle}}{{end}}
 
 {{define "content"}}
 <div class="space-y-12">
     <header>
-        <h2 class="text-4xl font-sans font-bold text-primary-900 tracking-tight">記事一覧</h2>
+        <nav class="mb-4">
+            <a href="/tags" class="inline-flex items-center text-primary-600 hover:text-primary-900 font-sans text-sm transition-colors duration-200">
+                <svg class="mr-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                </svg>
+                タグ一覧に戻る
+            </a>
+        </nav>
+        <h2 class="text-4xl font-sans font-bold text-primary-900 tracking-tight">
+            <span class="inline-flex items-center">
+                <svg class="w-8 h-8 mr-3 text-primary-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
+                </svg>
+                {{.Tag}}
+            </span>
+        </h2>
     </header>
 
     {{if .Posts}}
@@ -49,7 +64,7 @@
         <nav class="flex items-center justify-between pt-8 border-t border-stone-200 font-sans" aria-label="ページネーション">
             <div>
                 {{if .HasPrev}}
-                    <a href="/posts?page={{.PrevPage}}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-primary-700 hover:text-primary-900 border border-stone-300 hover:border-primary-700 rounded transition-all duration-200">
+                    <a href="/tags/{{.Tag}}?page={{.PrevPage}}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-primary-700 hover:text-primary-900 border border-stone-300 hover:border-primary-700 rounded transition-all duration-200">
                         <svg class="mr-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                         </svg>
@@ -69,7 +84,7 @@
             </div>
             <div>
                 {{if .HasNext}}
-                    <a href="/posts?page={{.NextPage}}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-primary-700 hover:text-primary-900 border border-stone-300 hover:border-primary-700 rounded transition-all duration-200">
+                    <a href="/tags/{{.Tag}}?page={{.NextPage}}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-primary-700 hover:text-primary-900 border border-stone-300 hover:border-primary-700 rounded transition-all duration-200">
                         次のページ
                         <svg class="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
@@ -86,7 +101,15 @@
             </div>
         </nav>
     {{else}}
-        <p class="text-primary-500 font-sans">まだ記事がありません。</p>
+        <div class="text-center py-12">
+            <p class="text-primary-500 font-sans text-lg">このタグの記事はまだありません。</p>
+            <a href="/tags" class="mt-4 inline-flex items-center text-primary-700 hover:text-primary-900 font-sans text-sm font-medium transition-colors duration-200">
+                <svg class="mr-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                </svg>
+                タグ一覧に戻る
+            </a>
+        </div>
     {{end}}
 </div>
 {{end}}
