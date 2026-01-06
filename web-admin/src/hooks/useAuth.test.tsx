@@ -92,13 +92,13 @@ describe('useAuth', () => {
 
       expect(result.current.user).toBeNull()
 
-      // ログイン実行
-      await result.current.login({
+      // ログイン実行（await なし）
+      result.current.login({
         username: 'testuser',
         password: 'password',
       })
 
-      // 状態の更新を待つ
+      // 状態の更新を waitFor 内で待つ
       await waitFor(() => {
         expect(result.current.user).toEqual(mockUser)
       })
@@ -160,10 +160,10 @@ describe('useAuth', () => {
 
       expect(result.current.user).toEqual(mockUser)
 
-      // ログアウト実行
-      await result.current.logout()
+      // ログアウト実行（await なし）
+      result.current.logout()
 
-      // 状態の更新を待つ
+      // 状態の更新を waitFor 内で待つ
       await waitFor(() => {
         expect(result.current.user).toBeNull()
       })
@@ -198,10 +198,10 @@ describe('useAuth', () => {
 
       expect(result.current.user).toBeNull()
 
-      // checkAuth を手動で呼び出し
-      await result.current.checkAuth()
+      // checkAuth を手動で呼び出し（await なし）
+      result.current.checkAuth()
 
-      // 状態の更新を待つ
+      // 状態の更新を waitFor 内で待つ
       await waitFor(() => {
         expect(result.current.user).toEqual(mockUser)
       })
