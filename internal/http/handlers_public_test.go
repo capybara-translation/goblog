@@ -935,55 +935,6 @@ func TestHandlePostDetail_BlogTitle(t *testing.T) {
 	}
 }
 
-func TestHandleAdmin(t *testing.T) {
-	tests := []struct {
-		name string
-		path string
-	}{
-		{
-			name: "/admin",
-			path: "/admin",
-		},
-		{
-			name: "/admin/posts",
-			path: "/admin/posts",
-		},
-		{
-			name: "/admin/settings",
-			path: "/admin/settings",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockService := &mockPostService{}
-			router := NewRouterWithTemplates(mockService, nil, false, "goblog", testTemplatePattern)
-
-			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
-			w := httptest.NewRecorder()
-
-			router.ServeHTTP(w, req)
-
-			if w.Code != http.StatusOK {
-				t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
-			}
-
-			contentType := w.Header().Get("Content-Type")
-			expected := "text/html; charset=utf-8"
-			if contentType != expected {
-				t.Errorf("expected Content-Type %q, got %q", expected, contentType)
-			}
-
-			body := w.Body.String()
-			if !strings.Contains(body, "管理画面") {
-				t.Error("expected body to contain '管理画面'")
-			}
-			if !strings.Contains(body, "React SPA") {
-				t.Error("expected body to contain 'React SPA'")
-			}
-		})
-	}
-}
 
 func TestTruncateRunes(t *testing.T) {
 	tests := []struct {

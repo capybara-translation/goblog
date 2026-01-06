@@ -31,8 +31,8 @@ func NewRouterWithTemplates(postService service.PostService, authService service
 	r.HandleFunc("/tags/{tag}", publicHandlers.HandleTagPosts).Methods("GET")
 
 	// 管理画面（SPA）
-	r.HandleFunc("/admin", HandleAdmin).Methods("GET")
-	r.PathPrefix("/admin/").HandlerFunc(HandleAdmin)
+	r.HandleFunc("/admin", HandleAdminSPA).Methods("GET")
+	r.PathPrefix("/admin/").HandlerFunc(HandleAdminSPA)
 
 	// API（管理画面が叩く）
 	api := r.PathPrefix("/api/v1").Subrouter()

@@ -1,0 +1,25 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&family=Noto+Serif+JP:wght@400;500;600;700&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  --color-primary-50: #f8f9fa;
+  --color-primary-100: #f1f3f5;
+  --color-primary-200: #e9ecef;
+  --color-primary-300: #dee2e6;
+  --color-primary-400: #ced4da;
+  --color-primary-500: #adb5bd;
+  --color-primary-600: #868e96;
+  --color-primary-700: #495057;
+  --color-primary-800: #343a40;
+  --color-primary-900: #212529;
+
+  --font-family-serif: "Noto Serif JP", Georgia, serif;
+  --font-family-sans: "Noto Sans JP", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+body {
+  font-family: var(--font-family-sans);
+  color: var(--color-primary-800);
+  background-color: #fafaf9;
+}

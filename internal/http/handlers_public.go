@@ -286,9 +286,3 @@ func (h *PublicHandlers) HandleTagPosts(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
-
-// HandleAdmin は管理画面のSPAを配信します（後でReactアプリを配信）
-func HandleAdmin(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte("<h1>管理画面</h1><p>後でReact SPAをここに配置します。</p>"))
-}
