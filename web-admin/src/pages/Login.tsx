@@ -87,14 +87,6 @@ export function Login() {
             {isSubmitting ? 'ログイン中...' : 'ログイン'}
           </button>
         </form>
-
-        <div className="mt-6 pt-6 border-t border-primary-200">
-          <p className="text-xs text-primary-500 text-center">
-            テストモードのログイン情報
-            <br />
-            ユーザー名: testuser / パスワード: password
-          </p>
-        </div>
       </div>
     </div>
   );
