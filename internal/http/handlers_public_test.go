@@ -1317,3 +1317,116 @@ func TestHandleTagPosts_Pagination(t *testing.T) {
 		})
 	}
 }
+
+func TestFormatDateWithTZ(t *testing.T) {
+	tests := []struct {
+		name           string
+		timeZone       string
+		inputTime      time.Time
+		expectedOutput string
+	}{
+		{
+			name:           "Asia/Tokyo timezone",
+			timeZone:       "Asia/Tokyo",
+			inputTime:      time.Date(2024, 12, 26, 0, 30, 0, 0, time.UTC),
+			expectedOutput: "2024-12-26 (JST)",
+		},
+		{
+			name:           "UTC timezone",
+			timeZone:       "UTC",
+			inputTime:      time.Date(2024, 12, 26, 15, 30, 0, 0, time.UTC),
+			expectedOutput: "2024-12-26 (UTC)",
+		},
+		{
+			name:           "America/New_York timezone",
+			timeZone:       "America/New_York",
+			inputTime:      time.Date(2024, 12, 26, 5, 0, 0, 0, time.UTC),
+			expectedOutput: "2024-12-26 (EST)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// TZ環境変数を設定
+			t.Setenv("TZ", tt.timeZone)
+
+			// UTC時刻をそのまま渡す（formatDateWithTZ内で適切に変換される）
+			// 実際のアプリケーションでも、DBから取得したUTC時刻を渡す
+			result := formatDateWithTZ(tt.inputTime)
+
+			// 期待される出力と一致するか確認
+			if result != tt.expectedOutput {
+				t.Errorf("formatDateWithTZ() = %q, expected %q", result, tt.expectedOutput)
+			}
+		})
+	}
+}
+
+func TestFormatDateWithTZ_Integration(t *testing.T) {
+	// テンプレートとの統合テスト：実際のHTMLレスポンスに正しい日付フォーマットが含まれているか確認
+	publishedAt := time.Date(2024, 12, 25, 15, 30, 0, 0, time.UTC)
+
+	t.Run("JST timezone in rendered HTML", func(t *testing.T) {
+		t.Setenv("TZ", "Asia/Tokyo")
+
+		mockService := &mockPostService{
+			getPublishedPostsFunc: func(limit, offset int) ([]*domain.Post, error) {
+				return []*domain.Post{
+					{
+						ID:          1,
+						Title:       "Test Post",
+						Slug:        "test-post",
+						Content:     "Test content",
+						Status:      domain.PostStatusPublished,
+						PublishedAt: &publishedAt,
+					},
+				}, nil
+			},
+		}
+
+		router := NewRouterWithTemplates(mockService, nil, false, "Test Blog", testTemplatePattern)
+		req := httptest.NewRequest(http.MethodGet, "/posts", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		body := w.Body.String()
+
+		// JST で表示されるので 2024-12-26 (JST) が含まれているはず
+		expectedDate := "2024-12-26 (JST)"
+		if !strings.Contains(body, expectedDate) {
+			t.Errorf("expected body to contain %q, but it didn't. Body: %s", expectedDate, body)
+		}
+	})
+
+	t.Run("UTC timezone in rendered HTML", func(t *testing.T) {
+		t.Setenv("TZ", "UTC")
+
+		mockService := &mockPostService{
+			getPublishedPostsFunc: func(limit, offset int) ([]*domain.Post, error) {
+				return []*domain.Post{
+					{
+						ID:          1,
+						Title:       "Test Post",
+						Slug:        "test-post",
+						Content:     "Test content",
+						Status:      domain.PostStatusPublished,
+						PublishedAt: &publishedAt,
+					},
+				}, nil
+			},
+		}
+
+		router := NewRouterWithTemplates(mockService, nil, false, "Test Blog", testTemplatePattern)
+		req := httptest.NewRequest(http.MethodGet, "/posts", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		body := w.Body.String()
+
+		// UTC で表示されるので 2024-12-25 (UTC) が含まれているはず
+		expectedDate := "2024-12-25 (UTC)"
+		if !strings.Contains(body, expectedDate) {
+			t.Errorf("expected body to contain %q, but it didn't. Body: %s", expectedDate, body)
+		}
+	})
+}

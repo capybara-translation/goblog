@@ -9,7 +9,7 @@
     <header class="space-y-4">
         <h1 class="text-4xl md:text-5xl font-sans font-bold text-primary-900 tracking-tight leading-tight">{{.Post.Title}}</h1>
         <div class="flex items-center gap-3 text-sm text-primary-500 font-sans pb-6 border-b border-stone-200">
-            <time datetime="{{.Post.PublishedAt.Format "2006-01-02"}}">{{.Post.PublishedAt.Format "2006年01月02日"}}</time>
+            <time datetime="{{.Post.PublishedAt.Format "2006-01-02"}}">{{formatDateWithTZ .Post.PublishedAt}}</time>
             {{if .Post.Tags}}
                 <span class="text-primary-400">•</span>
                 <div class="flex flex-wrap gap-2">

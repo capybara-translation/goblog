@@ -1,0 +1,635 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { PostEdit } from './PostEdit'
+import { apiClient } from '../api/client'
+import type { Post } from '../api/client'
+
+// apiClient をモック
+vi.mock('../api/client', () => ({
+  apiClient: {
+    getPost: vi.fn(),
+    createPost: vi.fn(),
+    updatePost: vi.fn(),
+    publishPost: vi.fn(),
+    unpublishPost: vi.fn(),
+    deletePost: vi.fn(),
+  },
+}))
+
+// React Router のナビゲーションをモック
+const mockNavigate = vi.fn()
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom')
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  }
+})
+
+// window.alert と window.confirm をモック
+const mockAlert = vi.fn()
+const mockConfirm = vi.fn()
+global.alert = mockAlert
+global.confirm = mockConfirm
+
+describe('PostEdit', () => {
+  const mockDraftPost: Post = {
+    id: 1,
+    title: 'Draft Post',
+    slug: 'draft-post',
+    content: 'Draft content',
+    status: 'draft',
+    tags: 'Go, Testing',
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+    published_at: null,
+  }
+
+  const mockPublishedPost: Post = {
+    id: 2,
+    title: 'Published Post',
+    slug: 'published-post',
+    content: 'Published content',
+    status: 'published',
+    tags: 'Go',
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+    published_at: '2024-01-01T10:00:00Z',
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const renderCreateMode = () => {
+    return render(
+      <MemoryRouter initialEntries={['/posts/new']}>
+        <Routes>
+          <Route path="/posts/new" element={<PostEdit />} />
+          <Route path="/posts/:id/edit" element={<div>Edit Page</div>} />
+        </Routes>
+      </MemoryRouter>
+    )
+  }
+
+  const renderEditMode = (postId: number) => {
+    return render(
+      <MemoryRouter initialEntries={[`/posts/${postId}/edit`]}>
+        <Routes>
+          <Route path="/posts/:id/edit" element={<PostEdit />} />
+          <Route path="/posts" element={<div>Post List</div>} />
+        </Routes>
+      </MemoryRouter>
+    )
+  }
+
+  describe('Create mode rendering', () => {
+    it('should render page title as "新規作成"', () => {
+      renderCreateMode()
+      expect(screen.getByText('新規作成')).toBeInTheDocument()
+    })
+
+    it('should render empty form fields', () => {
+      renderCreateMode()
+      expect(screen.getByLabelText(/タイトル/)).toHaveValue('')
+      expect(screen.getByLabelText(/スラッグ/)).toHaveValue('')
+      expect(screen.getByLabelText(/タグ/)).toHaveValue('')
+      expect(screen.getByLabelText(/本文/)).toHaveValue('')
+    })
+
+    it('should render save button', () => {
+      renderCreateMode()
+      expect(screen.getByRole('button', { name: '保存' })).toBeInTheDocument()
+    })
+
+    it('should not render publish/unpublish/delete buttons', () => {
+      renderCreateMode()
+      expect(screen.queryByRole('button', { name: '公開する' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: '非公開にする' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: '削除' })).not.toBeInTheDocument()
+    })
+
+    it('should render back link', () => {
+      renderCreateMode()
+      expect(screen.getByText('← 記事一覧に戻る')).toBeInTheDocument()
+    })
+
+    it('should have required attributes on title and slug fields', () => {
+      renderCreateMode()
+      expect(screen.getByLabelText(/タイトル/)).toBeRequired()
+      expect(screen.getByLabelText(/スラッグ/)).toBeRequired()
+    })
+  })
+
+  describe('Edit mode rendering', () => {
+    it('should show loading state initially', () => {
+      vi.mocked(apiClient.getPost).mockReturnValue(new Promise(() => {}))
+      renderEditMode(1)
+      expect(screen.getByText('読み込み中...')).toBeInTheDocument()
+    })
+
+    it('should render page title as "記事編集"', async () => {
+      vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
+      renderEditMode(1)
+
+      await waitFor(() => {
+        expect(screen.getByText('記事編集')).toBeInTheDocument()
+      })
+    })
+
+    it('should load and display post data', async () => {
+      vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
+      renderEditMode(1)
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/タイトル/)).toHaveValue('Draft Post')
+      })
+
+      expect(screen.getByLabelText(/スラッグ/)).toHaveValue('draft-post')
+      expect(screen.getByLabelText(/タグ/)).toHaveValue('Go, Testing')
+      expect(screen.getByLabelText(/本文/)).toHaveValue('Draft content')
+      expect(apiClient.getPost).toHaveBeenCalledWith(1)
+    })
+
+    it('should show error message when post load fails', async () => {
+      vi.mocked(apiClient.getPost).mockRejectedValue(new Error('記事が見つかりません'))
+      renderEditMode(1)
+
+      await waitFor(() => {
+        expect(screen.getByText('記事が見つかりません')).toBeInTheDocument()
+      })
+    })
+
+    it('should render publish button for draft post', async () => {
+      vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
+      renderEditMode(1)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: '公開する' })).toBeInTheDocument()
+      })
+
+      expect(screen.queryByRole('button', { name: '非公開にする' })).not.toBeInTheDocument()
+    })
+
+    it('should render unpublish button for published post', async () => {
+      vi.mocked(apiClient.getPost).mockResolvedValue(mockPublishedPost)
+      renderEditMode(2)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: '非公開にする' })).toBeInTheDocument()
+      })
+
+      expect(screen.queryByRole('button', { name: '公開する' })).not.toBeInTheDocument()
+    })
+
+    it('should render delete button', async () => {
+      vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
+      renderEditMode(1)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument()
+      })
+    })
+
+    it('should render status badge', async () => {
+      vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
+      renderEditMode(1)
+
+      await waitFor(() => {
+        expect(screen.getByText('下書き')).toBeInTheDocument()
+      })
+    })
+  })
+
+  describe('Form input', () => {
+    it('should allow entering title', async () => {
+      const user = userEvent.setup()
+      renderCreateMode()
+
+      const titleInput = screen.getByLabelText(/タイトル/)
+      await user.type(titleInput, 'New Post Title')
+
+      expect(titleInput).toHaveValue('New Post Title')
+    })
+
+    it('should allow entering slug', async () => {
+      const user = userEvent.setup()
+      renderCreateMode()
+
+      const slugInput = screen.getByLabelText(/スラッグ/)
+      await user.type(slugInput, 'new-post-slug')
+
+      expect(slugInput).toHaveValue('new-post-slug')
+    })
+
+    it('should allow entering tags', async () => {
+      const user = userEvent.setup()
+      renderCreateMode()
+
+      const tagsInput = screen.getByLabelText(/タグ/)
+      await user.type(tagsInput, 'Go, React')
+
+      expect(tagsInput).toHaveValue('Go, React')
+    })
+
+    it('should allow entering content', async () => {
+      const user = userEvent.setup()
+      renderCreateMode()
+
+      const contentInput = screen.getByLabelText(/本文/)
+      await user.type(contentInput, '# Hello World')
+
+      expect(contentInput).toHaveValue('# Hello World')
+    })
+  })
+
+  describe('Create post', () => {
+    it('should show validation error when both are whitespace', async () => {
+      const user = userEvent.setup()
+      renderCreateMode()
+
+      await user.type(screen.getByLabelText(/タイトル/), '   ')
+      await user.type(screen.getByLabelText(/スラッグ/), '   ')
+      await user.click(screen.getByRole('button', { name: '保存' }))
+
+      await waitFor(() => {
+        expect(screen.getByText('タイトルとスラッグは必須です')).toBeInTheDocument()
+      })
+
+      expect(apiClient.createPost).not.toHaveBeenCalled()
+    })
+
+    it('should create post successfully and navigate to edit page', async () => {
+      const user = userEvent.setup()
+      const createdPost: Post = {
+        ...mockDraftPost,
+        id: 999,
+        title: 'New Post',
+        slug: 'new-post',
+        content: 'New content',
+        tags: 'React',
+      }
+
+      vi.mocked(apiClient.createPost).mockResolvedValue(createdPost)
+
+      renderCreateMode()
+
+      await user.type(screen.getByLabelText(/タイトル/), 'New Post')
+      await user.type(screen.getByLabelText(/スラッグ/), 'new-post')
+      await user.type(screen.getByLabelText(/タグ/), 'React')
+      await user.type(screen.getByLabelText(/本文/), 'New content')
+      await user.click(screen.getByRole('button', { name: '保存' }))
+
+      await waitFor(() => {
+        expect(apiClient.createPost).toHaveBeenCalledWith({
+          title: 'New Post',
+          slug: 'new-post',
+          content: 'New content',
+          tags: 'React',
+        })
+      })
+
+      expect(mockAlert).toHaveBeenCalledWith('記事を作成しました')
+      expect(mockNavigate).toHaveBeenCalledWith('/posts/999/edit')
+    })
+
+    it('should show error message when create fails', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.createPost).mockRejectedValue(
+        new Error('スラッグが既に存在します')
+      )
+
+      renderCreateMode()
+
+      await user.type(screen.getByLabelText(/タイトル/), 'New Post')
+      await user.type(screen.getByLabelText(/スラッグ/), 'duplicate-slug')
+      await user.click(screen.getByRole('button', { name: '保存' }))
+
+      await waitFor(() => {
+        expect(screen.getByText('スラッグが既に存在します')).toBeInTheDocument()
+      })
+
+      expect(mockAlert).not.toHaveBeenCalled()
+      expect(mockNavigate).not.toHaveBeenCalled()
+    })
+
+    it('should disable form fields during save', async () => {
+      const user = userEvent.setup()
+      let resolveCreate: (post: Post) => void
+      vi.mocked(apiClient.createPost).mockReturnValue(
+        new Promise((resolve) => {
+          resolveCreate = resolve as (post: Post) => void
+        })
+      )
+
+      renderCreateMode()
+
+      const titleInput = screen.getByLabelText(/タイトル/)
+      const slugInput = screen.getByLabelText(/スラッグ/)
+      const tagsInput = screen.getByLabelText(/タグ/)
+      const contentInput = screen.getByLabelText(/本文/)
+      const saveButton = screen.getByRole('button', { name: '保存' })
+
+      await user.type(titleInput, 'Test')
+      await user.type(slugInput, 'test')
+      await user.click(saveButton)
+
+      await waitFor(() => {
+        expect(titleInput).toBeDisabled()
+        expect(slugInput).toBeDisabled()
+        expect(tagsInput).toBeDisabled()
+        expect(contentInput).toBeDisabled()
+        expect(saveButton).toBeDisabled()
+        expect(screen.getByRole('button', { name: '保存中...' })).toBeInTheDocument()
+      })
+
+      resolveCreate!(mockDraftPost)
+
+      await waitFor(() => {
+        expect(titleInput).not.toBeDisabled()
+      })
+    })
+  })
+
+  describe('Update post', () => {
+    it('should update post successfully', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
+      vi.mocked(apiClient.updatePost).mockResolvedValue({
+        ...mockDraftPost,
+        title: 'Updated Title',
+      })
+
+      renderEditMode(1)
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/タイトル/)).toHaveValue('Draft Post')
+      })
+
+      const titleInput = screen.getByLabelText(/タイトル/)
+      await user.clear(titleInput)
+      await user.type(titleInput, 'Updated Title')
+      await user.click(screen.getByRole('button', { name: '保存' }))
+
+      await waitFor(() => {
+        expect(apiClient.updatePost).toHaveBeenCalledWith(1, {
+          title: 'Updated Title',
+          slug: 'draft-post',
+          content: 'Draft content',
+          tags: 'Go, Testing',
+        })
+      })
+
+      expect(mockAlert).toHaveBeenCalledWith('記事を更新しました')
+      expect(mockNavigate).not.toHaveBeenCalled()
+    })
+
+    it('should show error message when update fails', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
+      vi.mocked(apiClient.updatePost).mockRejectedValue(
+        new Error('更新に失敗しました')
+      )
+
+      renderEditMode(1)
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/タイトル/)).toHaveValue('Draft Post')
+      })
+
+      await user.click(screen.getByRole('button', { name: '保存' }))
+
+      await waitFor(() => {
+        expect(screen.getByText('更新に失敗しました')).toBeInTheDocument()
+      })
+
+      expect(mockAlert).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Publish post', () => {
+    it('should publish draft post successfully', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
+      vi.mocked(apiClient.publishPost).mockResolvedValue({
+        ...mockDraftPost,
+        status: 'published',
+      })
+
+      renderEditMode(1)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: '公開する' })).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByRole('button', { name: '公開する' }))
+
+      await waitFor(() => {
+        expect(apiClient.publishPost).toHaveBeenCalledWith(1)
+      })
+
+      expect(mockAlert).toHaveBeenCalledWith('記事を公開しました')
+    })
+
+    it('should show error message when publish fails', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
+      vi.mocked(apiClient.publishPost).mockRejectedValue(
+        new Error('公開に失敗しました')
+      )
+
+      renderEditMode(1)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: '公開する' })).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByRole('button', { name: '公開する' }))
+
+      await waitFor(() => {
+        expect(screen.getByText('公開に失敗しました')).toBeInTheDocument()
+      })
+
+      expect(mockAlert).not.toHaveBeenCalled()
+    })
+
+    it('should update status badge after publish', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
+      vi.mocked(apiClient.publishPost).mockResolvedValue({
+        ...mockDraftPost,
+        status: 'published',
+      })
+
+      renderEditMode(1)
+
+      await waitFor(() => {
+        expect(screen.getByText('下書き')).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByRole('button', { name: '公開する' }))
+
+      await waitFor(() => {
+        expect(screen.getByText('公開済み')).toBeInTheDocument()
+      })
+
+      expect(screen.queryByText('下書き')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('Unpublish post', () => {
+    it('should unpublish published post successfully', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getPost).mockResolvedValue(mockPublishedPost)
+      vi.mocked(apiClient.unpublishPost).mockResolvedValue({
+        ...mockPublishedPost,
+        status: 'draft',
+      })
+
+      renderEditMode(2)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: '非公開にする' })).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByRole('button', { name: '非公開にする' }))
+
+      await waitFor(() => {
+        expect(apiClient.unpublishPost).toHaveBeenCalledWith(2)
+      })
+
+      expect(mockAlert).toHaveBeenCalledWith('記事を非公開にしました')
+    })
+
+    it('should show error message when unpublish fails', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getPost).mockResolvedValue(mockPublishedPost)
+      vi.mocked(apiClient.unpublishPost).mockRejectedValue(
+        new Error('非公開化に失敗しました')
+      )
+
+      renderEditMode(2)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: '非公開にする' })).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByRole('button', { name: '非公開にする' }))
+
+      await waitFor(() => {
+        expect(screen.getByText('非公開化に失敗しました')).toBeInTheDocument()
+      })
+
+      expect(mockAlert).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Delete post', () => {
+    it('should not delete when confirm is cancelled', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
+      mockConfirm.mockReturnValue(false)
+
+      renderEditMode(1)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByRole('button', { name: '削除' }))
+
+      expect(mockConfirm).toHaveBeenCalledWith(
+        '本当に削除しますか？この操作は取り消せません。'
+      )
+      expect(apiClient.deletePost).not.toHaveBeenCalled()
+    })
+
+    it('should delete post when confirm is accepted', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
+      vi.mocked(apiClient.deletePost).mockResolvedValue(undefined)
+      mockConfirm.mockReturnValue(true)
+
+      renderEditMode(1)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByRole('button', { name: '削除' }))
+
+      await waitFor(() => {
+        expect(apiClient.deletePost).toHaveBeenCalledWith(1)
+      })
+
+      expect(mockAlert).toHaveBeenCalledWith('記事を削除しました')
+      expect(mockNavigate).toHaveBeenCalledWith('/posts')
+    })
+
+    it('should show error message when delete fails', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
+      vi.mocked(apiClient.deletePost).mockRejectedValue(
+        new Error('削除に失敗しました')
+      )
+      mockConfirm.mockReturnValue(true)
+
+      renderEditMode(1)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByRole('button', { name: '削除' }))
+
+      await waitFor(() => {
+        expect(screen.getByText('削除に失敗しました')).toBeInTheDocument()
+      })
+
+      expect(mockAlert).not.toHaveBeenCalled()
+      expect(mockNavigate).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Error handling', () => {
+    it('should clear previous error on new save attempt', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.createPost)
+        .mockRejectedValueOnce(new Error('First error'))
+        .mockResolvedValueOnce(mockDraftPost)
+
+      renderCreateMode()
+
+      await user.type(screen.getByLabelText(/タイトル/), 'Test')
+      await user.type(screen.getByLabelText(/スラッグ/), 'test')
+      await user.click(screen.getByRole('button', { name: '保存' }))
+
+      await waitFor(() => {
+        expect(screen.getByText('First error')).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByRole('button', { name: '保存' }))
+
+      await waitFor(() => {
+        expect(screen.queryByText('First error')).not.toBeInTheDocument()
+      })
+    })
+
+    it('should show default error message for non-Error exceptions', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.createPost).mockRejectedValue('Unknown error')
+
+      renderCreateMode()
+
+      await user.type(screen.getByLabelText(/タイトル/), 'Test')
+      await user.type(screen.getByLabelText(/スラッグ/), 'test')
+      await user.click(screen.getByRole('button', { name: '保存' }))
+
+      await waitFor(() => {
+        expect(screen.getByText('保存に失敗しました')).toBeInTheDocument()
+      })
+    })
+  })
+})

@@ -5,10 +5,12 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/capybara-translation/goblog/internal/service"
 	"github.com/gorilla/mux"
@@ -50,6 +52,26 @@ func splitTags(tags string) []string {
 	return result
 }
 
+// formatDateWithTZ は日付をISO 8601形式 + タイムゾーン略称で表示します
+// TZ環境変数で設定されたタイムゾーンに変換してからフォーマットします
+func formatDateWithTZ(t time.Time) string {
+	// TZ環境変数を直接読み取ってtime.LoadLocationに渡す
+	// time.LoadLocation("Local")はキャッシュの問題で環境変数の変更を反映しない場合がある
+	var loc *time.Location
+	var err error
+
+	if tz := os.Getenv("TZ"); tz != "" {
+		loc, err = time.LoadLocation(tz)
+	}
+
+	if err != nil || loc == nil {
+		// エラー時またはTZ未設定時はtime.Localを使用
+		loc = time.Local
+	}
+
+	return t.In(loc).Format("2006-01-02 (MST)")
+}
+
 // NewPublicHandlers はテンプレートパスを指定してPublicHandlersを作成します
 func NewPublicHandlers(postService service.PostService, blogTitle string, templatePattern string) *PublicHandlers {
 	dir := filepath.Dir(templatePattern)
@@ -57,8 +79,9 @@ func NewPublicHandlers(postService service.PostService, blogTitle string, templa
 
 	// カスタムテンプレート関数を定義
 	funcMap := template.FuncMap{
-		"truncate":  truncateRunes,
-		"splitTags": splitTags,
+		"truncate":        truncateRunes,
+		"splitTags":       splitTags,
+		"formatDateWithTZ": formatDateWithTZ,
 	}
 
 	// 各ページごとに独立したテンプレートセットを作成

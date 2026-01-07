@@ -313,6 +313,27 @@ func getSeedPosts() []seedPost {
 			tags:    "Kubernetes,コンテナ,デプロイ",
 			publish: false,
 		},
+		{
+			title:   "技術メモ：開発環境のセットアップ",
+			slug:    "dev-environment-setup-memo",
+			content: "開発環境のセットアップ手順についてのメモです。\n\n後で詳しく書く予定ですが、とりあえず備忘録として残しておきます。",
+			tags:    "",
+			publish: true,
+		},
+		{
+			title:   "雑記：プログラミング学習の記録",
+			slug:    "programming-learning-notes",
+			content: "日々の学習記録です。\n\n特定のトピックではないため、タグは未設定です。",
+			tags:    "",
+			publish: true,
+		},
+		{
+			title:   "未分類のアイデア（下書き）",
+			slug:    "uncategorized-ideas",
+			content: "まだカテゴリが決まっていないアイデアのメモです。\n\n後で整理する予定です。",
+			tags:    "",
+			publish: false,
+		},
 	}
 }
 

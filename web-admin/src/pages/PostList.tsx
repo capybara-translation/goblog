@@ -5,6 +5,7 @@ import { StatusBadge } from '../components/StatusBadge';
 import { TagList } from '../components/TagList';
 
 const POSTS_PER_PAGE = 20;
+const BLOG_TIMEZONE = import.meta.env.VITE_BLOG_TIMEZONE || 'UTC';
 
 export function PostList() {
   const [posts, setPosts] = useState<Post[]>([]);
@@ -68,11 +69,22 @@ export function PostList() {
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '-';
     const date = new Date(dateString);
-    return date.toLocaleDateString('ja-JP', {
+
+    // 日付フォーマット
+    const formatted = date.toLocaleDateString(undefined, {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
+      timeZone: BLOG_TIMEZONE,
     });
+
+    // タイムゾーン略称を取得（JST, EST など）
+    const timeZoneName = new Intl.DateTimeFormat(undefined, {
+      timeZone: BLOG_TIMEZONE,
+      timeZoneName: 'short',
+    }).formatToParts(date).find(part => part.type === 'timeZoneName')?.value;
+
+    return timeZoneName ? `${formatted} (${timeZoneName})` : formatted;
   };
 
   if (isLoading) {
