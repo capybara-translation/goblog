@@ -1,6 +1,8 @@
 package http
 
 import (
+	"net/http"
+
 	"github.com/capybara-translation/goblog/internal/service"
 	"github.com/gorilla/mux"
 )
@@ -22,6 +24,10 @@ func NewRouterWithTemplates(postService service.PostService, authService service
 
 	// 認証用のハンドラーを初期化
 	authHandlers := NewAuthHandlers(authService, secureCookie)
+
+	// 静的ファイル（favicon等）
+	staticFileServer := http.FileServer(http.Dir("internal/view/static"))
+	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", staticFileServer))
 
 	// 公開ページ（SSR）
 	r.HandleFunc("/", publicHandlers.HandleHome).Methods("GET")

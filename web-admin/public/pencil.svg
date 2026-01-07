@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">
+  <g transform="translate(40, 40) rotate(-135)">
+    <!-- Pencil body -->
+    <rect x="-8.75" y="-35" width="17.5" height="70" fill="white" stroke="black" stroke-width="2" rx="2"/>
+
+    <!-- Pencil tip -->
+    <polygon points="-8,-35 8,-35 0,-50" fill="white" stroke="black" stroke-width="2" stroke-linejoin="miter"/>
+
+    <!-- Graphite tip (black) -->
+    <polygon points="-6,-41 6,-41 0,-50" fill="black"/>
+
+    <!-- Body lines -->
+    <line x1="-3" y1="-35" x2="-3" y2="35" stroke="black" stroke-width="1"/>
+    <line x1="3" y1="-35" x2="3" y2="35" stroke="black" stroke-width="1"/>
+  </g>
+</svg>
