@@ -52,7 +52,7 @@ describe('Header', () => {
   describe('Rendering', () => {
     it('should render the app title', () => {
       renderHeader()
-      expect(screen.getByText('goblog 管理画面')).toBeInTheDocument()
+      expect(screen.getByText(/管理画面$/)).toBeInTheDocument()
     })
 
     it('should render navigation links', () => {
@@ -74,7 +74,7 @@ describe('Header', () => {
     it('should have correct links', () => {
       renderHeader()
 
-      const titleLink = screen.getByText('goblog 管理画面').closest('a')
+      const titleLink = screen.getByText(/管理画面$/).closest('a')
       expect(titleLink).toHaveAttribute('href', '/posts')
 
       const postsLink = screen.getByText('記事一覧').closest('a')

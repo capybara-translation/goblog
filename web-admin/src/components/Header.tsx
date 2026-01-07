@@ -1,6 +1,8 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
+const BLOG_TITLE = import.meta.env.VITE_BLOG_TITLE || 'goblog';
+
 export function Header() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -24,7 +26,7 @@ export function Header() {
               to="/posts"
               className="text-xl font-sans font-bold text-primary-900 hover:text-primary-700 transition-colors"
             >
-              goblog 管理画面
+              {BLOG_TITLE} 管理画面
             </Link>
             <nav className="flex gap-4">
               <Link

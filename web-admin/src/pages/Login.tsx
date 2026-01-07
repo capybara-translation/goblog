@@ -2,6 +2,8 @@ import { useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
+const BLOG_TITLE = import.meta.env.VITE_BLOG_TITLE || 'goblog';
+
 export function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -32,7 +34,7 @@ export function Login() {
     <div className="min-h-screen flex items-center justify-center bg-stone-50">
       <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
         <h1 className="text-3xl font-sans font-bold text-primary-900 mb-2">
-          goblog 管理画面
+          {BLOG_TITLE} 管理画面
         </h1>
         <p className="text-primary-600 mb-6">ログインしてください</p>
 

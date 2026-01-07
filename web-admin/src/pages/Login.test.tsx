@@ -45,7 +45,7 @@ describe('Login', () => {
   describe('Rendering', () => {
     it('should render login form with title', () => {
       renderLogin()
-      expect(screen.getByText('goblog 管理画面')).toBeInTheDocument()
+      expect(screen.getByText(/管理画面$/)).toBeInTheDocument()
       expect(screen.getByText('ログインしてください')).toBeInTheDocument()
     })
 
