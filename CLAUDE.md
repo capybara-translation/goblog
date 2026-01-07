@@ -8,7 +8,24 @@ Claude Code must follow the following rules:
 
 ## プロジェクト概要
 
-goblogはGoで書かれたシンプルなブログシステムです。公開ページはSSR（サーバーサイドレンダリング）、管理画面はReact SPAとして構成されています。
+goblogはGoで書かれたシンプルなブログシステムです。公開ページはSSR（サーバーサイドレンダリング）、管理画面はReact SPAとして構成されています（SPA は計画中、現在未実装）。
+
+### 実装状況
+
+✅ **実装済み:**
+- 記事管理（作成、編集、削除、公開/非公開切替）
+- タグ機能（タグ一覧、タグ別記事一覧、タグフィルタリング）
+- 認証・認可（ユーザー名・パスワード認証、セッション管理）
+- セキュリティ（CSRF対策、ブルートフォース対策、パスワードポリシー）
+- タイムゾーン対応（ISO 8601形式 + タイムゾーン略称）
+- 公開ページ（SSR）
+- API エンドポイント（/api/v1）
+
+🚧 **計画中:**
+- React SPA 管理画面（/admin）
+- RSS フィード
+- サイトマップ
+- 画像アップロード
 
 ## アーキテクチャ
 
@@ -40,16 +57,38 @@ Database (SQLite)
 /internal/
   /http/               # HTTPレイヤー
     router.go          # ルーティング設定
-    handlers_*.go      # HTTPハンドラー（public/api/auth）
+    handlers_public.go # 公開ページハンドラー
+    handlers_api.go    # API ハンドラー
+    handlers_auth.go   # 認証ハンドラー
     middleware.go      # 認証・CSRFミドルウェア
+    static.go          # SPA 配信（計画中）
   /service/            # ビジネスロジック
+    post_service.go
+    user_service.go
   /repo/               # データアクセス
+    post_repo.go
+    user_repo.go
   /domain/             # ドメインモデル
+    post.go
+    user.go
   /auth/               # 認証ユーティリティ（セッション管理）
+    session.go
   /config/             # 設定管理
-  /view/templates/     # HTMLテンプレート
+    config.go
+  /view/               # ビュー関連
+    templates/         # HTMLテンプレート
+      layout.html
+      home.html
+      posts.html
+      post.html
+      tags.html
+      tag_posts.html
 
 /migrations/           # SQLマイグレーションファイル
+  001_init.sql
+  002_add_tags.sql
+
+/web-admin/            # React SPA 管理画面（計画中、未実装）
 ```
 
 ## 開発コマンド
@@ -66,7 +105,7 @@ go test ./internal/service  # 特定パッケージのみ
 
 # データベース管理
 make clean             # DBファイル削除
-make seed              # テストデータ投入（19件公開、5件下書き）
+make seed              # テストデータ投入（テストユーザー: admin/password）
 make reset             # clean + seed
 
 # ビルド
@@ -82,6 +121,10 @@ make build             # bin/goblog, bin/seed を生成
 - `PASSWORD_POLICY`: NONE（開発）/STRONG（本番、15文字以上+大小英数記号）
 - `DATABASE_PATH`: SQLiteファイルパス（デフォルト: data/goblog.db）
 - `BLOG_TITLE`: ブログタイトル
+- `TZ`: タイムゾーン（例: Asia/Tokyo, UTC, America/New_York）
+  - 日付表示に使用される
+  - ISO 8601形式（YYYY-MM-DD）+ タイムゾーン略称で表示（例: `2024-12-26 (JST)`）
+  - デフォルト: システムのタイムゾーン
 
 **重要**: 本番環境では`SECURE_COOKIE=true`と`PASSWORD_POLICY=STRONG`を必ず設定すること。
 
@@ -223,6 +266,10 @@ POST /api/v1/auth/login (JSON)
 - ページごとに独立したテンプレートセット
 - `NewPublicHandlers()`でテンプレートパスを指定
 - テスト時は`NewRouterWithTemplates()`でパスをオーバーライド
+- **テンプレート関数**:
+  - `truncate`: 文字列をルーン単位で切り詰め（日本語対応）
+  - `splitTags`: カンマ区切りタグをスライスに変換
+  - `formatDateWithTZ`: ISO 8601形式 + タイムゾーン略称で日付表示（TZ環境変数を使用）
 
 ### エラーハンドリング
 - APIは常にJSON形式でエラーを返却
@@ -245,8 +292,11 @@ POST /api/v1/auth/login (JSON)
 
 - SQLite3を使用
 - マイグレーションは起動時に自動実行
-- インデックス: `slug`, `status`, `published_at`, `username`
+- インデックス: `slug`, `status`, `published_at`, `username`, `tags`
 - トランザクションはリポジトリ層で管理
+- **スキーマ**:
+  - `posts`: 記事データ（id, title, slug, content, status, tags, created_at, updated_at, published_at）
+  - `users`: ユーザーデータ（id, username, password_hash, created_at, updated_at）
 
 ## 依存関係
 

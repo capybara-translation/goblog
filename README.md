@@ -43,9 +43,11 @@ make clean  # データベースを削除
 make seed   # テストデータを投入
 ```
 
-これにより以下のデータが投入されます：
-- 公開記事: 19件
-- 下書き記事: 5件
+これにより、動作確認用のテストユーザーとテスト記事が作成されます。
+
+**テストユーザー:**
+- ユーザー名: `admin`
+- パスワード: `password`
 
 ### 5. サーバーの起動
 
@@ -97,6 +99,7 @@ go run cmd/goblog/main.go
 | `PASSWORD_POLICY` | パスワードポリシー（`NONE` または `STRONG`） | `NONE` |
 | `DATABASE_PATH` | データベースファイルのパス | `data/goblog.db` |
 | `BLOG_TITLE` | ブログのタイトル（ヘッダーやページタイトルに表示） | `goblog` |
+| `TZ` | タイムゾーン（例: `Asia/Tokyo`, `UTC`, `America/New_York`）<br>日付表示に使用される | システムのタイムゾーン |
 
 **パスワードポリシーについて:**
 
@@ -109,6 +112,21 @@ go run cmd/goblog/main.go
   - 記号を1文字以上含む
 
 ※ 大文字小文字を区別しません（`none`/`NONE`/`None`、`strong`/`STRONG`/`Strong` すべて有効）
+
+**タイムゾーンについて:**
+
+日付表示は ISO 8601 形式（YYYY-MM-DD）にタイムゾーン略称を付けた形式で表示されます：
+- 例: `2024-12-26 (JST)`, `2024-12-25 (UTC)`, `2024-12-26 (EST)`
+
+TZ 環境変数を設定することで、ブログの執筆者のタイムゾーンで日付を表示できます：
+
+```bash
+# Asia/Tokyo タイムゾーンで起動
+TZ=Asia/Tokyo make run
+
+# または .env ファイルに設定
+echo "TZ=Asia/Tokyo" >> .env
+```
 
 **注意:**
 - 本番環境（HTTPS対応サーバー）では必ず `SECURE_COOKIE=true` を設定してください。これにより Cookie が HTTPS 接続でのみ送信されるようになります。
@@ -132,6 +150,8 @@ make test-cover
 
 開発でよく使うコマンドをMakefileにまとめています：
 
+### 基本コマンド
+
 ```bash
 make help        # ヘルプを表示
 make run         # サーバーを起動
@@ -139,40 +159,67 @@ make stop        # 起動中のサーバーを停止
 make test        # テストを実行
 make test-v      # テストを詳細出力で実行
 make test-cover  # テストカバレッジを表示
-make clean       # データベースを削除
+make clean       # データベースとフロントエンドビルド成果物を削除
 make seed        # テストデータを投入
 make reset       # データベースをリセットしてテストデータ投入
-make build       # バイナリをビルド
+make build       # フロントエンドとバックエンドをビルド
 make install     # バイナリをインストール
 make deps        # 依存関係をダウンロード
 ```
+
+### 管理画面（React SPA）関連コマンド 🚧
+
+```bash
+make install-admin  # 管理画面のnpm依存関係をインストール
+make build-admin    # 管理画面をビルド
+make dev-admin      # 管理画面の開発サーバーを起動
+make clean-admin    # 管理画面のビルド成果物を削除
+```
+
+**注意:** 管理画面は現在開発中です。
 
 ## ディレクトリ構成
 
 ```
 /cmd/
-  /goblog/main.go  (アプリケーション本体)
-  /seed/main.go    (テストデータ投入コマンド)
+  /goblog/main.go      # アプリケーション本体
+  /seed/main.go        # テストデータ投入コマンド
+
 /internal/
-  /http/
-    router.go
-    middleware.go
-    handlers_public.go
-    handlers_api.go
-  /domain/
+  /http/               # HTTPレイヤー
+    router.go          # ルーティング設定
+    middleware.go      # 認証・CSRFミドルウェア
+    handlers_public.go # 公開ページハンドラー
+    handlers_api.go    # API ハンドラー
+    handlers_auth.go   # 認証ハンドラー
+    static.go          # SPA 配信（計画中）
+  /domain/             # ドメインモデル
     post.go
-  /repo/
+    user.go
+  /repo/               # データアクセス層
     post_repo.go
-  /service/
+    user_repo.go
+  /service/            # ビジネスロジック層
     post_service.go
-  /auth/
+    user_service.go
+  /auth/               # 認証ユーティリティ
     session.go
-  /view/
-    templates/   (*.html)
-    assets/      (admin distを置く or 埋め込む)
-/migrations/
+  /config/             # 設定管理
+    config.go
+  /view/               # ビュー関連
+    templates/         # HTMLテンプレート（SSR）
+      layout.html
+      home.html
+      posts.html
+      post.html
+      tags.html
+      tag_posts.html
+
+/migrations/           # SQLマイグレーション
   001_init.sql
-/web-admin/       (React)
+  002_add_tags.sql
+
+/web-admin/            # React SPA 管理画面（計画中、未実装）
   src/...
 ```
 
@@ -247,35 +294,54 @@ make deps        # 依存関係をダウンロード
 - HTTPS環境で運用することを強く推奨します
 - 管理画面へのアクセスをBasic認証で二重保護することも検討してください（Nginxなどで設定可能）
 
+### 実装済み機能
+
+- ✅ **記事管理**: 作成、編集、削除、公開/非公開切替
+- ✅ **タグ機能**: タグ一覧、タグ別記事一覧、タグフィルタリング
+- ✅ **認証**: ユーザー名・パスワード認証、セッション管理
+- ✅ **セキュリティ**: CSRF対策、ブルートフォース対策、パスワードポリシー
+- ✅ **タイムゾーン対応**: ISO 8601 形式 + タイムゾーン略称での日付表示
+- 🚧 **管理画面SPA**: React SPA（計画中、未実装）
+- 🚧 **RSS/Sitemap**: フィード配信（計画中、未実装）
+
 ### URL設計
 
-#### 公開ページ（SSR）
+#### 公開ページ（SSR）✅ 実装済み
 
-- GET /（トップ）
-- GET /posts（一覧）
-- GET /posts/{slug}（詳細）
-- GET /tags（タグ一覧）
-- GET /tags/{tag}（タグ別記事一覧）
-- GET /rss.xml
-- GET /sitemap.xml
+- `GET /` - トップページ
+- `GET /posts` - 記事一覧（ページネーション対応）
+- `GET /posts/{slug}` - 記事詳細
+- `GET /tags` - タグ一覧
+- `GET /tags/{tag}` - タグ別記事一覧（ページネーション対応）
 
-#### 管理画面（SPA）
+#### 公開ページ（SSR）🚧 未実装
 
-- GET /admin（SPAの入口）
-- GET /admin/*（全部SPAにフォールバック）
+- `GET /rss.xml` - RSS フィード（計画中）
+- `GET /sitemap.xml` - サイトマップ（計画中）
 
-#### API（管理画面が叩く）
+#### 管理画面（SPA）🚧 計画中
 
-- /api/v1/... に集約（将来破壊的変更しても共存できるのでおすすめ）
-- POST /api/v1/auth/login
-- POST /api/v1/auth/logout
-- GET  /api/v1/auth/me（ログイン状態確認）
-- GET  /api/v1/posts?status=draft|published&tag=タグ名&limit=N&offset=N
-- POST /api/v1/posts
-- GET  /api/v1/posts/{id}
-- PUT  /api/v1/posts/{id}
-- DELETE /api/v1/posts/{id}
-- POST /api/v1/posts/{id}/publish（公開操作を分けたい場合）
-- POST /api/v1/posts/{id}/unpublish（非公開化）
-- GET  /api/v1/tags?status=draft|published
-- POST /api/v1/uploads（画像アップロード → URL返す）
+- `GET /admin` - SPA入口（計画中）
+- `GET /admin/*` - SPAフォールバック（計画中）
+
+#### API（/api/v1）✅ 実装済み
+
+**公開エンドポイント:**
+- `POST /api/v1/auth/login` - ログイン
+- `GET /api/v1/health` - ヘルスチェック
+
+**保護エンドポイント（認証 + CSRF 必須）:**
+- `POST /api/v1/auth/logout` - ログアウト
+- `GET /api/v1/auth/me` - ログイン状態確認
+- `GET /api/v1/posts` - 記事一覧取得（`?status=draft|published&tag=タグ名&limit=N&offset=N`）
+- `POST /api/v1/posts` - 記事作成
+- `GET /api/v1/posts/{id}` - 記事取得
+- `PUT /api/v1/posts/{id}` - 記事更新
+- `DELETE /api/v1/posts/{id}` - 記事削除
+- `POST /api/v1/posts/{id}/publish` - 記事公開
+- `POST /api/v1/posts/{id}/unpublish` - 記事非公開化
+- `GET /api/v1/tags` - タグ一覧取得（`?status=draft|published`）
+
+#### API（/api/v1）🚧 未実装
+
+- `POST /api/v1/uploads` - 画像アップロード（計画中）
