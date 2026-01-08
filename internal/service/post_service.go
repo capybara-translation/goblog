@@ -48,6 +48,12 @@ type PostService interface {
 
 	// GetAllTags は管理画面用にタグ一覧を取得します（ステータス指定可能）
 	GetAllTags(status *domain.PostStatus) (map[string]int, error)
+
+	// CountPosts は記事の総数を取得します
+	CountPosts(status *domain.PostStatus) (int, error)
+
+	// CountPostsByTag は特定のタグを持つ記事の総数を取得します
+	CountPostsByTag(tag string, status *domain.PostStatus) (int, error)
 }
 
 type postService struct {
@@ -226,4 +232,17 @@ func (s *postService) GetPublishedTags() (map[string]int, error) {
 // GetAllTags は管理画面用にタグ一覧を取得します（ステータス指定可能）
 func (s *postService) GetAllTags(status *domain.PostStatus) (map[string]int, error) {
 	return s.repo.GetAllTags(status)
+}
+
+// CountPosts は記事の総数を取得します
+func (s *postService) CountPosts(status *domain.PostStatus) (int, error) {
+	return s.repo.Count(status)
+}
+
+// CountPostsByTag は特定のタグを持つ記事の総数を取得します
+func (s *postService) CountPostsByTag(tag string, status *domain.PostStatus) (int, error) {
+	if tag == "" {
+		return 0, fmt.Errorf("tag cannot be empty")
+	}
+	return s.repo.CountByTag(tag, status)
 }

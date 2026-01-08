@@ -42,27 +42,37 @@ describe('API Client', () => {
 
   describe('Posts endpoints', () => {
     describe('getPosts', () => {
-      it('should fetch all posts', async () => {
-        const posts = await apiClient.getPosts()
+      it('should fetch all posts with total count', async () => {
+        const response = await apiClient.getPosts()
 
-        expect(posts).toBeInstanceOf(Array)
-        expect(posts.length).toBeGreaterThan(0)
+        expect(response).toHaveProperty('posts')
+        expect(response).toHaveProperty('total')
+        expect(response.posts).toBeInstanceOf(Array)
+        expect(response.posts.length).toBeGreaterThan(0)
+        expect(response.total).toBeGreaterThan(0)
       })
 
       it('should filter posts by status', async () => {
-        const draftPosts = await apiClient.getPosts({ status: 'draft' })
+        const response = await apiClient.getPosts({ status: 'draft' })
 
-        expect(draftPosts).toBeInstanceOf(Array)
-        draftPosts.forEach((post) => {
+        expect(response.posts).toBeInstanceOf(Array)
+        response.posts.forEach((post) => {
           expect(post.status).toBe('draft')
         })
       })
 
       it('should filter posts by tag', async () => {
-        const posts = await apiClient.getPosts({ tag: 'Go' })
+        const response = await apiClient.getPosts({ tag: 'Go' })
 
-        expect(posts).toBeInstanceOf(Array)
-        expect(posts.length).toBeGreaterThan(0)
+        expect(response.posts).toBeInstanceOf(Array)
+        expect(response.posts.length).toBeGreaterThan(0)
+      })
+
+      it('should support pagination with limit and offset', async () => {
+        const response = await apiClient.getPosts({ limit: 1, offset: 0 })
+
+        expect(response.posts).toHaveLength(1)
+        expect(response.total).toBeGreaterThan(1)
       })
     })
 

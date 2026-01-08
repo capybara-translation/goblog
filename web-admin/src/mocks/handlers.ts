@@ -118,6 +118,8 @@ export const handlers = [
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
     const tag = url.searchParams.get('tag');
+    const limitStr = url.searchParams.get('limit');
+    const offsetStr = url.searchParams.get('offset');
 
     let filtered = [...mockPosts];
 
@@ -133,7 +135,14 @@ export const handlers = [
       );
     }
 
-    return HttpResponse.json(filtered);
+    const total = filtered.length;
+
+    // Apply pagination
+    const limit = limitStr ? parseInt(limitStr, 10) : 20;
+    const offset = offsetStr ? parseInt(offsetStr, 10) : 0;
+    const paginated = filtered.slice(offset, offset + limit);
+
+    return HttpResponse.json({ posts: paginated, total });
   }),
 
   http.get(`${API_BASE}/posts/:id`, ({ params }) => {

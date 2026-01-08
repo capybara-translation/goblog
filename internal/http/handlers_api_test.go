@@ -26,6 +26,8 @@ type mockPostServiceForAPI struct {
 	deletePostFunc       func(id int64) error
 	publishPostFunc      func(id int64) (*domain.Post, error)
 	unpublishPostFunc    func(id int64) (*domain.Post, error)
+	countPostsFunc       func(status *domain.PostStatus) (int, error)
+	countPostsByTagFunc  func(tag string, status *domain.PostStatus) (int, error)
 }
 
 func (m *mockPostServiceForAPI) GetPublishedPosts(limit, offset int) ([]*domain.Post, error) {
@@ -105,6 +107,20 @@ func (m *mockPostServiceForAPI) DeletePost(id int64) error {
 		return m.deletePostFunc(id)
 	}
 	return nil
+}
+
+func (m *mockPostServiceForAPI) CountPosts(status *domain.PostStatus) (int, error) {
+	if m.countPostsFunc != nil {
+		return m.countPostsFunc(status)
+	}
+	return 0, nil
+}
+
+func (m *mockPostServiceForAPI) CountPostsByTag(tag string, status *domain.PostStatus) (int, error) {
+	if m.countPostsByTagFunc != nil {
+		return m.countPostsByTagFunc(tag, status)
+	}
+	return 0, nil
 }
 
 var _ service.PostService = (*mockPostServiceForAPI)(nil)
@@ -307,8 +323,8 @@ func TestHandleGetPosts(t *testing.T) {
 		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
 	}
 
-	var posts []*domain.Post
-	if err := json.Unmarshal(w.Body.Bytes(), &posts); err != nil {
+	var response PostsResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 		t.Fatalf("failed to parse JSON response: %v", err)
 	}
 }
@@ -409,13 +425,13 @@ func TestHandleGetPosts_WithFilters(t *testing.T) {
 				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
 			}
 
-			var posts []*domain.Post
-			if err := json.Unmarshal(w.Body.Bytes(), &posts); err != nil {
+			var response PostsResponse
+			if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 				t.Fatalf("failed to parse JSON response: %v", err)
 			}
 
-			if len(posts) != tt.expectedCount {
-				t.Errorf("expected %d posts, got %d", tt.expectedCount, len(posts))
+			if len(response.Posts) != tt.expectedCount {
+				t.Errorf("expected %d posts, got %d", tt.expectedCount, len(response.Posts))
 			}
 		})
 	}

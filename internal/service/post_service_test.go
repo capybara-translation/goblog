@@ -18,6 +18,8 @@ type mockPostRepository struct {
 	createFunc        func(post *domain.Post) error
 	updateFunc        func(post *domain.Post) error
 	deleteFunc        func(id int64) error
+	countFunc         func(status *domain.PostStatus) (int, error)
+	countByTagFunc    func(tag string, status *domain.PostStatus) (int, error)
 }
 
 func (m *mockPostRepository) FindAll(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
@@ -74,6 +76,20 @@ func (m *mockPostRepository) Delete(id int64) error {
 		return m.deleteFunc(id)
 	}
 	return nil
+}
+
+func (m *mockPostRepository) Count(status *domain.PostStatus) (int, error) {
+	if m.countFunc != nil {
+		return m.countFunc(status)
+	}
+	return 0, nil
+}
+
+func (m *mockPostRepository) CountByTag(tag string, status *domain.PostStatus) (int, error) {
+	if m.countByTagFunc != nil {
+		return m.countByTagFunc(tag, status)
+	}
+	return 0, nil
 }
 
 func TestPostService_GetPublishedPosts(t *testing.T) {

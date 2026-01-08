@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { PostList } from './PostList'
 import { apiClient } from '../api/client'
-import type { Post } from '../api/client'
+import type { Post, PostsResponse } from '../api/client'
 
 // apiClient をモック
 vi.mock('../api/client', () => ({
@@ -50,6 +50,11 @@ describe('PostList', () => {
     },
   ]
 
+  const mockResponse: PostsResponse = {
+    posts: mockPosts,
+    total: 3,
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -70,7 +75,7 @@ describe('PostList', () => {
     })
 
     it('should hide loading message after posts are loaded', async () => {
-      vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
       renderPostList()
 
       await waitFor(() => {
@@ -114,7 +119,7 @@ describe('PostList', () => {
 
   describe('Posts list rendering', () => {
     it('should render page title', async () => {
-      vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
       renderPostList()
 
       await waitFor(() => {
@@ -123,7 +128,7 @@ describe('PostList', () => {
     })
 
     it('should render new post button', async () => {
-      vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
       renderPostList()
 
       await waitFor(() => {
@@ -137,7 +142,7 @@ describe('PostList', () => {
     })
 
     it('should render all posts', async () => {
-      vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
       renderPostList()
 
       await waitFor(() => {
@@ -148,8 +153,8 @@ describe('PostList', () => {
       expect(screen.getByText('Third Published Post')).toBeInTheDocument()
     })
 
-    it('should render post count', async () => {
-      vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
+    it('should render post count from server total', async () => {
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
       renderPostList()
 
       await waitFor(() => {
@@ -158,7 +163,7 @@ describe('PostList', () => {
     })
 
     it('should render status badges', async () => {
-      vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
       renderPostList()
 
       await waitFor(() => {
@@ -169,7 +174,7 @@ describe('PostList', () => {
     })
 
     it('should render tags', async () => {
-      vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
       renderPostList()
 
       await waitFor(() => {
@@ -181,7 +186,7 @@ describe('PostList', () => {
     })
 
     it('should render formatted dates with timezone in title', async () => {
-      vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
       renderPostList()
 
       await waitFor(() => {
@@ -205,7 +210,7 @@ describe('PostList', () => {
     })
 
     it('should render "-" for null published_at', async () => {
-      vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
       renderPostList()
 
       await waitFor(() => {
@@ -215,7 +220,7 @@ describe('PostList', () => {
     })
 
     it('should render post links with correct href', async () => {
-      vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
       renderPostList()
 
       await waitFor(() => {
@@ -227,19 +232,23 @@ describe('PostList', () => {
       expect(secondPostLink).toHaveAttribute('href', '/posts/2/edit')
     })
 
-    it('should call getPosts with undefined status on mount', async () => {
-      vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
+    it('should call getPosts with correct parameters on mount', async () => {
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
       renderPostList()
 
       await waitFor(() => {
-        expect(apiClient.getPosts).toHaveBeenCalledWith({ status: undefined })
+        expect(apiClient.getPosts).toHaveBeenCalledWith({
+          status: undefined,
+          limit: 20,
+          offset: 0,
+        })
       })
     })
   })
 
   describe('Empty state', () => {
     it('should show empty message when no posts exist', async () => {
-      vi.mocked(apiClient.getPosts).mockResolvedValue([])
+      vi.mocked(apiClient.getPosts).mockResolvedValue({ posts: [], total: 0 })
       renderPostList()
 
       await waitFor(() => {
@@ -250,7 +259,7 @@ describe('PostList', () => {
     })
 
     it('should not show table when no posts exist', async () => {
-      vi.mocked(apiClient.getPosts).mockResolvedValue([])
+      vi.mocked(apiClient.getPosts).mockResolvedValue({ posts: [], total: 0 })
       renderPostList()
 
       await waitFor(() => {
@@ -263,7 +272,7 @@ describe('PostList', () => {
 
   describe('Status filter', () => {
     it('should render status filter dropdown', async () => {
-      vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
       renderPostList()
 
       await waitFor(() => {
@@ -272,7 +281,7 @@ describe('PostList', () => {
     })
 
     it('should have default value "all"', async () => {
-      vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
       renderPostList()
 
       await waitFor(() => {
@@ -280,9 +289,13 @@ describe('PostList', () => {
       })
     })
 
-    it('should filter draft posts when "draft" is selected', async () => {
+    it('should call API with status filter when "draft" is selected', async () => {
       const user = userEvent.setup()
-      vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
+      const draftPosts = mockPosts.filter(p => p.status === 'draft')
+      vi.mocked(apiClient.getPosts)
+        .mockResolvedValueOnce(mockResponse) // 初回ロード
+        .mockResolvedValueOnce({ posts: draftPosts, total: 1 }) // フィルタ後
+
       renderPostList()
 
       await waitFor(() => {
@@ -291,15 +304,22 @@ describe('PostList', () => {
 
       await user.selectOptions(screen.getByLabelText('ステータス'), 'draft')
 
-      expect(screen.getByText('Second Draft Post')).toBeInTheDocument()
-      expect(screen.queryByText('First Published Post')).not.toBeInTheDocument()
-      expect(screen.queryByText('Third Published Post')).not.toBeInTheDocument()
-      expect(screen.getByText('1件の記事')).toBeInTheDocument()
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenLastCalledWith({
+          status: 'draft',
+          limit: 20,
+          offset: 0,
+        })
+      })
     })
 
-    it('should filter published posts when "published" is selected', async () => {
+    it('should call API with status filter when "published" is selected', async () => {
       const user = userEvent.setup()
-      vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
+      const publishedPosts = mockPosts.filter(p => p.status === 'published')
+      vi.mocked(apiClient.getPosts)
+        .mockResolvedValueOnce(mockResponse) // 初回ロード
+        .mockResolvedValueOnce({ posts: publishedPosts, total: 2 }) // フィルタ後
+
       renderPostList()
 
       await waitFor(() => {
@@ -308,15 +328,23 @@ describe('PostList', () => {
 
       await user.selectOptions(screen.getByLabelText('ステータス'), 'published')
 
-      expect(screen.getByText('First Published Post')).toBeInTheDocument()
-      expect(screen.getByText('Third Published Post')).toBeInTheDocument()
-      expect(screen.queryByText('Second Draft Post')).not.toBeInTheDocument()
-      expect(screen.getByText('2件の記事')).toBeInTheDocument()
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenLastCalledWith({
+          status: 'published',
+          limit: 20,
+          offset: 0,
+        })
+      })
     })
 
-    it('should show all posts when "all" is selected after filtering', async () => {
+    it('should call API without status filter when "all" is selected after filtering', async () => {
       const user = userEvent.setup()
-      vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
+      const draftPosts = mockPosts.filter(p => p.status === 'draft')
+      vi.mocked(apiClient.getPosts)
+        .mockResolvedValueOnce(mockResponse) // 初回ロード
+        .mockResolvedValueOnce({ posts: draftPosts, total: 1 }) // draft フィルタ
+        .mockResolvedValueOnce(mockResponse) // all に戻す
+
       renderPostList()
 
       await waitFor(() => {
@@ -324,122 +352,41 @@ describe('PostList', () => {
       })
 
       await user.selectOptions(screen.getByLabelText('ステータス'), 'draft')
-      expect(screen.getByText('1件の記事')).toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.getByText('1件の記事')).toBeInTheDocument()
+      })
 
       await user.selectOptions(screen.getByLabelText('ステータス'), 'all')
-      expect(screen.getByText('3件の記事')).toBeInTheDocument()
-    })
-  })
-
-  describe('Title search', () => {
-    it('should render search input', async () => {
-      vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
-      renderPostList()
 
       await waitFor(() => {
-        expect(screen.getByLabelText('タイトル検索')).toBeInTheDocument()
+        expect(apiClient.getPosts).toHaveBeenLastCalledWith({
+          status: undefined,
+          limit: 20,
+          offset: 0,
+        })
       })
-    })
-
-    it('should filter posts by title search', async () => {
-      const user = userEvent.setup()
-      vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
-      renderPostList()
-
-      await waitFor(() => {
-        expect(screen.getByText('First Published Post')).toBeInTheDocument()
-      })
-
-      await user.type(screen.getByLabelText('タイトル検索'), 'Draft')
-
-      expect(screen.getByText('Second Draft Post')).toBeInTheDocument()
-      expect(screen.queryByText('First Published Post')).not.toBeInTheDocument()
-      expect(screen.getByText('1件の記事')).toBeInTheDocument()
-    })
-
-    it('should be case insensitive', async () => {
-      const user = userEvent.setup()
-      vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
-      renderPostList()
-
-      await waitFor(() => {
-        expect(screen.getByText('First Published Post')).toBeInTheDocument()
-      })
-
-      await user.type(screen.getByLabelText('タイトル検索'), 'first')
-
-      expect(screen.getByText('First Published Post')).toBeInTheDocument()
-      expect(screen.getByText('1件の記事')).toBeInTheDocument()
-    })
-
-    it('should show empty state when no matches found', async () => {
-      const user = userEvent.setup()
-      vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
-      renderPostList()
-
-      await waitFor(() => {
-        expect(screen.getByText('First Published Post')).toBeInTheDocument()
-      })
-
-      await user.type(screen.getByLabelText('タイトル検索'), 'nonexistent')
-
-      expect(screen.getByText('記事が見つかりませんでした')).toBeInTheDocument()
-      expect(screen.getByText('0件の記事')).toBeInTheDocument()
-    })
-
-    it('should ignore whitespace in search query', async () => {
-      const user = userEvent.setup()
-      vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
-      renderPostList()
-
-      await waitFor(() => {
-        expect(screen.getByText('First Published Post')).toBeInTheDocument()
-      })
-
-      await user.type(screen.getByLabelText('タイトル検索'), '   ')
-
-      // 空白のみの検索は無視され、全記事表示
-      expect(screen.getByText('3件の記事')).toBeInTheDocument()
-    })
-  })
-
-  describe('Combined filters', () => {
-    it('should apply both status filter and search together', async () => {
-      const user = userEvent.setup()
-      vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
-      renderPostList()
-
-      await waitFor(() => {
-        expect(screen.getByText('First Published Post')).toBeInTheDocument()
-      })
-
-      await user.selectOptions(screen.getByLabelText('ステータス'), 'published')
-      await user.type(screen.getByLabelText('タイトル検索'), 'Third')
-
-      expect(screen.getByText('Third Published Post')).toBeInTheDocument()
-      expect(screen.queryByText('First Published Post')).not.toBeInTheDocument()
-      expect(screen.queryByText('Second Draft Post')).not.toBeInTheDocument()
-      expect(screen.getByText('1件の記事')).toBeInTheDocument()
     })
   })
 
   describe('Pagination', () => {
-    const createManyPosts = (count: number): Post[] => {
-      return Array.from({ length: count }, (_, i) => ({
-        id: i + 1,
-        title: `Post ${i + 1}`,
-        slug: `post-${i + 1}`,
-        content: `Content ${i + 1}`,
+    const createManyPostsResponse = (count: number, page: number, limit: number = 20): PostsResponse => {
+      const offset = (page - 1) * limit
+      const posts = Array.from({ length: Math.min(limit, count - offset) }, (_, i) => ({
+        id: offset + i + 1,
+        title: `Post ${offset + i + 1}`,
+        slug: `post-${offset + i + 1}`,
+        content: `Content ${offset + i + 1}`,
         status: 'published' as const,
         tags: '',
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-01T00:00:00Z',
         published_at: '2024-01-01T00:00:00Z',
       }))
+      return { posts, total: count }
     }
 
-    it('should not show pagination when posts are 20 or less', async () => {
-      vi.mocked(apiClient.getPosts).mockResolvedValue(createManyPosts(20))
+    it('should not show pagination when total is 20 or less', async () => {
+      vi.mocked(apiClient.getPosts).mockResolvedValue(createManyPostsResponse(20, 1))
       renderPostList()
 
       await waitFor(() => {
@@ -450,8 +397,8 @@ describe('PostList', () => {
       expect(screen.queryByRole('button', { name: '次へ' })).not.toBeInTheDocument()
     })
 
-    it('should show pagination when posts are more than 20', async () => {
-      vi.mocked(apiClient.getPosts).mockResolvedValue(createManyPosts(25))
+    it('should show pagination when total is more than 20', async () => {
+      vi.mocked(apiClient.getPosts).mockResolvedValue(createManyPostsResponse(25, 1))
       renderPostList()
 
       await waitFor(() => {
@@ -462,8 +409,8 @@ describe('PostList', () => {
       expect(screen.getByText('1 / 2')).toBeInTheDocument()
     })
 
-    it('should show only first 20 posts on page 1', async () => {
-      vi.mocked(apiClient.getPosts).mockResolvedValue(createManyPosts(25))
+    it('should show posts from server response', async () => {
+      vi.mocked(apiClient.getPosts).mockResolvedValue(createManyPostsResponse(25, 1))
       renderPostList()
 
       await waitFor(() => {
@@ -475,7 +422,7 @@ describe('PostList', () => {
     })
 
     it('should disable "前へ" button on first page', async () => {
-      vi.mocked(apiClient.getPosts).mockResolvedValue(createManyPosts(25))
+      vi.mocked(apiClient.getPosts).mockResolvedValue(createManyPostsResponse(25, 1))
       renderPostList()
 
       await waitFor(() => {
@@ -484,7 +431,7 @@ describe('PostList', () => {
     })
 
     it('should enable "次へ" button on first page when there are more pages', async () => {
-      vi.mocked(apiClient.getPosts).mockResolvedValue(createManyPosts(25))
+      vi.mocked(apiClient.getPosts).mockResolvedValue(createManyPostsResponse(25, 1))
       renderPostList()
 
       await waitFor(() => {
@@ -492,9 +439,12 @@ describe('PostList', () => {
       })
     })
 
-    it('should navigate to next page when "次へ" is clicked', async () => {
+    it('should call API with offset when "次へ" is clicked', async () => {
       const user = userEvent.setup()
-      vi.mocked(apiClient.getPosts).mockResolvedValue(createManyPosts(25))
+      vi.mocked(apiClient.getPosts)
+        .mockResolvedValueOnce(createManyPostsResponse(25, 1)) // 初回ロード (page 1)
+        .mockResolvedValueOnce(createManyPostsResponse(25, 2)) // 次ページ (page 2)
+
       renderPostList()
 
       await waitFor(() => {
@@ -503,15 +453,24 @@ describe('PostList', () => {
 
       await user.click(screen.getByRole('button', { name: '次へ' }))
 
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenLastCalledWith({
+          status: undefined,
+          limit: 20,
+          offset: 20,
+        })
+      })
+
       expect(screen.getByText('2 / 2')).toBeInTheDocument()
-      expect(screen.getByText('Post 21')).toBeInTheDocument()
-      expect(screen.getByText('Post 25')).toBeInTheDocument()
-      expect(screen.queryByText('Post 20')).not.toBeInTheDocument()
     })
 
-    it('should navigate to previous page when "前へ" is clicked', async () => {
+    it('should call API with previous offset when "前へ" is clicked', async () => {
       const user = userEvent.setup()
-      vi.mocked(apiClient.getPosts).mockResolvedValue(createManyPosts(25))
+      vi.mocked(apiClient.getPosts)
+        .mockResolvedValueOnce(createManyPostsResponse(25, 1)) // 初回ロード (page 1)
+        .mockResolvedValueOnce(createManyPostsResponse(25, 2)) // 次ページ (page 2)
+        .mockResolvedValueOnce(createManyPostsResponse(25, 1)) // 前ページ (page 1)
+
       renderPostList()
 
       await waitFor(() => {
@@ -519,16 +478,29 @@ describe('PostList', () => {
       })
 
       await user.click(screen.getByRole('button', { name: '次へ' }))
-      expect(screen.getByText('2 / 2')).toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.getByText('2 / 2')).toBeInTheDocument()
+      })
 
       await user.click(screen.getByRole('button', { name: '前へ' }))
+
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenLastCalledWith({
+          status: undefined,
+          limit: 20,
+          offset: 0,
+        })
+      })
+
       expect(screen.getByText('1 / 2')).toBeInTheDocument()
-      expect(screen.getByText('Post 1')).toBeInTheDocument()
     })
 
     it('should disable "次へ" button on last page', async () => {
       const user = userEvent.setup()
-      vi.mocked(apiClient.getPosts).mockResolvedValue(createManyPosts(25))
+      vi.mocked(apiClient.getPosts)
+        .mockResolvedValueOnce(createManyPostsResponse(25, 1)) // 初回ロード (page 1)
+        .mockResolvedValueOnce(createManyPostsResponse(25, 2)) // 次ページ (page 2)
+
       renderPostList()
 
       await waitFor(() => {
@@ -537,13 +509,19 @@ describe('PostList', () => {
 
       await user.click(screen.getByRole('button', { name: '次へ' }))
 
-      expect(screen.getByRole('button', { name: '次へ' })).toBeDisabled()
-      expect(screen.getByRole('button', { name: '前へ' })).not.toBeDisabled()
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: '次へ' })).toBeDisabled()
+        expect(screen.getByRole('button', { name: '前へ' })).not.toBeDisabled()
+      })
     })
 
     it('should reset to page 1 when status filter changes', async () => {
       const user = userEvent.setup()
-      vi.mocked(apiClient.getPosts).mockResolvedValue(createManyPosts(25))
+      vi.mocked(apiClient.getPosts)
+        .mockResolvedValueOnce(createManyPostsResponse(25, 1)) // 初回ロード
+        .mockResolvedValueOnce(createManyPostsResponse(25, 2)) // page 2
+        .mockResolvedValueOnce({ posts: [], total: 0 }) // filter変更後
+
       renderPostList()
 
       await waitFor(() => {
@@ -551,34 +529,24 @@ describe('PostList', () => {
       })
 
       await user.click(screen.getByRole('button', { name: '次へ' }))
-      expect(screen.getByText('2 / 2')).toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.getByText('2 / 2')).toBeInTheDocument()
+      })
 
       await user.selectOptions(screen.getByLabelText('ステータス'), 'draft')
 
-      expect(screen.queryByText('2 / 2')).not.toBeInTheDocument()
-    })
-
-    it('should reset to page 1 when search query changes', async () => {
-      const user = userEvent.setup()
-      vi.mocked(apiClient.getPosts).mockResolvedValue(createManyPosts(25))
-      renderPostList()
-
+      // ステータス変更時にoffset: 0でAPIが呼ばれることを確認
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: '次へ' })).toBeInTheDocument()
+        expect(apiClient.getPosts).toHaveBeenLastCalledWith({
+          status: 'draft',
+          limit: 20,
+          offset: 0,
+        })
       })
-
-      await user.click(screen.getByRole('button', { name: '次へ' }))
-      expect(screen.getByText('2 / 2')).toBeInTheDocument()
-
-      await user.type(screen.getByLabelText('タイトル検索'), 'Post')
-
-      // ページ番号が消える（全てフィルタされて1ページに収まる）
-      // または1ページ目に戻る
-      expect(screen.queryByText('2 / 2')).not.toBeInTheDocument()
     })
 
     it('should calculate correct total pages', async () => {
-      vi.mocked(apiClient.getPosts).mockResolvedValue(createManyPosts(60))
+      vi.mocked(apiClient.getPosts).mockResolvedValue(createManyPostsResponse(60, 1))
       renderPostList()
 
       await waitFor(() => {
@@ -603,7 +571,7 @@ describe('PostList', () => {
         },
       ]
 
-      vi.mocked(apiClient.getPosts).mockResolvedValue(posts)
+      vi.mocked(apiClient.getPosts).mockResolvedValue({ posts, total: 1 })
       renderPostList()
 
       await waitFor(() => {

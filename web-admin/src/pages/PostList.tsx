@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { formatInTimeZone } from 'date-fns-tz';
 import { apiClient, Post } from '../api/client';
@@ -10,62 +10,42 @@ const BLOG_TIMEZONE = import.meta.env.VITE_BLOG_TIMEZONE || 'UTC';
 
 export function PostList() {
   const [posts, setPosts] = useState<Post[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'published'>('all');
-  const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
 
-  useEffect(() => {
-    loadPosts();
-  }, []);
-
-  const loadPosts = async () => {
+  const loadPosts = useCallback(async () => {
     try {
       setIsLoading(true);
       setError('');
-      const data = await apiClient.getPosts({ status: undefined });
-      setPosts(data);
+      const offset = (currentPage - 1) * POSTS_PER_PAGE;
+      const data = await apiClient.getPosts({
+        status: statusFilter === 'all' ? undefined : statusFilter,
+        limit: POSTS_PER_PAGE,
+        offset,
+      });
+      setPosts(data.posts);
+      setTotalCount(data.total);
     } catch (err) {
       setError(err instanceof Error ? err.message : '記事の取得に失敗しました');
     } finally {
       setIsLoading(false);
     }
+  }, [currentPage, statusFilter]);
+
+  useEffect(() => {
+    loadPosts();
+  }, [loadPosts]);
+
+  // Reset to page 1 when status filter changes
+  const handleStatusChange = (newStatus: 'all' | 'draft' | 'published') => {
+    setStatusFilter(newStatus);
+    setCurrentPage(1);
   };
 
-  // Filter and search posts
-  const filteredPosts = useMemo(() => {
-    let filtered = [...posts];
-
-    // Filter by status
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter((post) => post.status === statusFilter);
-    }
-
-    // Search by title
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter((post) =>
-        post.title.toLowerCase().includes(query)
-      );
-    }
-
-    return filtered;
-  }, [posts, statusFilter, searchQuery]);
-
-  // Paginate posts
-  const paginatedPosts = useMemo(() => {
-    const startIndex = (currentPage - 1) * POSTS_PER_PAGE;
-    const endIndex = startIndex + POSTS_PER_PAGE;
-    return filteredPosts.slice(startIndex, endIndex);
-  }, [filteredPosts, currentPage]);
-
-  const totalPages = Math.ceil(filteredPosts.length / POSTS_PER_PAGE);
-
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [statusFilter, searchQuery]);
+  const totalPages = Math.ceil(totalCount / POSTS_PER_PAGE);
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '-';
@@ -112,7 +92,7 @@ export function PostList() {
       <div className="bg-white rounded-lg shadow-sm p-4 space-y-4">
         <div className="flex flex-col sm:flex-row gap-4">
           {/* Status filter */}
-          <div className="flex-1">
+          <div className="flex-1 max-w-xs">
             <label
               htmlFor="status-filter"
               className="block text-sm font-medium text-primary-700 mb-1"
@@ -123,7 +103,7 @@ export function PostList() {
               id="status-filter"
               value={statusFilter}
               onChange={(e) =>
-                setStatusFilter(e.target.value as 'all' | 'draft' | 'published')
+                handleStatusChange(e.target.value as 'all' | 'draft' | 'published')
               }
               className="w-full px-3 py-2 border border-primary-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             >
@@ -132,33 +112,15 @@ export function PostList() {
               <option value="published">公開済み</option>
             </select>
           </div>
-
-          {/* Search */}
-          <div className="flex-1">
-            <label
-              htmlFor="search"
-              className="block text-sm font-medium text-primary-700 mb-1"
-            >
-              タイトル検索
-            </label>
-            <input
-              id="search"
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="記事のタイトルで検索..."
-              className="w-full px-3 py-2 border border-primary-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-            />
-          </div>
         </div>
 
         <div className="text-sm text-primary-600">
-          {filteredPosts.length}件の記事
+          {totalCount}件の記事
         </div>
       </div>
 
       {/* Posts table */}
-      {paginatedPosts.length === 0 ? (
+      {posts.length === 0 ? (
         <div className="bg-white rounded-lg shadow-sm p-8 text-center text-primary-500">
           記事が見つかりませんでした
         </div>
@@ -185,7 +147,7 @@ export function PostList() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-primary-200">
-              {paginatedPosts.map((post) => (
+              {posts.map((post) => (
                 <tr
                   key={post.id}
                   className="hover:bg-primary-50 transition-colors"

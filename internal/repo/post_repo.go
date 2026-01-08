@@ -35,6 +35,12 @@ type PostRepository interface {
 
 	// GetAllTags はすべてのユニークなタグと記事数を取得します
 	GetAllTags(status *domain.PostStatus) (map[string]int, error)
+
+	// Count は記事の総数を取得します
+	Count(status *domain.PostStatus) (int, error)
+
+	// CountByTag は特定のタグを持つ記事の総数を取得します
+	CountByTag(tag string, status *domain.PostStatus) (int, error)
 }
 
 // postRepository はPostRepositoryのSQLite実装です
@@ -219,4 +225,45 @@ func (r *postRepository) GetAllTags(status *domain.PostStatus) (map[string]int, 
 	}
 
 	return tagCount, nil
+}
+
+// Count は記事の総数を取得します
+func (r *postRepository) Count(status *domain.PostStatus) (int, error) {
+	query := "SELECT COUNT(*) FROM posts"
+	args := []any{}
+
+	if status != nil {
+		query += " WHERE status = ?"
+		args = append(args, *status)
+	}
+
+	var count int
+	if err := r.db.Get(&count, query, args...); err != nil {
+		return 0, fmt.Errorf("failed to count posts: %w", err)
+	}
+
+	return count, nil
+}
+
+// CountByTag は特定のタグを持つ記事の総数を取得します
+func (r *postRepository) CountByTag(tag string, status *domain.PostStatus) (int, error) {
+	query := `SELECT COUNT(*) FROM posts WHERE (
+		tags = ? OR
+		tags LIKE ? || ',%' OR
+		tags LIKE '%,' || ? || ',%' OR
+		tags LIKE '%,' || ?
+	)`
+	args := []any{tag, tag, tag, tag}
+
+	if status != nil {
+		query += " AND status = ?"
+		args = append(args, *status)
+	}
+
+	var count int
+	if err := r.db.Get(&count, query, args...); err != nil {
+		return 0, fmt.Errorf("failed to count posts by tag: %w", err)
+	}
+
+	return count, nil
 }

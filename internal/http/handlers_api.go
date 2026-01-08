@@ -54,6 +54,12 @@ type ErrorResponse struct {
 	Error string `json:"error"`
 }
 
+// PostsResponse は記事一覧APIのレスポンス構造体です
+type PostsResponse struct {
+	Posts []*domain.Post `json:"posts"`
+	Total int            `json:"total"`
+}
+
 // ヘルパー関数
 
 func writeJSON(w http.ResponseWriter, status int, data any) {
@@ -69,7 +75,7 @@ func writeError(w http.ResponseWriter, status int, message string) {
 }
 
 // HandleGetPosts は記事一覧を取得します
-// GET /api/v1/posts?status=draft|published&tag=Go&limit=10&offset=0
+// GET /api/v1/posts?status=draft|published&tag=Go&limit=20&offset=0
 func (h *APIHandlers) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
 	// クエリパラメータを取得
 	statusStr := r.URL.Query().Get("status")
@@ -79,7 +85,7 @@ func (h *APIHandlers) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
 
 	// デフォルト値
 	const maxLimit = 200
-	limit := 100
+	limit := 20
 	offset := 0
 
 	if limitStr != "" {
@@ -107,13 +113,20 @@ func (h *APIHandlers) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var posts []*domain.Post
+	var total int
 	var err error
 
 	// タグフィルタリング
 	if tagStr != "" {
 		posts, err = h.postService.GetAllPostsByTag(tagStr, status, limit, offset)
+		if err == nil {
+			total, err = h.postService.CountPostsByTag(tagStr, status)
+		}
 	} else {
 		posts, err = h.postService.GetAllPosts(status, limit, offset)
+		if err == nil {
+			total, err = h.postService.CountPosts(status)
+		}
 	}
 
 	if err != nil {
@@ -122,7 +135,10 @@ func (h *APIHandlers) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, posts)
+	writeJSON(w, http.StatusOK, PostsResponse{
+		Posts: posts,
+		Total: total,
+	})
 }
 
 // HandleGetPost は記事詳細を取得します

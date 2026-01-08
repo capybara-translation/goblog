@@ -22,6 +22,8 @@ type mockPostService struct {
 	getPublishedTagsFunc        func() (map[string]int, error)
 	getPostBySlugFunc           func(slug string) (*domain.Post, error)
 	getAllPostsFunc             func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	countPostsFunc              func(status *domain.PostStatus) (int, error)
+	countPostsByTagFunc         func(tag string, status *domain.PostStatus) (int, error)
 }
 
 func (m *mockPostService) GetPublishedPosts(limit, offset int) ([]*domain.Post, error) {
@@ -89,6 +91,20 @@ func (m *mockPostService) UnpublishPost(id int64) (*domain.Post, error) {
 
 func (m *mockPostService) DeletePost(id int64) error {
 	return nil
+}
+
+func (m *mockPostService) CountPosts(status *domain.PostStatus) (int, error) {
+	if m.countPostsFunc != nil {
+		return m.countPostsFunc(status)
+	}
+	return 0, nil
+}
+
+func (m *mockPostService) CountPostsByTag(tag string, status *domain.PostStatus) (int, error) {
+	if m.countPostsByTagFunc != nil {
+		return m.countPostsByTagFunc(tag, status)
+	}
+	return 0, nil
 }
 
 var _ service.PostService = (*mockPostService)(nil)

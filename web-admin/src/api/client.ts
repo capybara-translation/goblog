@@ -50,6 +50,11 @@ export interface ApiError {
   error: string;
 }
 
+export interface PostsResponse {
+  posts: Post[];
+  total: number;
+}
+
 /**
  * API client with CSRF token handling
  */
@@ -131,15 +136,22 @@ class ApiClient {
   }
 
   // Posts endpoints
-  async getPosts(params?: { status?: string; tag?: string }): Promise<Post[]> {
+  async getPosts(params?: {
+    status?: string;
+    tag?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<PostsResponse> {
     const searchParams = new URLSearchParams();
     if (params?.status) searchParams.append('status', params.status);
     if (params?.tag) searchParams.append('tag', params.tag);
+    if (params?.limit !== undefined) searchParams.append('limit', String(params.limit));
+    if (params?.offset !== undefined) searchParams.append('offset', String(params.offset));
 
     const query = searchParams.toString();
     const endpoint = query ? `/posts?${query}` : '/posts';
 
-    return this.request<Post[]>(endpoint);
+    return this.request<PostsResponse>(endpoint);
   }
 
   async getPost(id: number): Promise<Post> {
