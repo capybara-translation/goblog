@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { formatInTimeZone } from 'date-fns-tz';
 import { apiClient, Post } from '../api/client';
 import { StatusBadge } from '../components/StatusBadge';
 import { TagList } from '../components/TagList';
@@ -68,23 +69,12 @@ export function PostList() {
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '-';
-    const date = new Date(dateString);
+    return formatInTimeZone(new Date(dateString), BLOG_TIMEZONE, 'yyyy-MM-dd');
+  };
 
-    // 日付フォーマット
-    const formatted = date.toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      timeZone: BLOG_TIMEZONE,
-    });
-
-    // タイムゾーン略称を取得（JST, EST など）
-    const timeZoneName = new Intl.DateTimeFormat(undefined, {
-      timeZone: BLOG_TIMEZONE,
-      timeZoneName: 'short',
-    }).formatToParts(date).find(part => part.type === 'timeZoneName')?.value;
-
-    return timeZoneName ? `${formatted} (${timeZoneName})` : formatted;
+  const formatDateDetail = (dateString: string | null) => {
+    if (!dateString) return '';
+    return formatInTimeZone(new Date(dateString), BLOG_TIMEZONE, 'yyyy-MM-dd HH:mm (zzz)');
   };
 
   if (isLoading) {
@@ -214,10 +204,16 @@ export function PostList() {
                   <td className="px-6 py-4">
                     <TagList tags={post.tags} />
                   </td>
-                  <td className="px-6 py-4 text-sm text-primary-600">
+                  <td
+                    className="px-6 py-4 text-sm text-primary-600"
+                    title={formatDateDetail(post.updated_at)}
+                  >
                     {formatDate(post.updated_at)}
                   </td>
-                  <td className="px-6 py-4 text-sm text-primary-600">
+                  <td
+                    className="px-6 py-4 text-sm text-primary-600"
+                    title={formatDateDetail(post.published_at)}
+                  >
                     {formatDate(post.published_at)}
                   </td>
                 </tr>

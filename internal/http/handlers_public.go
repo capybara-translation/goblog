@@ -52,11 +52,8 @@ func splitTags(tags string) []string {
 	return result
 }
 
-// formatDateWithTZ は日付をISO 8601形式 + タイムゾーン略称で表示します
-// TZ環境変数で設定されたタイムゾーンに変換してからフォーマットします
-func formatDateWithTZ(t time.Time) string {
-	// TZ環境変数を直接読み取ってtime.LoadLocationに渡す
-	// time.LoadLocation("Local")はキャッシュの問題で環境変数の変更を反映しない場合がある
+// getTimezoneLocation はTZ環境変数からタイムゾーンを取得します
+func getTimezoneLocation() *time.Location {
 	var loc *time.Location
 	var err error
 
@@ -65,11 +62,22 @@ func formatDateWithTZ(t time.Time) string {
 	}
 
 	if err != nil || loc == nil {
-		// エラー時またはTZ未設定時はtime.Localを使用
 		loc = time.Local
 	}
 
-	return t.In(loc).Format("2006-01-02 (MST)")
+	return loc
+}
+
+// formatDateWithTZ は日付をISO 8601形式 + タイムゾーン略称で表示します
+// TZ環境変数で設定されたタイムゾーンに変換してからフォーマットします
+func formatDateWithTZ(t time.Time) string {
+	return t.In(getTimezoneLocation()).Format("2006-01-02 (MST)")
+}
+
+// formatDateDetailWithTZ は日付を詳細形式（時刻+タイムゾーン略称）で表示します
+// マウスオーバー時のツールチップ用
+func formatDateDetailWithTZ(t time.Time) string {
+	return t.In(getTimezoneLocation()).Format("2006-01-02 15:04 (MST)")
 }
 
 // NewPublicHandlers はテンプレートパスを指定してPublicHandlersを作成します
@@ -79,9 +87,10 @@ func NewPublicHandlers(postService service.PostService, blogTitle string, templa
 
 	// カスタムテンプレート関数を定義
 	funcMap := template.FuncMap{
-		"truncate":        truncateRunes,
-		"splitTags":       splitTags,
-		"formatDateWithTZ": formatDateWithTZ,
+		"truncate":              truncateRunes,
+		"splitTags":             splitTags,
+		"formatDateWithTZ":      formatDateWithTZ,
+		"formatDateDetailWithTZ": formatDateDetailWithTZ,
 	}
 
 	// 各ページごとに独立したテンプレートセットを作成

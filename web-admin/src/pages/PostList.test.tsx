@@ -180,23 +180,27 @@ describe('PostList', () => {
       expect(screen.getByText('React')).toBeInTheDocument()
     })
 
-    it('should render formatted dates with timezone', async () => {
+    it('should render formatted dates with timezone in title', async () => {
       vi.mocked(apiClient.getPosts).mockResolvedValue(mockPosts)
       renderPostList()
 
       await waitFor(() => {
         const table = screen.getByRole('table')
-        // 日付 + タイムゾーン略称が表示されていることを確認
         const cells = within(table).getAllByRole('cell')
-        // パターン: "日付 (タイムゾーン)"
-        // 例: "2024/12/26 (JST)", "01/05/2024 (GMT+9)", "12/26/2024 (UTC+9)"
+        // 表示: yyyy-MM-dd 形式
         const dateCells = cells.filter(cell => {
           const text = cell.textContent || ''
-          // 数字とセパレータ + 括弧内のタイムゾーン（略称またはGMT/UTC形式）
-          return /\d+[\/\.\-]\d+[\/\.\-]\d+\s*\([A-Z+\-\d:]+\)/.test(text)
+          return /^\d{4}-\d{2}-\d{2}$/.test(text)
         })
         // updated_at 3つ + published_at 2つ = 5つの日付セル
         expect(dateCells.length).toBeGreaterThanOrEqual(5)
+
+        // title属性にタイムゾーン略称が含まれていることを確認
+        const cellsWithTitle = dateCells.filter(cell => {
+          const title = cell.getAttribute('title') || ''
+          return /\d{4}-\d{2}-\d{2} \d{2}:\d{2} \([A-Z+\-\d:]+\)/.test(title)
+        })
+        expect(cellsWithTitle.length).toBeGreaterThanOrEqual(5)
       })
     })
 
@@ -584,7 +588,7 @@ describe('PostList', () => {
   })
 
   describe('Date formatting', () => {
-    it('should format dates with timezone abbreviation', async () => {
+    it('should format dates with timezone abbreviation in title', async () => {
       const posts: Post[] = [
         {
           id: 1,
@@ -605,14 +609,19 @@ describe('PostList', () => {
       await waitFor(() => {
         const table = screen.getByRole('table')
         const cells = within(table).getAllByRole('cell')
-        // 日付 + タイムゾーン略称が表示されていることを確認
-        const hasDateWithTimezone = cells.some(cell => {
+        // 表示: yyyy-MM-dd 形式
+        const hasDate = cells.some(cell => {
           const text = cell.textContent || ''
-          // パターン: "日付 (TZ)"
-          // 例: "2024/12/26 (JST)", "01/05/2024 (GMT+9)", "12/26/2024 (UTC+9)"
-          return /\d+[\/\.\-]\d+[\/\.\-]\d+\s*\([A-Z+\-\d:]+\)/.test(text)
+          return /^\d{4}-\d{2}-\d{2}$/.test(text)
         })
-        expect(hasDateWithTimezone).toBe(true)
+        expect(hasDate).toBe(true)
+
+        // title属性にタイムゾーン略称が含まれていることを確認
+        const hasDateWithTimezoneInTitle = cells.some(cell => {
+          const title = cell.getAttribute('title') || ''
+          return /\d{4}-\d{2}-\d{2} \d{2}:\d{2} \([A-Z+\-\d:]+\)/.test(title)
+        })
+        expect(hasDateWithTimezoneInTitle).toBe(true)
       })
     })
   })
