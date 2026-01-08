@@ -135,6 +135,11 @@ func (h *APIHandlers) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// nilスライスはJSONで"null"になるため、空スライスを保証
+	if posts == nil {
+		posts = []*domain.Post{}
+	}
+
 	writeJSON(w, http.StatusOK, PostsResponse{
 		Posts: posts,
 		Total: total,

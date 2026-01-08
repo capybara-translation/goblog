@@ -329,6 +329,52 @@ func TestHandleGetPosts(t *testing.T) {
 	}
 }
 
+// TestHandleGetPosts_Empty は記事が0件の場合にnullではなく空配列を返すことをテストします
+func TestHandleGetPosts_Empty(t *testing.T) {
+	mockPostService := &mockPostServiceForAPI{
+		// nilを返すことでGoの挙動を再現
+		getAllPostsFunc: func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+			return nil, nil
+		},
+		countPostsFunc: func(status *domain.PostStatus) (int, error) {
+			return 0, nil
+		},
+	}
+	mockAuthService := createTestAuthService()
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/posts", nil)
+	addSessionCookie(req)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	// JSONレスポンスがnullではなく空配列を含むことを確認
+	body := w.Body.String()
+	if !strings.Contains(body, `"posts":[]`) {
+		t.Errorf("expected posts to be empty array, got: %s", body)
+	}
+
+	var response PostsResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to parse JSON response: %v", err)
+	}
+
+	if response.Posts == nil {
+		t.Error("expected posts to be empty slice, got nil")
+	}
+	if len(response.Posts) != 0 {
+		t.Errorf("expected 0 posts, got %d", len(response.Posts))
+	}
+	if response.Total != 0 {
+		t.Errorf("expected total to be 0, got %d", response.Total)
+	}
+}
+
 func TestHandleGetPost_NotFound(t *testing.T) {
 	mockPostService := &mockPostServiceForAPI{}
 	mockAuthService := createTestAuthService()
