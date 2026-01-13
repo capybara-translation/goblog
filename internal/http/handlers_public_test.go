@@ -1486,8 +1486,8 @@ func TestHandlePosts_Search(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			containsText: []string{
 				"「<span class=\"font-medium\">Go</span>」の検索結果",
-				"Go入門",
-				"Go応用テクニック",
+				"<mark>Go</mark>入門",           // ハイライトされたタイトル
+				"<mark>Go</mark>応用テクニック", // ハイライトされたタイトル
 				"/posts/go-introduction",
 				"/posts/go-advanced",
 				`value="Go"`,      // 検索ボックスに値が残っている
@@ -1523,7 +1523,7 @@ func TestHandlePosts_Search(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			containsText: []string{
 				"「<span class=\"font-medium\">プログラミング</span>」の検索結果",
-				"プログラミング入門",
+				"<mark>プログラミング</mark>入門", // ハイライトされたタイトル
 			},
 		},
 		{
@@ -1769,4 +1769,211 @@ func TestFormatDateWithTZ_Integration(t *testing.T) {
 			t.Errorf("expected body to contain %q, but it didn't. Body: %s", expectedTitle, body)
 		}
 	})
+}
+
+func TestHighlightQuery(t *testing.T) {
+	tests := []struct {
+		name     string
+		text     string
+		query    string
+		expected string
+	}{
+		{
+			name:     "通常のハイライト",
+			text:     "Go言語入門",
+			query:    "Go",
+			expected: "<mark>Go</mark>言語入門",
+		},
+		{
+			name:     "大文字小文字を区別しない",
+			text:     "Go言語入門",
+			query:    "go",
+			expected: "<mark>Go</mark>言語入門",
+		},
+		{
+			name:     "複数マッチ",
+			text:     "GoでGoを学ぶ",
+			query:    "Go",
+			expected: "<mark>Go</mark>で<mark>Go</mark>を学ぶ",
+		},
+		{
+			name:     "クエリが空",
+			text:     "テスト文字列",
+			query:    "",
+			expected: "テスト文字列",
+		},
+		{
+			name:     "HTMLエスケープ",
+			text:     "<script>alert('xss')</script>",
+			query:    "script",
+			expected: "&lt;<mark>script</mark>&gt;alert(&#39;xss&#39;)&lt;/<mark>script</mark>&gt;",
+		},
+		{
+			name:     "正規表現特殊文字をエスケープ",
+			text:     "test (括弧) test",
+			query:    "(括弧)",
+			expected: "test <mark>(括弧)</mark> test",
+		},
+		{
+			name:     "日本語検索",
+			text:     "プログラミング入門ガイド",
+			query:    "プログラミング",
+			expected: "<mark>プログラミング</mark>入門ガイド",
+		},
+		{
+			name:     "マッチなし",
+			text:     "Hello World",
+			query:    "Python",
+			expected: "Hello World",
+		},
+		{
+			name:     "混合テキスト",
+			text:     "GoとPythonで開発",
+			query:    "Python",
+			expected: "Goと<mark>Python</mark>で開発",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := highlightQuery(tt.text, tt.query)
+			if string(result) != tt.expected {
+				t.Errorf("highlightQuery() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestHandlePosts_SearchHighlight(t *testing.T) {
+	tests := []struct {
+		name           string
+		url            string
+		mockSearch     func(query string, limit, offset int) ([]*domain.Post, error)
+		containsText   []string
+		notContains    []string
+	}{
+		{
+			name: "タイトルにハイライトが適用される",
+			url:  "/posts?q=Go",
+			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
+				publishedAt := time.Now()
+				return []*domain.Post{
+					{
+						ID:          1,
+						Title:       "Go言語入門",
+						Slug:        "go-intro",
+						Content:     "Goの基本的な使い方を解説します",
+						Status:      domain.PostStatusPublished,
+						PublishedAt: &publishedAt,
+					},
+				}, nil
+			},
+			containsText: []string{
+				"<mark>Go</mark>言語入門",           // タイトルにハイライト
+				"<mark>Go</mark>の基本的な使い方を解説します", // 本文にもハイライト
+			},
+		},
+		{
+			name: "日本語クエリでハイライト",
+			url:  "/posts?q=%E3%83%97%E3%83%AD%E3%82%B0%E3%83%A9%E3%83%9F%E3%83%B3%E3%82%B0", // プログラミング
+			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
+				publishedAt := time.Now()
+				return []*domain.Post{
+					{
+						ID:          1,
+						Title:       "プログラミング入門",
+						Slug:        "programming-intro",
+						Content:     "プログラミングを始めよう",
+						Status:      domain.PostStatusPublished,
+						PublishedAt: &publishedAt,
+					},
+				}, nil
+			},
+			containsText: []string{
+				"<mark>プログラミング</mark>入門",
+				"<mark>プログラミング</mark>を始めよう",
+			},
+		},
+		{
+			name: "クエリなしの場合はハイライトなし",
+			url:  "/posts",
+			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
+				publishedAt := time.Now()
+				return []*domain.Post{
+					{
+						ID:          1,
+						Title:       "Go言語入門",
+						Slug:        "go-intro",
+						Content:     "Goの基本的な使い方を解説します",
+						Status:      domain.PostStatusPublished,
+						PublishedAt: &publishedAt,
+					},
+				}, nil
+			},
+			containsText: []string{
+				">Go言語入門</a>", // タイトルはそのまま（markタグなし）
+			},
+			notContains: []string{
+				"<mark>", // markタグが含まれない
+			},
+		},
+		{
+			name: "長い本文は切り詰め後にハイライト",
+			url:  "/posts?q=Go",
+			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
+				publishedAt := time.Now()
+				// 200文字を超える内容
+				longContent := "Goは効率的なプログラミング言語です。" + strings.Repeat("この文章は長いテストコンテンツです。", 20)
+				return []*domain.Post{
+					{
+						ID:          1,
+						Title:       "Go言語の紹介",
+						Slug:        "go-intro",
+						Content:     longContent,
+						Status:      domain.PostStatusPublished,
+						PublishedAt: &publishedAt,
+					},
+				}, nil
+			},
+			containsText: []string{
+				"<mark>Go</mark>は効率的な", // 切り詰め前の部分にハイライト
+				"...",                      // 切り詰めを示す省略記号
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := &mockPostService{
+				searchPublishedPostsFunc: tt.mockSearch,
+				getPublishedPostsFunc: func(limit, offset int) ([]*domain.Post, error) {
+					// クエリなしの場合はこちらが呼ばれる
+					return tt.mockSearch("", limit, offset)
+				},
+			}
+			router := NewRouterWithTemplates(mockService, nil, false, "goblog", testTemplatePattern)
+
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+			}
+
+			body := w.Body.String()
+			for _, text := range tt.containsText {
+				if !strings.Contains(body, text) {
+					t.Errorf("expected body to contain %q, got:\n%s", text, body)
+				}
+			}
+
+			for _, text := range tt.notContains {
+				if strings.Contains(body, text) {
+					t.Errorf("expected body NOT to contain %q", text)
+				}
+			}
+		})
+	}
 }

@@ -1,12 +1,14 @@
 package http
 
 import (
+	"html"
 	"html/template"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -81,6 +83,31 @@ func formatDateDetailWithTZ(t time.Time) string {
 	return t.In(getTimezoneLocation()).Format("2006-01-02 15:04 (MST)")
 }
 
+// highlightQuery は検索クエリに一致する文字列を<mark>タグでハイライトします
+// XSS対策のため、テキストはHTMLエスケープしてから処理します
+func highlightQuery(text string, query string) template.HTML {
+	// テキストをHTMLエスケープ
+	escapedText := html.EscapeString(text)
+
+	if query == "" {
+		return template.HTML(escapedText)
+	}
+
+	// クエリもHTMLエスケープ（エスケープ後のテキストとマッチさせるため）
+	escapedQuery := html.EscapeString(query)
+
+	// 正規表現の特殊文字をエスケープ
+	quotedQuery := regexp.QuoteMeta(escapedQuery)
+
+	// 大文字小文字を区別しないパターン
+	pattern := regexp.MustCompile("(?i)(" + quotedQuery + ")")
+
+	// マッチ部分を<mark>でラップ
+	highlighted := pattern.ReplaceAllString(escapedText, "<mark>$1</mark>")
+
+	return template.HTML(highlighted)
+}
+
 // NewPublicHandlers はテンプレートパスを指定してPublicHandlersを作成します
 func NewPublicHandlers(postService service.PostService, blogTitle string, templatePattern string) *PublicHandlers {
 	dir := filepath.Dir(templatePattern)
@@ -88,10 +115,11 @@ func NewPublicHandlers(postService service.PostService, blogTitle string, templa
 
 	// カスタムテンプレート関数を定義
 	funcMap := template.FuncMap{
-		"truncate":              truncateRunes,
-		"splitTags":             splitTags,
-		"formatDateWithTZ":      formatDateWithTZ,
+		"truncate":               truncateRunes,
+		"splitTags":              splitTags,
+		"formatDateWithTZ":       formatDateWithTZ,
 		"formatDateDetailWithTZ": formatDateDetailWithTZ,
+		"highlightQuery":         highlightQuery,
 	}
 
 	// 各ページごとに独立したテンプレートセットを作成
