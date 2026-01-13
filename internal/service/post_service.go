@@ -54,6 +54,18 @@ type PostService interface {
 
 	// CountPostsByTag は特定のタグを持つ記事の総数を取得します
 	CountPostsByTag(tag string, status *domain.PostStatus) (int, error)
+
+	// SearchPosts は検索クエリに一致する記事を取得します（管理画面用）
+	SearchPosts(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+
+	// CountSearchPosts は検索クエリに一致する記事数を取得します
+	CountSearchPosts(query string, status *domain.PostStatus) (int, error)
+
+	// SearchPublishedPosts は公開済み記事を検索します（公開ページ用）
+	SearchPublishedPosts(query string, limit, offset int) ([]*domain.Post, error)
+
+	// CountSearchPublishedPosts は公開済み記事の検索結果数を取得します
+	CountSearchPublishedPosts(query string) (int, error)
 }
 
 type postService struct {
@@ -245,4 +257,38 @@ func (s *postService) CountPostsByTag(tag string, status *domain.PostStatus) (in
 		return 0, fmt.Errorf("tag cannot be empty")
 	}
 	return s.repo.CountByTag(tag, status)
+}
+
+// SearchPosts は検索クエリに一致する記事を取得します（管理画面用）
+func (s *postService) SearchPosts(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+	if query == "" {
+		return s.repo.FindAll(status, limit, offset)
+	}
+	return s.repo.Search(query, status, limit, offset)
+}
+
+// CountSearchPosts は検索クエリに一致する記事数を取得します
+func (s *postService) CountSearchPosts(query string, status *domain.PostStatus) (int, error) {
+	if query == "" {
+		return s.repo.Count(status)
+	}
+	return s.repo.CountSearch(query, status)
+}
+
+// SearchPublishedPosts は公開済み記事を検索します（公開ページ用）
+func (s *postService) SearchPublishedPosts(query string, limit, offset int) ([]*domain.Post, error) {
+	status := domain.PostStatusPublished
+	if query == "" {
+		return s.repo.FindAll(&status, limit, offset)
+	}
+	return s.repo.Search(query, &status, limit, offset)
+}
+
+// CountSearchPublishedPosts は公開済み記事の検索結果数を取得します
+func (s *postService) CountSearchPublishedPosts(query string) (int, error) {
+	status := domain.PostStatusPublished
+	if query == "" {
+		return s.repo.Count(&status)
+	}
+	return s.repo.CountSearch(query, &status)
 }

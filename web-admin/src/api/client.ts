@@ -139,12 +139,14 @@ class ApiClient {
   async getPosts(params?: {
     status?: string;
     tag?: string;
+    q?: string;
     limit?: number;
     offset?: number;
   }): Promise<PostsResponse> {
     const searchParams = new URLSearchParams();
     if (params?.status) searchParams.append('status', params.status);
     if (params?.tag) searchParams.append('tag', params.tag);
+    if (params?.q) searchParams.append('q', params.q);
     if (params?.limit !== undefined) searchParams.append('limit', String(params.limit));
     if (params?.offset !== undefined) searchParams.append('offset', String(params.offset));
 

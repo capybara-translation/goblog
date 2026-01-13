@@ -17,17 +17,21 @@ const testSessionID = "test-session-id"
 
 // mockPostServiceForAPI は PostService のモック実装です（API用）
 type mockPostServiceForAPI struct {
-	getAllPostsFunc      func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
-	getAllPostsByTagFunc func(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
-	getAllTagsFunc       func(status *domain.PostStatus) (map[string]int, error)
-	getPostByIDFunc      func(id int64) (*domain.Post, error)
-	createPostFunc       func(title, slug, content, tags string) (*domain.Post, error)
-	updatePostFunc       func(id int64, title, slug, content, tags string) (*domain.Post, error)
-	deletePostFunc       func(id int64) error
-	publishPostFunc      func(id int64) (*domain.Post, error)
-	unpublishPostFunc    func(id int64) (*domain.Post, error)
-	countPostsFunc       func(status *domain.PostStatus) (int, error)
-	countPostsByTagFunc  func(tag string, status *domain.PostStatus) (int, error)
+	getAllPostsFunc             func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	getAllPostsByTagFunc        func(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	getAllTagsFunc              func(status *domain.PostStatus) (map[string]int, error)
+	getPostByIDFunc             func(id int64) (*domain.Post, error)
+	createPostFunc              func(title, slug, content, tags string) (*domain.Post, error)
+	updatePostFunc              func(id int64, title, slug, content, tags string) (*domain.Post, error)
+	deletePostFunc              func(id int64) error
+	publishPostFunc             func(id int64) (*domain.Post, error)
+	unpublishPostFunc           func(id int64) (*domain.Post, error)
+	countPostsFunc              func(status *domain.PostStatus) (int, error)
+	countPostsByTagFunc         func(tag string, status *domain.PostStatus) (int, error)
+	searchPostsFunc             func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	countSearchPostsFunc        func(query string, status *domain.PostStatus) (int, error)
+	searchPublishedPostsFunc    func(query string, limit, offset int) ([]*domain.Post, error)
+	countSearchPublishedFunc    func(query string) (int, error)
 }
 
 func (m *mockPostServiceForAPI) GetPublishedPosts(limit, offset int) ([]*domain.Post, error) {
@@ -119,6 +123,34 @@ func (m *mockPostServiceForAPI) CountPosts(status *domain.PostStatus) (int, erro
 func (m *mockPostServiceForAPI) CountPostsByTag(tag string, status *domain.PostStatus) (int, error) {
 	if m.countPostsByTagFunc != nil {
 		return m.countPostsByTagFunc(tag, status)
+	}
+	return 0, nil
+}
+
+func (m *mockPostServiceForAPI) SearchPosts(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+	if m.searchPostsFunc != nil {
+		return m.searchPostsFunc(query, status, limit, offset)
+	}
+	return []*domain.Post{}, nil
+}
+
+func (m *mockPostServiceForAPI) CountSearchPosts(query string, status *domain.PostStatus) (int, error) {
+	if m.countSearchPostsFunc != nil {
+		return m.countSearchPostsFunc(query, status)
+	}
+	return 0, nil
+}
+
+func (m *mockPostServiceForAPI) SearchPublishedPosts(query string, limit, offset int) ([]*domain.Post, error) {
+	if m.searchPublishedPostsFunc != nil {
+		return m.searchPublishedPostsFunc(query, limit, offset)
+	}
+	return []*domain.Post{}, nil
+}
+
+func (m *mockPostServiceForAPI) CountSearchPublishedPosts(query string) (int, error) {
+	if m.countSearchPublishedFunc != nil {
+		return m.countSearchPublishedFunc(query)
 	}
 	return 0, nil
 }
@@ -1148,4 +1180,250 @@ func TestHandleGetTags_Sorting(t *testing.T) {
 			t.Errorf("position %d: expected count %d, got %v", i, expected.count, tags[i]["count"])
 		}
 	}
+}
+
+func TestHandleGetPosts_WithSearchQuery(t *testing.T) {
+	mockAuthService := createTestAuthService()
+
+	t.Run("検索クエリで記事を取得", func(t *testing.T) {
+		receivedQuery := ""
+		mockPostService := &mockPostServiceForAPI{
+			searchPostsFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				receivedQuery = query
+				return []*domain.Post{
+					{ID: 1, Title: "Go入門", Content: "Goの基本的な使い方"},
+					{ID: 2, Title: "Go応用", Content: "Goの応用テクニック"},
+				}, nil
+			},
+			countSearchPostsFunc: func(query string, status *domain.PostStatus) (int, error) {
+				return 2, nil
+			},
+		}
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?q=Go", nil)
+		addSessionCookie(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		if receivedQuery != "Go" {
+			t.Errorf("expected query 'Go', got '%s'", receivedQuery)
+		}
+
+		var response PostsResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatalf("failed to parse JSON: %v", err)
+		}
+
+		if len(response.Posts) != 2 {
+			t.Errorf("expected 2 posts, got %d", len(response.Posts))
+		}
+
+		if response.Total != 2 {
+			t.Errorf("expected total 2, got %d", response.Total)
+		}
+	})
+
+	t.Run("検索クエリ + ステータスフィルタ", func(t *testing.T) {
+		receivedQuery := ""
+		var receivedStatus *domain.PostStatus
+
+		mockPostService := &mockPostServiceForAPI{
+			searchPostsFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				receivedQuery = query
+				receivedStatus = status
+				return []*domain.Post{
+					{ID: 1, Title: "Go入門", Status: domain.PostStatusPublished},
+				}, nil
+			},
+			countSearchPostsFunc: func(query string, status *domain.PostStatus) (int, error) {
+				return 1, nil
+			},
+		}
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?q=Go&status=published", nil)
+		addSessionCookie(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		if receivedQuery != "Go" {
+			t.Errorf("expected query 'Go', got '%s'", receivedQuery)
+		}
+
+		if receivedStatus == nil || *receivedStatus != domain.PostStatusPublished {
+			t.Errorf("expected status published, got %v", receivedStatus)
+		}
+	})
+
+	t.Run("日本語検索クエリ", func(t *testing.T) {
+		receivedQuery := ""
+		mockPostService := &mockPostServiceForAPI{
+			searchPostsFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				receivedQuery = query
+				return []*domain.Post{
+					{ID: 1, Title: "プログラミング入門", Content: "プログラミングの基礎"},
+				}, nil
+			},
+			countSearchPostsFunc: func(query string, status *domain.PostStatus) (int, error) {
+				return 1, nil
+			},
+		}
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?q=%E3%83%97%E3%83%AD%E3%82%B0%E3%83%A9%E3%83%9F%E3%83%B3%E3%82%B0", nil) // "プログラミング"
+		addSessionCookie(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		if receivedQuery != "プログラミング" {
+			t.Errorf("expected query 'プログラミング', got '%s'", receivedQuery)
+		}
+	})
+
+	t.Run("検索結果が0件の場合", func(t *testing.T) {
+		mockPostService := &mockPostServiceForAPI{
+			searchPostsFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				return []*domain.Post{}, nil
+			},
+			countSearchPostsFunc: func(query string, status *domain.PostStatus) (int, error) {
+				return 0, nil
+			},
+		}
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?q=notfound", nil)
+		addSessionCookie(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		var response PostsResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatalf("failed to parse JSON: %v", err)
+		}
+
+		if len(response.Posts) != 0 {
+			t.Errorf("expected 0 posts, got %d", len(response.Posts))
+		}
+
+		if response.Total != 0 {
+			t.Errorf("expected total 0, got %d", response.Total)
+		}
+	})
+
+	t.Run("検索クエリ + ページネーション", func(t *testing.T) {
+		receivedLimit := 0
+		receivedOffset := 0
+
+		mockPostService := &mockPostServiceForAPI{
+			searchPostsFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				receivedLimit = limit
+				receivedOffset = offset
+				return []*domain.Post{
+					{ID: 11, Title: "Go Post 11"},
+				}, nil
+			},
+			countSearchPostsFunc: func(query string, status *domain.PostStatus) (int, error) {
+				return 25, nil
+			},
+		}
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?q=Go&limit=10&offset=10", nil)
+		addSessionCookie(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		if receivedLimit != 10 {
+			t.Errorf("expected limit 10, got %d", receivedLimit)
+		}
+
+		if receivedOffset != 10 {
+			t.Errorf("expected offset 10, got %d", receivedOffset)
+		}
+
+		var response PostsResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatalf("failed to parse JSON: %v", err)
+		}
+
+		if response.Total != 25 {
+			t.Errorf("expected total 25, got %d", response.Total)
+		}
+	})
+
+	t.Run("検索サービスエラー", func(t *testing.T) {
+		mockPostService := &mockPostServiceForAPI{
+			searchPostsFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				return nil, fmt.Errorf("database error")
+			},
+		}
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?q=Go", nil)
+		addSessionCookie(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+		}
+
+		var response ErrorResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatalf("failed to parse JSON: %v", err)
+		}
+
+		if !strings.Contains(response.Error, "Failed to get posts") {
+			t.Errorf("expected error to contain 'Failed to get posts', got '%s'", response.Error)
+		}
+	})
+
+	t.Run("検索カウントサービスエラー", func(t *testing.T) {
+		mockPostService := &mockPostServiceForAPI{
+			searchPostsFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				return []*domain.Post{{ID: 1, Title: "Test"}}, nil
+			},
+			countSearchPostsFunc: func(query string, status *domain.PostStatus) (int, error) {
+				return 0, fmt.Errorf("count error")
+			},
+		}
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?q=Go", nil)
+		addSessionCookie(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+		}
+	})
 }

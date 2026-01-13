@@ -74,6 +74,48 @@ describe('API Client', () => {
         expect(response.posts).toHaveLength(1)
         expect(response.total).toBeGreaterThan(1)
       })
+
+      it('should search posts by query', async () => {
+        const response = await apiClient.getPosts({ q: 'Test' })
+
+        expect(response.posts).toBeInstanceOf(Array)
+        expect(response.posts.length).toBeGreaterThan(0)
+        // 検索結果がクエリに一致するか確認
+        response.posts.forEach((post) => {
+          const matchesQuery =
+            post.title.toLowerCase().includes('test') ||
+            post.content.toLowerCase().includes('test')
+          expect(matchesQuery).toBe(true)
+        })
+      })
+
+      it('should return empty results for non-matching query', async () => {
+        const response = await apiClient.getPosts({ q: 'zzznomatchxxx' })
+
+        expect(response.posts).toBeInstanceOf(Array)
+        expect(response.posts).toHaveLength(0)
+        expect(response.total).toBe(0)
+      })
+
+      it('should combine search with status filter', async () => {
+        const response = await apiClient.getPosts({ q: 'Test', status: 'published' })
+
+        expect(response.posts).toBeInstanceOf(Array)
+        response.posts.forEach((post) => {
+          expect(post.status).toBe('published')
+          const matchesQuery =
+            post.title.toLowerCase().includes('test') ||
+            post.content.toLowerCase().includes('test')
+          expect(matchesQuery).toBe(true)
+        })
+      })
+
+      it('should combine search with pagination', async () => {
+        const response = await apiClient.getPosts({ q: 'Test', limit: 1, offset: 0 })
+
+        expect(response.posts).toHaveLength(1)
+        expect(response.total).toBeGreaterThanOrEqual(1)
+      })
     })
 
     describe('getPost', () => {

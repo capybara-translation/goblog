@@ -716,3 +716,220 @@ func TestPostRepository_GetAllTags(t *testing.T) {
 		}
 	})
 }
+
+func TestPostRepository_Search(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	repo := NewPostRepository(db)
+	now := time.Now()
+
+	// テストデータを作成
+	posts := []*domain.Post{
+		{
+			Title:       "Go言語入門",
+			Slug:        "go-intro",
+			Content:     "Goプログラミングの基礎を学びます。",
+			Status:      domain.PostStatusPublished,
+			Tags:        "Go,プログラミング",
+			CreatedAt:   now,
+			UpdatedAt:   now,
+			PublishedAt: &now,
+		},
+		{
+			Title:       "React入門",
+			Slug:        "react-intro",
+			Content:     "Reactでフロントエンド開発を始めよう。",
+			Status:      domain.PostStatusPublished,
+			Tags:        "React,JavaScript",
+			CreatedAt:   now.Add(-1 * time.Hour),
+			UpdatedAt:   now.Add(-1 * time.Hour),
+			PublishedAt: &now,
+		},
+		{
+			Title:       "データベース設計",
+			Slug:        "db-design",
+			Content:     "SQLiteとGoを使ったデータベース設計。",
+			Status:      domain.PostStatusDraft,
+			Tags:        "Go,Database",
+			CreatedAt:   now.Add(-2 * time.Hour),
+			UpdatedAt:   now.Add(-2 * time.Hour),
+		},
+	}
+
+	for _, p := range posts {
+		if err := repo.Create(p); err != nil {
+			t.Fatalf("failed to create test post: %v", err)
+		}
+	}
+
+	t.Run("タイトルで検索", func(t *testing.T) {
+		results, err := repo.Search("入門", nil, 10, 0)
+		if err != nil {
+			t.Fatalf("failed to search: %v", err)
+		}
+
+		if len(results) != 2 {
+			t.Errorf("expected 2 posts, got %d", len(results))
+		}
+	})
+
+	t.Run("本文で検索", func(t *testing.T) {
+		results, err := repo.Search("フロントエンド", nil, 10, 0)
+		if err != nil {
+			t.Fatalf("failed to search: %v", err)
+		}
+
+		if len(results) != 1 {
+			t.Errorf("expected 1 post, got %d", len(results))
+		}
+		if len(results) > 0 && results[0].Title != "React入門" {
+			t.Errorf("expected 'React入門', got %q", results[0].Title)
+		}
+	})
+
+	t.Run("大文字小文字を区別しない", func(t *testing.T) {
+		results, err := repo.Search("GO", nil, 10, 0)
+		if err != nil {
+			t.Fatalf("failed to search: %v", err)
+		}
+
+		// "Go言語入門" と "データベース設計"（本文にGoを含む）
+		if len(results) != 2 {
+			t.Errorf("expected 2 posts, got %d", len(results))
+		}
+	})
+
+	t.Run("ステータスでフィルタリング", func(t *testing.T) {
+		publishedStatus := domain.PostStatusPublished
+		results, err := repo.Search("入門", &publishedStatus, 10, 0)
+		if err != nil {
+			t.Fatalf("failed to search: %v", err)
+		}
+
+		if len(results) != 2 {
+			t.Errorf("expected 2 published posts, got %d", len(results))
+		}
+	})
+
+	t.Run("下書きのみ検索", func(t *testing.T) {
+		draftStatus := domain.PostStatusDraft
+		results, err := repo.Search("Go", &draftStatus, 10, 0)
+		if err != nil {
+			t.Fatalf("failed to search: %v", err)
+		}
+
+		if len(results) != 1 {
+			t.Errorf("expected 1 draft post, got %d", len(results))
+		}
+	})
+
+	t.Run("検索結果が0件", func(t *testing.T) {
+		results, err := repo.Search("存在しない", nil, 10, 0)
+		if err != nil {
+			t.Fatalf("failed to search: %v", err)
+		}
+
+		if len(results) != 0 {
+			t.Errorf("expected 0 posts, got %d", len(results))
+		}
+	})
+
+	t.Run("ページネーション", func(t *testing.T) {
+		results, err := repo.Search("入門", nil, 1, 0)
+		if err != nil {
+			t.Fatalf("failed to search: %v", err)
+		}
+
+		if len(results) != 1 {
+			t.Errorf("expected 1 post with limit=1, got %d", len(results))
+		}
+
+		results2, err := repo.Search("入門", nil, 1, 1)
+		if err != nil {
+			t.Fatalf("failed to search: %v", err)
+		}
+
+		if len(results2) != 1 {
+			t.Errorf("expected 1 post with offset=1, got %d", len(results2))
+		}
+	})
+}
+
+func TestPostRepository_CountSearch(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	repo := NewPostRepository(db)
+	now := time.Now()
+
+	// テストデータを作成
+	posts := []*domain.Post{
+		{
+			Title:       "Go言語入門",
+			Slug:        "go-intro",
+			Content:     "Goプログラミングの基礎。",
+			Status:      domain.PostStatusPublished,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+			PublishedAt: &now,
+		},
+		{
+			Title:       "React入門",
+			Slug:        "react-intro",
+			Content:     "Reactでフロントエンド開発。",
+			Status:      domain.PostStatusPublished,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+			PublishedAt: &now,
+		},
+		{
+			Title:       "Go応用",
+			Slug:        "go-advanced",
+			Content:     "Goの高度なテクニック。",
+			Status:      domain.PostStatusDraft,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		},
+	}
+
+	for _, p := range posts {
+		if err := repo.Create(p); err != nil {
+			t.Fatalf("failed to create test post: %v", err)
+		}
+	}
+
+	t.Run("全件カウント", func(t *testing.T) {
+		count, err := repo.CountSearch("入門", nil)
+		if err != nil {
+			t.Fatalf("failed to count: %v", err)
+		}
+
+		if count != 2 {
+			t.Errorf("expected count 2, got %d", count)
+		}
+	})
+
+	t.Run("ステータスでフィルタリング", func(t *testing.T) {
+		publishedStatus := domain.PostStatusPublished
+		count, err := repo.CountSearch("Go", &publishedStatus)
+		if err != nil {
+			t.Fatalf("failed to count: %v", err)
+		}
+
+		if count != 1 {
+			t.Errorf("expected count 1 (published Go posts), got %d", count)
+		}
+	})
+
+	t.Run("検索結果が0件", func(t *testing.T) {
+		count, err := repo.CountSearch("存在しない", nil)
+		if err != nil {
+			t.Fatalf("failed to count: %v", err)
+		}
+
+		if count != 0 {
+			t.Errorf("expected count 0, got %d", count)
+		}
+	})
+}

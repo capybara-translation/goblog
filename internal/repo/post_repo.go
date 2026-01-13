@@ -41,6 +41,12 @@ type PostRepository interface {
 
 	// CountByTag は特定のタグを持つ記事の総数を取得します
 	CountByTag(tag string, status *domain.PostStatus) (int, error)
+
+	// Search は検索クエリに一致する記事を取得します
+	Search(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+
+	// CountSearch は検索クエリに一致する記事数を取得します
+	CountSearch(query string, status *domain.PostStatus) (int, error)
 }
 
 // postRepository はPostRepositoryのSQLite実装です
@@ -263,6 +269,55 @@ func (r *postRepository) CountByTag(tag string, status *domain.PostStatus) (int,
 	var count int
 	if err := r.db.Get(&count, query, args...); err != nil {
 		return 0, fmt.Errorf("failed to count posts by tag: %w", err)
+	}
+
+	return count, nil
+}
+
+// Search は検索クエリに一致する記事を取得します（タイトルと本文を検索）
+func (r *postRepository) Search(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+	var posts []*domain.Post
+
+	// 大文字小文字を区別しない部分一致検索
+	searchPattern := "%" + strings.ToLower(query) + "%"
+	sql := `SELECT * FROM posts WHERE (
+		LOWER(title) LIKE ? OR LOWER(content) LIKE ?
+	)`
+	args := []any{searchPattern, searchPattern}
+
+	// ステータスでフィルタリング
+	if status != nil {
+		sql += " AND status = ?"
+		args = append(args, *status)
+	}
+
+	// 作成日時の降順でソート
+	sql += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+	args = append(args, limit, offset)
+
+	if err := r.db.Select(&posts, sql, args...); err != nil {
+		return nil, fmt.Errorf("failed to search posts: %w", err)
+	}
+
+	return posts, nil
+}
+
+// CountSearch は検索クエリに一致する記事数を取得します
+func (r *postRepository) CountSearch(query string, status *domain.PostStatus) (int, error) {
+	searchPattern := "%" + strings.ToLower(query) + "%"
+	sql := `SELECT COUNT(*) FROM posts WHERE (
+		LOWER(title) LIKE ? OR LOWER(content) LIKE ?
+	)`
+	args := []any{searchPattern, searchPattern}
+
+	if status != nil {
+		sql += " AND status = ?"
+		args = append(args, *status)
+	}
+
+	var count int
+	if err := r.db.Get(&count, sql, args...); err != nil {
+		return 0, fmt.Errorf("failed to count search results: %w", err)
 	}
 
 	return count, nil

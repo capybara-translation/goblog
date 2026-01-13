@@ -118,10 +118,20 @@ export const handlers = [
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
     const tag = url.searchParams.get('tag');
+    const query = url.searchParams.get('q');
     const limitStr = url.searchParams.get('limit');
     const offsetStr = url.searchParams.get('offset');
 
     let filtered = [...mockPosts];
+
+    // Filter by search query (title or content)
+    if (query) {
+      const lowerQuery = query.toLowerCase();
+      filtered = filtered.filter(p =>
+        p.title.toLowerCase().includes(lowerQuery) ||
+        p.content.toLowerCase().includes(lowerQuery)
+      );
+    }
 
     // Filter by status
     if (status) {

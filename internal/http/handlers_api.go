@@ -75,11 +75,12 @@ func writeError(w http.ResponseWriter, status int, message string) {
 }
 
 // HandleGetPosts は記事一覧を取得します
-// GET /api/v1/posts?status=draft|published&tag=Go&limit=20&offset=0
+// GET /api/v1/posts?status=draft|published&tag=Go&q=検索語&limit=20&offset=0
 func (h *APIHandlers) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
 	// クエリパラメータを取得
 	statusStr := r.URL.Query().Get("status")
 	tagStr := r.URL.Query().Get("tag")
+	queryStr := r.URL.Query().Get("q")
 	limitStr := r.URL.Query().Get("limit")
 	offsetStr := r.URL.Query().Get("offset")
 
@@ -116,8 +117,14 @@ func (h *APIHandlers) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
 	var total int
 	var err error
 
-	// タグフィルタリング
-	if tagStr != "" {
+	// 検索モード
+	if queryStr != "" {
+		posts, err = h.postService.SearchPosts(queryStr, status, limit, offset)
+		if err == nil {
+			total, err = h.postService.CountSearchPosts(queryStr, status)
+		}
+	} else if tagStr != "" {
+		// タグフィルタリング
 		posts, err = h.postService.GetAllPostsByTag(tagStr, status, limit, offset)
 		if err == nil {
 			total, err = h.postService.CountPostsByTag(tagStr, status)

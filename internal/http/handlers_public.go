@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/capybara-translation/goblog/internal/domain"
 	"github.com/capybara-translation/goblog/internal/service"
 	"github.com/gorilla/mux"
 )
@@ -135,8 +136,9 @@ func (h *PublicHandlers) HandleHome(w http.ResponseWriter, r *http.Request) {
 
 // HandlePosts は記事一覧ページを表示します
 func (h *PublicHandlers) HandlePosts(w http.ResponseWriter, r *http.Request) {
-	// クエリパラメータから page を取得
+	// クエリパラメータから page と q を取得
 	pageStr := r.URL.Query().Get("page")
+	queryStr := r.URL.Query().Get("q")
 	page := 1
 	if pageStr != "" {
 		if parsed, err := strconv.Atoi(pageStr); err == nil && parsed > 0 {
@@ -148,8 +150,16 @@ func (h *PublicHandlers) HandlePosts(w http.ResponseWriter, r *http.Request) {
 	const perPage = 20
 	offset := (page - 1) * perPage
 
+	var posts []*domain.Post
+	var err error
+
 	// 次のページがあるか判定するため、perPage+1 件取得
-	posts, err := h.postService.GetPublishedPosts(perPage+1, offset)
+	if queryStr != "" {
+		// 検索モード
+		posts, err = h.postService.SearchPublishedPosts(queryStr, perPage+1, offset)
+	} else {
+		posts, err = h.postService.GetPublishedPosts(perPage+1, offset)
+	}
 	if err != nil {
 		log.Printf("failed to get published posts: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -170,6 +180,7 @@ func (h *PublicHandlers) HandlePosts(w http.ResponseWriter, r *http.Request) {
 		"HasNext":     hasNext,
 		"PrevPage":    page - 1,
 		"NextPage":    page + 1,
+		"Query":       queryStr,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

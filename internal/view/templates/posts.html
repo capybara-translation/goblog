@@ -10,6 +10,37 @@
         <h2 class="text-4xl font-sans font-bold text-primary-900 tracking-tight">記事一覧</h2>
     </header>
 
+    <!-- 検索フォーム -->
+    <form action="/posts" method="GET" class="flex gap-3 font-sans">
+        <input
+            type="text"
+            name="q"
+            value="{{.Query}}"
+            placeholder="記事を検索..."
+            class="flex-1 px-4 py-2 border border-stone-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        />
+        <button
+            type="submit"
+            class="px-6 py-2 bg-primary-700 text-white font-medium rounded hover:bg-primary-800 transition-colors duration-200"
+        >
+            検索
+        </button>
+        {{if .Query}}
+        <a
+            href="/posts"
+            class="px-4 py-2 text-primary-700 border border-stone-300 rounded hover:border-primary-700 transition-colors duration-200"
+        >
+            クリア
+        </a>
+        {{end}}
+    </form>
+
+    {{if .Query}}
+    <p class="text-primary-600 font-sans">
+        「<span class="font-medium">{{.Query}}</span>」の検索結果
+    </p>
+    {{end}}
+
     {{if .Posts}}
         <div class="space-y-12">
         {{range .Posts}}
@@ -49,7 +80,7 @@
         <nav class="flex items-center justify-between pt-8 border-t border-stone-200 font-sans" aria-label="ページネーション">
             <div>
                 {{if .HasPrev}}
-                    <a href="/posts?page={{.PrevPage}}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-primary-700 hover:text-primary-900 border border-stone-300 hover:border-primary-700 rounded transition-all duration-200">
+                    <a href="/posts?page={{.PrevPage}}{{if .Query}}&q={{.Query}}{{end}}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-primary-700 hover:text-primary-900 border border-stone-300 hover:border-primary-700 rounded transition-all duration-200">
                         <svg class="mr-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                         </svg>
@@ -69,7 +100,7 @@
             </div>
             <div>
                 {{if .HasNext}}
-                    <a href="/posts?page={{.NextPage}}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-primary-700 hover:text-primary-900 border border-stone-300 hover:border-primary-700 rounded transition-all duration-200">
+                    <a href="/posts?page={{.NextPage}}{{if .Query}}&q={{.Query}}{{end}}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-primary-700 hover:text-primary-900 border border-stone-300 hover:border-primary-700 rounded transition-all duration-200">
                         次のページ
                         <svg class="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
@@ -86,7 +117,11 @@
             </div>
         </nav>
     {{else}}
+        {{if .Query}}
+        <p class="text-primary-500 font-sans">「{{.Query}}」に一致する記事が見つかりませんでした。</p>
+        {{else}}
         <p class="text-primary-500 font-sans">まだ記事がありません。</p>
+        {{end}}
     {{end}}
 </div>
 {{end}}

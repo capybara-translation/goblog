@@ -20,6 +20,8 @@ type mockPostRepository struct {
 	deleteFunc        func(id int64) error
 	countFunc         func(status *domain.PostStatus) (int, error)
 	countByTagFunc    func(tag string, status *domain.PostStatus) (int, error)
+	searchFunc        func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	countSearchFunc   func(query string, status *domain.PostStatus) (int, error)
 }
 
 func (m *mockPostRepository) FindAll(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
@@ -88,6 +90,20 @@ func (m *mockPostRepository) Count(status *domain.PostStatus) (int, error) {
 func (m *mockPostRepository) CountByTag(tag string, status *domain.PostStatus) (int, error) {
 	if m.countByTagFunc != nil {
 		return m.countByTagFunc(tag, status)
+	}
+	return 0, nil
+}
+
+func (m *mockPostRepository) Search(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+	if m.searchFunc != nil {
+		return m.searchFunc(query, status, limit, offset)
+	}
+	return nil, nil
+}
+
+func (m *mockPostRepository) CountSearch(query string, status *domain.PostStatus) (int, error) {
+	if m.countSearchFunc != nil {
+		return m.countSearchFunc(query, status)
 	}
 	return 0, nil
 }
@@ -828,6 +844,372 @@ func TestPostService_GetAllTags(t *testing.T) {
 
 		service := NewPostService(mockRepo)
 		_, err := service.GetAllTags(nil)
+
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+}
+
+func TestPostService_SearchPosts(t *testing.T) {
+	now := time.Now()
+
+	t.Run("検索クエリで記事を取得", func(t *testing.T) {
+		expectedPosts := []*domain.Post{
+			{
+				ID:      1,
+				Title:   "Go入門",
+				Content: "Goの基本的な使い方",
+				Status:  domain.PostStatusPublished,
+			},
+		}
+
+		mockRepo := &mockPostRepository{
+			searchFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				if query != "Go" {
+					t.Errorf("expected query 'Go', got %s", query)
+				}
+				if limit != 10 || offset != 0 {
+					t.Errorf("expected limit=10, offset=0, got limit=%d, offset=%d", limit, offset)
+				}
+				return expectedPosts, nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		posts, err := service.SearchPosts("Go", nil, 10, 0)
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(posts) != 1 {
+			t.Errorf("expected 1 post, got %d", len(posts))
+		}
+
+		if posts[0].Title != "Go入門" {
+			t.Errorf("expected title 'Go入門', got %s", posts[0].Title)
+		}
+	})
+
+	t.Run("ステータス指定付きで検索", func(t *testing.T) {
+		draftStatus := domain.PostStatusDraft
+		expectedPosts := []*domain.Post{
+			{
+				ID:     1,
+				Title:  "Draft Go Post",
+				Status: domain.PostStatusDraft,
+			},
+		}
+
+		mockRepo := &mockPostRepository{
+			searchFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				if status == nil || *status != domain.PostStatusDraft {
+					t.Errorf("expected status draft, got %v", status)
+				}
+				return expectedPosts, nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		posts, err := service.SearchPosts("Go", &draftStatus, 10, 0)
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(posts) != 1 {
+			t.Errorf("expected 1 post, got %d", len(posts))
+		}
+	})
+
+	t.Run("空のクエリは全件取得にフォールバック", func(t *testing.T) {
+		expectedPosts := []*domain.Post{
+			{
+				ID:          1,
+				Title:       "Post 1",
+				Status:      domain.PostStatusPublished,
+				PublishedAt: &now,
+			},
+			{
+				ID:     2,
+				Title:  "Post 2",
+				Status: domain.PostStatusDraft,
+			},
+		}
+
+		mockRepo := &mockPostRepository{
+			findAllFunc: func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				return expectedPosts, nil
+			},
+			searchFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				t.Error("search should not be called for empty query")
+				return nil, nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		posts, err := service.SearchPosts("", nil, 10, 0)
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(posts) != 2 {
+			t.Errorf("expected 2 posts, got %d", len(posts))
+		}
+	})
+
+	t.Run("リポジトリエラー", func(t *testing.T) {
+		mockRepo := &mockPostRepository{
+			searchFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				return nil, fmt.Errorf("database error")
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		_, err := service.SearchPosts("Go", nil, 10, 0)
+
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+}
+
+func TestPostService_CountSearchPosts(t *testing.T) {
+	t.Run("検索結果の件数を取得", func(t *testing.T) {
+		mockRepo := &mockPostRepository{
+			countSearchFunc: func(query string, status *domain.PostStatus) (int, error) {
+				if query != "Go" {
+					t.Errorf("expected query 'Go', got %s", query)
+				}
+				return 5, nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		count, err := service.CountSearchPosts("Go", nil)
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if count != 5 {
+			t.Errorf("expected count 5, got %d", count)
+		}
+	})
+
+	t.Run("ステータス指定付きで件数取得", func(t *testing.T) {
+		draftStatus := domain.PostStatusDraft
+		mockRepo := &mockPostRepository{
+			countSearchFunc: func(query string, status *domain.PostStatus) (int, error) {
+				if status == nil || *status != domain.PostStatusDraft {
+					t.Errorf("expected status draft, got %v", status)
+				}
+				return 3, nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		count, err := service.CountSearchPosts("Go", &draftStatus)
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if count != 3 {
+			t.Errorf("expected count 3, got %d", count)
+		}
+	})
+
+	t.Run("空のクエリは全件カウントにフォールバック", func(t *testing.T) {
+		mockRepo := &mockPostRepository{
+			countFunc: func(status *domain.PostStatus) (int, error) {
+				return 10, nil
+			},
+			countSearchFunc: func(query string, status *domain.PostStatus) (int, error) {
+				t.Error("countSearch should not be called for empty query")
+				return 0, nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		count, err := service.CountSearchPosts("", nil)
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if count != 10 {
+			t.Errorf("expected count 10, got %d", count)
+		}
+	})
+
+	t.Run("リポジトリエラー", func(t *testing.T) {
+		mockRepo := &mockPostRepository{
+			countSearchFunc: func(query string, status *domain.PostStatus) (int, error) {
+				return 0, fmt.Errorf("database error")
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		_, err := service.CountSearchPosts("Go", nil)
+
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+}
+
+func TestPostService_SearchPublishedPosts(t *testing.T) {
+	now := time.Now()
+
+	t.Run("公開済み記事を検索", func(t *testing.T) {
+		expectedPosts := []*domain.Post{
+			{
+				ID:          1,
+				Title:       "Go入門ガイド",
+				Status:      domain.PostStatusPublished,
+				PublishedAt: &now,
+			},
+		}
+
+		mockRepo := &mockPostRepository{
+			searchFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				if query != "Go" {
+					t.Errorf("expected query 'Go', got %s", query)
+				}
+				if status == nil || *status != domain.PostStatusPublished {
+					t.Errorf("expected status published, got %v", status)
+				}
+				return expectedPosts, nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		posts, err := service.SearchPublishedPosts("Go", 10, 0)
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(posts) != 1 {
+			t.Errorf("expected 1 post, got %d", len(posts))
+		}
+	})
+
+	t.Run("空のクエリは公開済み全件取得にフォールバック", func(t *testing.T) {
+		expectedPosts := []*domain.Post{
+			{
+				ID:          1,
+				Title:       "Published Post",
+				Status:      domain.PostStatusPublished,
+				PublishedAt: &now,
+			},
+		}
+
+		mockRepo := &mockPostRepository{
+			findAllFunc: func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				if status == nil || *status != domain.PostStatusPublished {
+					t.Errorf("expected status published, got %v", status)
+				}
+				return expectedPosts, nil
+			},
+			searchFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				t.Error("search should not be called for empty query")
+				return nil, nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		posts, err := service.SearchPublishedPosts("", 10, 0)
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(posts) != 1 {
+			t.Errorf("expected 1 post, got %d", len(posts))
+		}
+	})
+
+	t.Run("リポジトリエラー", func(t *testing.T) {
+		mockRepo := &mockPostRepository{
+			searchFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				return nil, fmt.Errorf("database error")
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		_, err := service.SearchPublishedPosts("Go", 10, 0)
+
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+}
+
+func TestPostService_CountSearchPublishedPosts(t *testing.T) {
+	t.Run("公開済み記事の検索件数を取得", func(t *testing.T) {
+		mockRepo := &mockPostRepository{
+			countSearchFunc: func(query string, status *domain.PostStatus) (int, error) {
+				if query != "Go" {
+					t.Errorf("expected query 'Go', got %s", query)
+				}
+				if status == nil || *status != domain.PostStatusPublished {
+					t.Errorf("expected status published, got %v", status)
+				}
+				return 3, nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		count, err := service.CountSearchPublishedPosts("Go")
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if count != 3 {
+			t.Errorf("expected count 3, got %d", count)
+		}
+	})
+
+	t.Run("空のクエリは公開済み全件カウントにフォールバック", func(t *testing.T) {
+		mockRepo := &mockPostRepository{
+			countFunc: func(status *domain.PostStatus) (int, error) {
+				if status == nil || *status != domain.PostStatusPublished {
+					t.Errorf("expected status published, got %v", status)
+				}
+				return 8, nil
+			},
+			countSearchFunc: func(query string, status *domain.PostStatus) (int, error) {
+				t.Error("countSearch should not be called for empty query")
+				return 0, nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		count, err := service.CountSearchPublishedPosts("")
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if count != 8 {
+			t.Errorf("expected count 8, got %d", count)
+		}
+	})
+
+	t.Run("リポジトリエラー", func(t *testing.T) {
+		mockRepo := &mockPostRepository{
+			countSearchFunc: func(query string, status *domain.PostStatus) (int, error) {
+				return 0, fmt.Errorf("database error")
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		_, err := service.CountSearchPublishedPosts("Go")
 
 		if err == nil {
 			t.Fatal("expected error, got nil")

@@ -17,13 +17,17 @@ const testTemplatePattern = "../view/templates/*.html"
 
 // mockPostService は PostService のモック実装です
 type mockPostService struct {
-	getPublishedPostsFunc       func(limit, offset int) ([]*domain.Post, error)
-	getPublishedPostsByTagFunc  func(tag string, limit, offset int) ([]*domain.Post, error)
-	getPublishedTagsFunc        func() (map[string]int, error)
-	getPostBySlugFunc           func(slug string) (*domain.Post, error)
-	getAllPostsFunc             func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
-	countPostsFunc              func(status *domain.PostStatus) (int, error)
-	countPostsByTagFunc         func(tag string, status *domain.PostStatus) (int, error)
+	getPublishedPostsFunc        func(limit, offset int) ([]*domain.Post, error)
+	getPublishedPostsByTagFunc   func(tag string, limit, offset int) ([]*domain.Post, error)
+	getPublishedTagsFunc         func() (map[string]int, error)
+	getPostBySlugFunc            func(slug string) (*domain.Post, error)
+	getAllPostsFunc              func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	countPostsFunc               func(status *domain.PostStatus) (int, error)
+	countPostsByTagFunc          func(tag string, status *domain.PostStatus) (int, error)
+	searchPostsFunc              func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	countSearchPostsFunc         func(query string, status *domain.PostStatus) (int, error)
+	searchPublishedPostsFunc     func(query string, limit, offset int) ([]*domain.Post, error)
+	countSearchPublishedFunc     func(query string) (int, error)
 }
 
 func (m *mockPostService) GetPublishedPosts(limit, offset int) ([]*domain.Post, error) {
@@ -103,6 +107,34 @@ func (m *mockPostService) CountPosts(status *domain.PostStatus) (int, error) {
 func (m *mockPostService) CountPostsByTag(tag string, status *domain.PostStatus) (int, error) {
 	if m.countPostsByTagFunc != nil {
 		return m.countPostsByTagFunc(tag, status)
+	}
+	return 0, nil
+}
+
+func (m *mockPostService) SearchPosts(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+	if m.searchPostsFunc != nil {
+		return m.searchPostsFunc(query, status, limit, offset)
+	}
+	return []*domain.Post{}, nil
+}
+
+func (m *mockPostService) CountSearchPosts(query string, status *domain.PostStatus) (int, error) {
+	if m.countSearchPostsFunc != nil {
+		return m.countSearchPostsFunc(query, status)
+	}
+	return 0, nil
+}
+
+func (m *mockPostService) SearchPublishedPosts(query string, limit, offset int) ([]*domain.Post, error) {
+	if m.searchPublishedPostsFunc != nil {
+		return m.searchPublishedPostsFunc(query, limit, offset)
+	}
+	return []*domain.Post{}, nil
+}
+
+func (m *mockPostService) CountSearchPublishedPosts(query string) (int, error) {
+	if m.countSearchPublishedFunc != nil {
+		return m.countSearchPublishedFunc(query)
 	}
 	return 0, nil
 }
@@ -1407,6 +1439,256 @@ func TestFormatDateDetailWithTZ(t *testing.T) {
 				t.Errorf("formatDateDetailWithTZ() = %q, expected %q", result, tt.expectedOutput)
 			}
 		})
+	}
+}
+
+func TestHandlePosts_Search(t *testing.T) {
+	tests := []struct {
+		name           string
+		url            string
+		mockSearch     func(query string, limit, offset int) ([]*domain.Post, error)
+		mockCount      func(query string) (int, error)
+		expectedStatus int
+		containsText   []string
+		notContains    []string
+	}{
+		{
+			name: "検索クエリで記事を取得",
+			url:  "/posts?q=Go",
+			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
+				if query != "Go" {
+					t.Errorf("expected query 'Go', got %s", query)
+				}
+				publishedAt := time.Now()
+				return []*domain.Post{
+					{
+						ID:          1,
+						Title:       "Go入門",
+						Slug:        "go-introduction",
+						Content:     "Goの基本的な使い方を解説します",
+						Status:      domain.PostStatusPublished,
+						Tags:        "Go,プログラミング",
+						PublishedAt: &publishedAt,
+					},
+					{
+						ID:          2,
+						Title:       "Go応用テクニック",
+						Slug:        "go-advanced",
+						Content:     "Goの応用的なテクニック",
+						Status:      domain.PostStatusPublished,
+						PublishedAt: &publishedAt,
+					},
+				}, nil
+			},
+			mockCount: func(query string) (int, error) {
+				return 2, nil
+			},
+			expectedStatus: http.StatusOK,
+			containsText: []string{
+				"「<span class=\"font-medium\">Go</span>」の検索結果",
+				"Go入門",
+				"Go応用テクニック",
+				"/posts/go-introduction",
+				"/posts/go-advanced",
+				`value="Go"`,      // 検索ボックスに値が残っている
+				`href="/posts"`,   // クリアリンク
+				"クリア",          // クリアボタン
+			},
+			notContains: []string{
+				"まだ記事がありません",
+			},
+		},
+		{
+			name: "日本語検索クエリ",
+			url:  "/posts?q=%E3%83%97%E3%83%AD%E3%82%B0%E3%83%A9%E3%83%9F%E3%83%B3%E3%82%B0", // "プログラミング"
+			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
+				if query != "プログラミング" {
+					t.Errorf("expected query 'プログラミング', got %s", query)
+				}
+				publishedAt := time.Now()
+				return []*domain.Post{
+					{
+						ID:          1,
+						Title:       "プログラミング入門",
+						Slug:        "programming-intro",
+						Content:     "プログラミングの基礎",
+						Status:      domain.PostStatusPublished,
+						PublishedAt: &publishedAt,
+					},
+				}, nil
+			},
+			mockCount: func(query string) (int, error) {
+				return 1, nil
+			},
+			expectedStatus: http.StatusOK,
+			containsText: []string{
+				"「<span class=\"font-medium\">プログラミング</span>」の検索結果",
+				"プログラミング入門",
+			},
+		},
+		{
+			name: "検索結果が0件",
+			url:  "/posts?q=notfound",
+			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
+				return []*domain.Post{}, nil
+			},
+			mockCount: func(query string) (int, error) {
+				return 0, nil
+			},
+			expectedStatus: http.StatusOK,
+			containsText: []string{
+				"「notfound」に一致する記事が見つかりませんでした",
+				`value="notfound"`, // 検索ボックスに値が残っている
+			},
+			notContains: []string{
+				"まだ記事がありません", // 通常の空メッセージではない
+			},
+		},
+		{
+			name: "検索 + ページネーション（1ページ目）",
+			url:  "/posts?q=Go&page=1",
+			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
+				if limit != 21 || offset != 0 {
+					t.Errorf("expected limit=21, offset=0, got limit=%d, offset=%d", limit, offset)
+				}
+				posts := make([]*domain.Post, 21)
+				publishedAt := time.Now()
+				for i := 0; i < 21; i++ {
+					posts[i] = &domain.Post{
+						ID:          int64(i + 1),
+						Title:       "Go記事" + strconv.Itoa(i+1),
+						Slug:        "go-post-" + strconv.Itoa(i+1),
+						Content:     "内容" + strconv.Itoa(i+1),
+						Status:      domain.PostStatusPublished,
+						Tags:        "Go",
+						PublishedAt: &publishedAt,
+					}
+				}
+				return posts, nil
+			},
+			mockCount: func(query string) (int, error) {
+				return 50, nil
+			},
+			expectedStatus: http.StatusOK,
+			containsText: []string{
+				"次のページ",
+				"/posts?page=2&q=Go", // 検索クエリがページネーションに含まれる
+			},
+		},
+		{
+			name: "検索 + ページネーション（2ページ目）",
+			url:  "/posts?q=Go&page=2",
+			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
+				if limit != 21 || offset != 20 {
+					t.Errorf("expected limit=21, offset=20, got limit=%d, offset=%d", limit, offset)
+				}
+				posts := make([]*domain.Post, 10)
+				publishedAt := time.Now()
+				for i := 0; i < 10; i++ {
+					posts[i] = &domain.Post{
+						ID:          int64(i + 21),
+						Title:       "Go記事" + strconv.Itoa(i+21),
+						Slug:        "go-post-" + strconv.Itoa(i+21),
+						Content:     "内容" + strconv.Itoa(i+21),
+						Status:      domain.PostStatusPublished,
+						Tags:        "Go",
+						PublishedAt: &publishedAt,
+					}
+				}
+				return posts, nil
+			},
+			mockCount: func(query string) (int, error) {
+				return 30, nil
+			},
+			expectedStatus: http.StatusOK,
+			containsText: []string{
+				"前のページ",
+				"/posts?page=1&q=Go",
+			},
+			notContains: []string{
+				"/posts?page=3", // 次のページはない
+			},
+		},
+		{
+			name: "検索エラー",
+			url:  "/posts?q=error",
+			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
+				return nil, fmt.Errorf("database error")
+			},
+			mockCount: func(query string) (int, error) {
+				return 0, nil
+			},
+			expectedStatus: http.StatusInternalServerError,
+			containsText: []string{
+				"Internal Server Error",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := &mockPostService{
+				searchPublishedPostsFunc: tt.mockSearch,
+				countSearchPublishedFunc: tt.mockCount,
+			}
+			router := NewRouterWithTemplates(mockService, nil, false, "goblog", testTemplatePattern)
+
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			if w.Code != tt.expectedStatus {
+				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
+			}
+
+			body := w.Body.String()
+			for _, text := range tt.containsText {
+				if !strings.Contains(body, text) {
+					t.Errorf("expected body to contain %q", text)
+				}
+			}
+
+			for _, text := range tt.notContains {
+				if strings.Contains(body, text) {
+					t.Errorf("expected body NOT to contain %q", text)
+				}
+			}
+		})
+	}
+}
+
+func TestHandlePosts_SearchForm(t *testing.T) {
+	// 検索フォームが常に表示されていることを確認
+	mockService := &mockPostService{
+		getPublishedPostsFunc: func(limit, offset int) ([]*domain.Post, error) {
+			return []*domain.Post{}, nil
+		},
+	}
+	router := NewRouterWithTemplates(mockService, nil, false, "goblog", testTemplatePattern)
+
+	req := httptest.NewRequest(http.MethodGet, "/posts", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	body := w.Body.String()
+	expectedElements := []string{
+		`<form action="/posts" method="GET"`,
+		`name="q"`,
+		`placeholder="記事を検索..."`,
+		`type="submit"`,
+		"検索",
+	}
+
+	for _, elem := range expectedElements {
+		if !strings.Contains(body, elem) {
+			t.Errorf("expected body to contain %q", elem)
+		}
 	}
 }
 

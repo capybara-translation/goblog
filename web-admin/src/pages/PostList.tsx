@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { formatInTimeZone } from 'date-fns-tz';
 import { apiClient, Post } from '../api/client';
@@ -15,14 +15,33 @@ export function PostList() {
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'published'>('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [isComposing, setIsComposing] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Debounce search query (IME変換中は発動しない)
+  useEffect(() => {
+    if (isComposing) return;
+
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, isComposing]);
 
   const loadPosts = useCallback(async () => {
+    // 検索ボックスにフォーカスがあるか確認
+    const wasSearchFocused = document.activeElement === searchInputRef.current;
+
     try {
       setIsLoading(true);
       setError('');
       const offset = (currentPage - 1) * POSTS_PER_PAGE;
       const data = await apiClient.getPosts({
         status: statusFilter === 'all' ? undefined : statusFilter,
+        q: debouncedQuery || undefined,
         limit: POSTS_PER_PAGE,
         offset,
       });
@@ -32,8 +51,14 @@ export function PostList() {
       setError(err instanceof Error ? err.message : '記事の取得に失敗しました');
     } finally {
       setIsLoading(false);
+      // フォーカスを復元
+      if (wasSearchFocused) {
+        requestAnimationFrame(() => {
+          searchInputRef.current?.focus();
+        });
+      }
     }
-  }, [currentPage, statusFilter]);
+  }, [currentPage, statusFilter, debouncedQuery]);
 
   useEffect(() => {
     loadPosts();
@@ -43,6 +68,22 @@ export function PostList() {
   const handleStatusChange = (newStatus: 'all' | 'draft' | 'published') => {
     setStatusFilter(newStatus);
     setCurrentPage(1);
+  };
+
+  // Clear search
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    setDebouncedQuery('');
+    setCurrentPage(1);
+  };
+
+  // IME composition handlers
+  const handleCompositionStart = () => {
+    setIsComposing(true);
+  };
+
+  const handleCompositionEnd = () => {
+    setIsComposing(false);
   };
 
   const totalPages = Math.ceil(totalCount / POSTS_PER_PAGE);
@@ -91,8 +132,40 @@ export function PostList() {
       {/* Filters */}
       <div className="bg-white rounded-lg shadow-sm p-4 space-y-4">
         <div className="flex flex-col sm:flex-row gap-4">
+          {/* Search input */}
+          <div className="flex-1">
+            <label
+              htmlFor="search-input"
+              className="block text-sm font-medium text-primary-700 mb-1"
+            >
+              検索
+            </label>
+            <div className="flex gap-2">
+              <input
+                ref={searchInputRef}
+                id="search-input"
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onCompositionStart={handleCompositionStart}
+                onCompositionEnd={handleCompositionEnd}
+                placeholder="タイトル・本文を検索..."
+                className="flex-1 px-3 py-2 border border-primary-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+              {searchQuery && (
+                <button
+                  onClick={handleClearSearch}
+                  className="px-3 py-2 text-primary-600 border border-primary-300 rounded-md hover:bg-primary-50 transition-colors"
+                  title="検索をクリア"
+                >
+                  クリア
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Status filter */}
-          <div className="flex-1 max-w-xs">
+          <div className="w-full sm:w-48">
             <label
               htmlFor="status-filter"
               className="block text-sm font-medium text-primary-700 mb-1"
@@ -115,14 +188,20 @@ export function PostList() {
         </div>
 
         <div className="text-sm text-primary-600">
-          {totalCount}件の記事
+          {debouncedQuery ? (
+            <>「{debouncedQuery}」の検索結果: {totalCount}件</>
+          ) : (
+            <>{totalCount}件の記事</>
+          )}
         </div>
       </div>
 
       {/* Posts table */}
       {posts.length === 0 ? (
         <div className="bg-white rounded-lg shadow-sm p-8 text-center text-primary-500">
-          記事が見つかりませんでした
+          {debouncedQuery
+            ? `「${debouncedQuery}」に一致する記事が見つかりませんでした`
+            : '記事が見つかりませんでした'}
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">

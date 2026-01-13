@@ -555,6 +555,265 @@ describe('PostList', () => {
     })
   })
 
+  describe('Search functionality', () => {
+    it('should render search input field', async () => {
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
+      renderPostList()
+
+      await waitFor(() => {
+        expect(screen.getByLabelText('検索')).toBeInTheDocument()
+      })
+
+      expect(screen.getByPlaceholderText('タイトル・本文を検索...')).toBeInTheDocument()
+    })
+
+    it('should call API with search query after debounce', async () => {
+      const user = userEvent.setup()
+
+      const searchResults: PostsResponse = {
+        posts: [mockPosts[0]!],
+        total: 1,
+      }
+
+      vi.mocked(apiClient.getPosts)
+        .mockResolvedValueOnce(mockResponse) // 初回ロード
+        .mockResolvedValue(searchResults) // 検索後
+
+      renderPostList()
+
+      await waitFor(() => {
+        expect(screen.getByText('First Published Post')).toBeInTheDocument()
+      })
+
+      const searchInput = screen.getByLabelText('検索')
+      await user.type(searchInput, 'First')
+
+      // デバウンス後にAPIが呼ばれる（300ms + α 待つ）
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenLastCalledWith({
+          status: undefined,
+          q: 'First',
+          limit: 20,
+          offset: 0,
+        })
+      }, { timeout: 2000 })
+    })
+
+    it('should show search results count', async () => {
+      const user = userEvent.setup()
+
+      const searchResults: PostsResponse = {
+        posts: [mockPosts[0]!],
+        total: 1,
+      }
+
+      vi.mocked(apiClient.getPosts)
+        .mockResolvedValueOnce(mockResponse)
+        .mockResolvedValue(searchResults)
+
+      renderPostList()
+
+      await waitFor(() => {
+        expect(screen.getByText('3件の記事')).toBeInTheDocument()
+      })
+
+      const searchInput = screen.getByLabelText('検索')
+      await user.type(searchInput, 'First')
+
+      await waitFor(() => {
+        expect(screen.getByText(/「First」の検索結果: 1件/)).toBeInTheDocument()
+      }, { timeout: 2000 })
+    })
+
+    it('should show clear button when search query is entered', async () => {
+      const user = userEvent.setup()
+
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
+      renderPostList()
+
+      await waitFor(() => {
+        expect(screen.getByText('First Published Post')).toBeInTheDocument()
+      })
+
+      // クリアボタンは最初は表示されない
+      expect(screen.queryByTitle('検索をクリア')).not.toBeInTheDocument()
+
+      const searchInput = screen.getByLabelText('検索')
+      await user.type(searchInput, 'test')
+
+      // クリアボタンが表示される
+      expect(screen.getByTitle('検索をクリア')).toBeInTheDocument()
+    })
+
+    it('should clear search when clear button is clicked', async () => {
+      const user = userEvent.setup()
+
+      const searchResults: PostsResponse = {
+        posts: [mockPosts[0]!],
+        total: 1,
+      }
+
+      vi.mocked(apiClient.getPosts)
+        .mockResolvedValueOnce(mockResponse) // 初回ロード
+        .mockResolvedValueOnce(searchResults) // 検索後
+        .mockResolvedValue(mockResponse) // クリア後
+
+      renderPostList()
+
+      await waitFor(() => {
+        expect(screen.getByText('First Published Post')).toBeInTheDocument()
+      })
+
+      const searchInput = screen.getByLabelText('検索')
+      await user.type(searchInput, 'First')
+
+      await waitFor(() => {
+        expect(screen.getByText(/「First」の検索結果/)).toBeInTheDocument()
+      }, { timeout: 2000 })
+
+      await user.click(screen.getByTitle('検索をクリア'))
+
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenLastCalledWith({
+          status: undefined,
+          q: undefined,
+          limit: 20,
+          offset: 0,
+        })
+      }, { timeout: 2000 })
+
+      // 検索入力がクリアされていることを確認
+      expect(searchInput).toHaveValue('')
+    })
+
+    it('should reset to page 1 when search query changes', async () => {
+      const user = userEvent.setup()
+
+      const createManyPostsResponse = (count: number): PostsResponse => {
+        const posts = Array.from({ length: 20 }, (_, i) => ({
+          id: i + 1,
+          title: `Post ${i + 1}`,
+          slug: `post-${i + 1}`,
+          content: `Content ${i + 1}`,
+          status: 'published' as const,
+          tags: '',
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+          published_at: '2024-01-01T00:00:00Z',
+        }))
+        return { posts, total: count }
+      }
+
+      vi.mocked(apiClient.getPosts)
+        .mockResolvedValueOnce(createManyPostsResponse(25)) // 初回ロード
+        .mockResolvedValueOnce(createManyPostsResponse(25)) // page 2
+        .mockResolvedValue({ posts: [mockPosts[0]!], total: 1 }) // 検索後
+
+      renderPostList()
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: '次へ' })).toBeInTheDocument()
+      })
+
+      // 2ページ目に移動
+      await user.click(screen.getByRole('button', { name: '次へ' }))
+      await waitFor(() => {
+        expect(screen.getByText('2 / 2')).toBeInTheDocument()
+      })
+
+      // 検索を実行
+      const searchInput = screen.getByLabelText('検索')
+      await user.type(searchInput, 'First')
+
+      // offset: 0 でAPIが呼ばれることを確認（1ページ目にリセット）
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenLastCalledWith({
+          status: undefined,
+          q: 'First',
+          limit: 20,
+          offset: 0,
+        })
+      }, { timeout: 2000 })
+    })
+
+    it('should combine search with status filter', async () => {
+      const user = userEvent.setup()
+
+      const searchResults: PostsResponse = {
+        posts: [mockPosts[0]!],
+        total: 1,
+      }
+
+      vi.mocked(apiClient.getPosts)
+        .mockResolvedValueOnce(mockResponse) // 初回ロード
+        .mockResolvedValueOnce(searchResults) // ステータス変更後
+        .mockResolvedValue(searchResults) // 検索後
+
+      renderPostList()
+
+      await waitFor(() => {
+        expect(screen.getByText('First Published Post')).toBeInTheDocument()
+      })
+
+      // ステータスフィルタを変更
+      await user.selectOptions(screen.getByLabelText('ステータス'), 'published')
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenCalledWith({
+          status: 'published',
+          limit: 20,
+          offset: 0,
+        })
+      })
+
+      // 検索を実行
+      const searchInput = screen.getByLabelText('検索')
+      await user.type(searchInput, 'First')
+
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenLastCalledWith({
+          status: 'published',
+          q: 'First',
+          limit: 20,
+          offset: 0,
+        })
+      }, { timeout: 2000 })
+    })
+
+    it('should show empty message for no search results', async () => {
+      const user = userEvent.setup()
+
+      vi.mocked(apiClient.getPosts)
+        .mockResolvedValueOnce(mockResponse) // 初回ロード
+        .mockResolvedValue({ posts: [], total: 0 }) // 検索後（0件）
+
+      renderPostList()
+
+      await waitFor(() => {
+        expect(screen.getByText('First Published Post')).toBeInTheDocument()
+      })
+
+      const searchInput = screen.getByLabelText('検索')
+      await user.type(searchInput, 'nonexistent')
+
+      await waitFor(() => {
+        expect(screen.getByText(/「nonexistent」に一致する記事が見つかりませんでした/)).toBeInTheDocument()
+      }, { timeout: 2000 })
+    })
+
+    it('should not include q parameter value on initial load', async () => {
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
+      renderPostList()
+
+      await waitFor(() => {
+        expect(screen.getByText('First Published Post')).toBeInTheDocument()
+      })
+
+      // 初回ロード時は q パラメータがundefined
+      const calls = vi.mocked(apiClient.getPosts).mock.calls
+      expect(calls[0]![0]!.q).toBeUndefined()
+    })
+  })
+
   describe('Date formatting', () => {
     it('should format dates with timezone abbreviation in title', async () => {
       const posts: Post[] = [
