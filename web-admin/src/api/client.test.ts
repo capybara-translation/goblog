@@ -234,4 +234,36 @@ describe('API Client', () => {
       })
     })
   })
+
+  describe('Markdown preview endpoint', () => {
+    describe('previewMarkdown', () => {
+      it('should convert markdown to HTML', async () => {
+        const html = await apiClient.previewMarkdown('# Hello\n\nThis is **bold** text.')
+
+        expect(html).toContain('<h1>Hello</h1>')
+        expect(html).toContain('<strong>bold</strong>')
+      })
+
+      it('should handle empty content', async () => {
+        const html = await apiClient.previewMarkdown('')
+
+        expect(html).toBe('')
+      })
+
+      it('should convert code blocks', async () => {
+        const html = await apiClient.previewMarkdown('```go\nfunc main() {}\n```')
+
+        expect(html).toContain('<pre>')
+        expect(html).toContain('<code>')
+      })
+
+      it('should convert headings', async () => {
+        const html = await apiClient.previewMarkdown('# H1\n\n## H2\n\n### H3')
+
+        expect(html).toContain('<h1>H1</h1>')
+        expect(html).toContain('<h2>H2</h2>')
+        expect(html).toContain('<h3>H3</h3>')
+      })
+    })
+  })
 })

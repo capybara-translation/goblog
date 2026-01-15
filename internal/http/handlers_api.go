@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"regexp"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/capybara-translation/goblog/internal/domain"
+	"github.com/capybara-translation/goblog/internal/markdown"
 	"github.com/capybara-translation/goblog/internal/service"
 	"github.com/gorilla/mux"
 )
@@ -72,6 +75,34 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, ErrorResponse{Error: message})
+}
+
+// slugPattern はURLセーフなスラグのパターン（英小文字、数字、ハイフンのみ）
+var slugPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+
+// validatePostRequest は記事作成・更新リクエストのバリデーションを行います
+func validatePostRequest(title, slug string) error {
+	// タイトル必須チェック
+	if strings.TrimSpace(title) == "" {
+		return fmt.Errorf("title is required")
+	}
+
+	// スラグ必須チェック
+	if strings.TrimSpace(slug) == "" {
+		return fmt.Errorf("slug is required")
+	}
+
+	// スラグに空白が含まれていないかチェック
+	if strings.ContainsAny(slug, " \t\n\r") {
+		return fmt.Errorf("slug must not contain whitespace")
+	}
+
+	// スラグがURLセーフかチェック（英小文字、数字、ハイフンのみ）
+	if !slugPattern.MatchString(slug) {
+		return fmt.Errorf("slug must contain only lowercase letters, numbers, and hyphens")
+	}
+
+	return nil
 }
 
 // HandleGetPosts は記事一覧を取得します
@@ -189,6 +220,12 @@ func (h *APIHandlers) HandleCreatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// バリデーション
+	if err := validatePostRequest(req.Title, req.Slug); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	post, err := h.postService.CreatePost(req.Title, req.Slug, req.Content, req.Tags)
 	if err != nil {
 		log.Printf("failed to create post: %v", err)
@@ -214,6 +251,12 @@ func (h *APIHandlers) HandleUpdatePost(w http.ResponseWriter, r *http.Request) {
 	var req UpdatePostRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	// バリデーション
+	if err := validatePostRequest(req.Title, req.Slug); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -341,4 +384,34 @@ func (h *APIHandlers) HandleGetTags(w http.ResponseWriter, r *http.Request) {
 	})
 
 	writeJSON(w, http.StatusOK, tags)
+}
+
+// PreviewRequest はMarkdownプレビューリクエストの構造体です
+type PreviewRequest struct {
+	Content string `json:"content"`
+}
+
+// PreviewResponse はMarkdownプレビューレスポンスの構造体です
+type PreviewResponse struct {
+	HTML string `json:"html"`
+}
+
+// HandlePreview はMarkdownをHTMLに変換して返します
+// POST /api/v1/preview
+func HandlePreview(w http.ResponseWriter, r *http.Request) {
+	var req PreviewRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	converter := markdown.NewConverter()
+	html, err := converter.Convert(req.Content)
+	if err != nil {
+		log.Printf("failed to convert markdown: %v", err)
+		writeError(w, http.StatusInternalServerError, "Failed to convert markdown")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, PreviewResponse{HTML: html})
 }

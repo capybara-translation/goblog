@@ -60,11 +60,7 @@
                     {{end}}
                 </div>
                 <p class="text-primary-600 leading-relaxed mb-4">
-                    {{if gt (len .Content) 200}}
-                        {{highlightQuery (truncate .Content 200) $.Query}}...
-                    {{else}}
-                        {{highlightQuery .Content $.Query}}
-                    {{end}}
+                    {{highlightQuery (markdownExcerpt .Content 200) $.Query}}...
                 </p>
                 <a href="/posts/{{.Slug}}" class="inline-flex items-center text-primary-700 hover:text-primary-900 font-sans text-sm font-medium transition-colors duration-200">
                     続きを読む

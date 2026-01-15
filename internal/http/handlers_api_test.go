@@ -624,6 +624,150 @@ func TestHandleCreatePost_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestHandleCreatePost_Validation(t *testing.T) {
+	mockPostService := &mockPostServiceForAPI{}
+	mockAuthService := createTestAuthService()
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+
+	tests := []struct {
+		name          string
+		body          string
+		expectedError string
+	}{
+		{
+			name:          "タイトルが空",
+			body:          `{"title":"","slug":"test-slug","content":"Content"}`,
+			expectedError: "title is required",
+		},
+		{
+			name:          "タイトルが空白のみ",
+			body:          `{"title":"   ","slug":"test-slug","content":"Content"}`,
+			expectedError: "title is required",
+		},
+		{
+			name:          "スラグが空",
+			body:          `{"title":"Test Title","slug":"","content":"Content"}`,
+			expectedError: "slug is required",
+		},
+		{
+			name:          "スラグが空白のみ",
+			body:          `{"title":"Test Title","slug":"   ","content":"Content"}`,
+			expectedError: "slug is required",
+		},
+		{
+			name:          "スラグに空白を含む",
+			body:          `{"title":"Test Title","slug":"test slug","content":"Content"}`,
+			expectedError: "slug must not contain whitespace",
+		},
+		{
+			name:          "スラグに大文字を含む",
+			body:          `{"title":"Test Title","slug":"Test-Slug","content":"Content"}`,
+			expectedError: "slug must contain only lowercase letters, numbers, and hyphens",
+		},
+		{
+			name:          "スラグに日本語を含む",
+			body:          `{"title":"Test Title","slug":"テスト","content":"Content"}`,
+			expectedError: "slug must contain only lowercase letters, numbers, and hyphens",
+		},
+		{
+			name:          "スラグにアンダースコアを含む",
+			body:          `{"title":"Test Title","slug":"test_slug","content":"Content"}`,
+			expectedError: "slug must contain only lowercase letters, numbers, and hyphens",
+		},
+		{
+			name:          "スラグがハイフンで始まる",
+			body:          `{"title":"Test Title","slug":"-test-slug","content":"Content"}`,
+			expectedError: "slug must contain only lowercase letters, numbers, and hyphens",
+		},
+		{
+			name:          "スラグがハイフンで終わる",
+			body:          `{"title":"Test Title","slug":"test-slug-","content":"Content"}`,
+			expectedError: "slug must contain only lowercase letters, numbers, and hyphens",
+		},
+		{
+			name:          "スラグに連続ハイフン",
+			body:          `{"title":"Test Title","slug":"test--slug","content":"Content"}`,
+			expectedError: "slug must contain only lowercase letters, numbers, and hyphens",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/posts", strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			addAuthAndCSRF(req)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+			}
+
+			var response ErrorResponse
+			if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+				t.Fatalf("failed to parse JSON response: %v", err)
+			}
+
+			if response.Error != tt.expectedError {
+				t.Errorf("expected error %q, got %q", tt.expectedError, response.Error)
+			}
+		})
+	}
+}
+
+func TestHandleUpdatePost_Validation(t *testing.T) {
+	mockPostService := &mockPostServiceForAPI{}
+	mockAuthService := createTestAuthService()
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+
+	tests := []struct {
+		name          string
+		body          string
+		expectedError string
+	}{
+		{
+			name:          "タイトルが空",
+			body:          `{"title":"","slug":"test-slug","content":"Content"}`,
+			expectedError: "title is required",
+		},
+		{
+			name:          "スラグが空",
+			body:          `{"title":"Test Title","slug":"","content":"Content"}`,
+			expectedError: "slug is required",
+		},
+		{
+			name:          "スラグがURLセーフでない",
+			body:          `{"title":"Test Title","slug":"Test Slug!","content":"Content"}`,
+			expectedError: "slug must not contain whitespace",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPut, "/api/v1/posts/1", strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			addAuthAndCSRF(req)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+			}
+
+			var response ErrorResponse
+			if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+				t.Fatalf("failed to parse JSON response: %v", err)
+			}
+
+			if response.Error != tt.expectedError {
+				t.Errorf("expected error %q, got %q", tt.expectedError, response.Error)
+			}
+		})
+	}
+}
+
 func TestHandleUpdatePost_Success(t *testing.T) {
 	mockPostService := &mockPostServiceForAPI{
 		updatePostFunc: func(id int64, title, slug, content, tags string) (*domain.Post, error) {
@@ -1424,6 +1568,162 @@ func TestHandleGetPosts_WithSearchQuery(t *testing.T) {
 
 		if w.Code != http.StatusInternalServerError {
 			t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+		}
+	})
+}
+
+func TestHandlePreview(t *testing.T) {
+	mockPostService := &mockPostServiceForAPI{}
+	mockAuthService := createTestAuthService()
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+
+	t.Run("MarkdownをHTMLに変換", func(t *testing.T) {
+		body := `{"content":"# Hello\n\nThis is **bold** text."}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/markdown/preview", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		addAuthAndCSRF(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		var response PreviewResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatalf("failed to parse JSON response: %v", err)
+		}
+
+		// HTMLに変換されていることを確認
+		if !strings.Contains(response.HTML, "<h1") {
+			t.Errorf("expected HTML to contain <h1>, got %q", response.HTML)
+		}
+		if !strings.Contains(response.HTML, "<strong>bold</strong>") {
+			t.Errorf("expected HTML to contain <strong>bold</strong>, got %q", response.HTML)
+		}
+	})
+
+	t.Run("空のコンテンツ", func(t *testing.T) {
+		body := `{"content":""}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/markdown/preview", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		addAuthAndCSRF(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		var response PreviewResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatalf("failed to parse JSON response: %v", err)
+		}
+
+		// 空文字列のHTMLが返される
+		if response.HTML != "" {
+			t.Errorf("expected empty HTML, got %q", response.HTML)
+		}
+	})
+
+	t.Run("不正なJSONリクエスト", func(t *testing.T) {
+		body := `{invalid json}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/markdown/preview", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		addAuthAndCSRF(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+		}
+
+		var response ErrorResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatalf("failed to parse JSON response: %v", err)
+		}
+
+		if response.Error != "Invalid request body" {
+			t.Errorf("expected error 'Invalid request body', got %q", response.Error)
+		}
+	})
+
+	t.Run("XSSサニタイズ", func(t *testing.T) {
+		body := `{"content":"<script>alert('xss')</script>"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/markdown/preview", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		addAuthAndCSRF(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		var response PreviewResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatalf("failed to parse JSON response: %v", err)
+		}
+
+		// scriptタグがサニタイズされていることを確認
+		if strings.Contains(response.HTML, "<script>") {
+			t.Errorf("expected script tag to be sanitized, got %q", response.HTML)
+		}
+	})
+
+	t.Run("コードブロックのシンタックスハイライト", func(t *testing.T) {
+		body := "{\"content\":\"```go\\nfunc main() {}\\n```\"}"
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/markdown/preview", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		addAuthAndCSRF(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		var response PreviewResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatalf("failed to parse JSON response: %v", err)
+		}
+
+		// preタグが含まれていることを確認
+		if !strings.Contains(response.HTML, "<pre") {
+			t.Errorf("expected HTML to contain <pre>, got %q", response.HTML)
+		}
+	})
+
+	t.Run("未認証でエラー", func(t *testing.T) {
+		body := `{"content":"# Test"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/markdown/preview", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		// 認証なし
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("expected status %d, got %d", http.StatusUnauthorized, w.Code)
+		}
+	})
+
+	t.Run("CSRFトークンなしでエラー", func(t *testing.T) {
+		body := `{"content":"# Test"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/markdown/preview", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		addSessionCookie(req) // 認証Cookieのみ、CSRFトークンなし
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusForbidden {
+			t.Errorf("expected status %d, got %d", http.StatusForbidden, w.Code)
 		}
 	})
 }

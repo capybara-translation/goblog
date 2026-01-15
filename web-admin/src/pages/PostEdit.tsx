@@ -2,6 +2,7 @@ import { useState, useEffect, FormEvent } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { apiClient, Post } from '../api/client';
 import { StatusBadge } from '../components/StatusBadge';
+import { MarkdownEditor } from '../components/MarkdownEditor';
 
 export function PostEdit() {
   const { id } = useParams<{ id: string }>();
@@ -249,16 +250,10 @@ export function PostEdit() {
           >
             本文（Markdown）
           </label>
-          <textarea
-            id="content"
+          <MarkdownEditor
             value={content}
-            onChange={(e) => setContent(e.target.value)}
-            rows={20}
-            className="w-full px-3 py-2 border border-primary-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 font-mono text-sm"
+            onChange={setContent}
             disabled={isSaving}
-            placeholder="# 見出し
-
-本文をここに書きます..."
           />
         </div>
 

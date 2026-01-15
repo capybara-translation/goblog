@@ -58,8 +58,8 @@ seed:
 	@echo "テストデータを投入中..."
 	go run cmd/seed/main.go
 
-# データベースをリセットしてテストデータ投入
-reset: clean seed
+# データベースをリセットしてテストデータ投入（管理画面も再ビルド）
+reset: clean build-admin seed
 
 # フロントエンドとバックエンドをビルド
 build: build-admin

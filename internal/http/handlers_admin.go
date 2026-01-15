@@ -18,7 +18,6 @@ func HandleAdminSPA(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-
 	// Get the requested path (remove /admin prefix)
 	path := strings.TrimPrefix(r.URL.Path, "/admin")
 	if path == "" || path == "/" {

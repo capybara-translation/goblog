@@ -66,5 +66,8 @@ func NewRouterWithTemplates(postService service.PostService, authService service
 	protectedAPI.HandleFunc("/posts/{id}/unpublish", apiHandlers.HandleUnpublishPost).Methods("POST")
 	protectedAPI.HandleFunc("/tags", apiHandlers.HandleGetTags).Methods("GET")
 
+	// Markdownプレビュー
+	protectedAPI.HandleFunc("/markdown/preview", HandlePreview).Methods("POST")
+
 	return r
 }

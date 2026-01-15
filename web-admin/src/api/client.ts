@@ -202,6 +202,15 @@ class ApiClient {
 
     return this.request<Tag[]>(endpoint);
   }
+
+  // Markdown preview endpoint
+  async previewMarkdown(content: string): Promise<string> {
+    const response = await this.request<{ html: string }>('/markdown/preview', {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+    return response.html;
+  }
 }
 
 // Export a singleton instance

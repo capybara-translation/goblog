@@ -23,3 +23,5 @@ body {
   color: var(--color-primary-800);
   background-color: #fafaf9;
 }
+
+/* Markdown コンテンツ用スタイルは /static/markdown.css で共有 */

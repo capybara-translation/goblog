@@ -284,6 +284,43 @@ export const handlers = [
     return HttpResponse.json(mockPosts[postIndex]);
   }),
 
+  // Markdown preview endpoint
+  http.post(`${API_BASE}/markdown/preview`, async ({ request }) => {
+    const { content } = await request.json() as { content: string };
+
+    // 空のコンテンツは空文字を返す
+    if (!content || content.trim() === '') {
+      return HttpResponse.json({ html: '' });
+    }
+
+    // 簡易的なMarkdown→HTML変換（テスト用）
+    let html = content;
+
+    // 見出し
+    html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+    html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+
+    // 太字
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+    // 斜体
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+    // コードブロック
+    html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+
+    // 段落
+    html = html.split('\n\n').map(p => {
+      if (!p.startsWith('<')) {
+        return `<p>${p}</p>`;
+      }
+      return p;
+    }).join('\n');
+
+    return HttpResponse.json({ html });
+  }),
+
   // Tags endpoint
   http.get(`${API_BASE}/tags`, ({ request }) => {
     const url = new URL(request.url);

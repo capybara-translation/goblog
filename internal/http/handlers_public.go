@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/capybara-translation/goblog/internal/domain"
+	"github.com/capybara-translation/goblog/internal/markdown"
 	"github.com/capybara-translation/goblog/internal/service"
 	"github.com/gorilla/mux"
 )
@@ -38,6 +39,20 @@ func truncateRunes(s string, maxRunes int) string {
 		return s
 	}
 	return string(runes[:maxRunes])
+}
+
+// htmlTagPattern はHTMLタグにマッチする正規表現パターン
+var htmlTagPattern = regexp.MustCompile(`<[^>]*>`)
+
+// stripHTMLTags はHTML文字列からタグを除去してプレーンテキストを返します
+func stripHTMLTags(htmlStr string) string {
+	// HTMLタグを除去
+	text := htmlTagPattern.ReplaceAllString(htmlStr, "")
+	// HTMLエンティティをデコード
+	text = html.UnescapeString(text)
+	// 連続する空白を1つにまとめ、前後の空白を削除
+	text = strings.Join(strings.Fields(text), " ")
+	return text
 }
 
 // splitTags はカンマ区切りのタグ文字列をスライスに変換します
@@ -83,6 +98,31 @@ func formatDateDetailWithTZ(t time.Time) string {
 	return t.In(getTimezoneLocation()).Format("2006-01-02 15:04 (MST)")
 }
 
+// mdConverter はMarkdown変換器のシングルトンインスタンス
+var mdConverter = markdown.NewConverter()
+
+// renderMarkdown はMarkdownをHTMLに変換します
+func renderMarkdown(content string) template.HTML {
+	htmlContent, err := mdConverter.Convert(content)
+	if err != nil {
+		// エラー時はHTMLエスケープしたテキストを返す
+		return template.HTML(template.HTMLEscapeString(content))
+	}
+	return template.HTML(htmlContent)
+}
+
+// markdownExcerpt はMarkdownをプレーンテキストに変換して切り詰めます
+func markdownExcerpt(content string, maxLen int) string {
+	// Markdown → HTML → プレーンテキスト → 切り詰め
+	htmlContent, err := mdConverter.Convert(content)
+	if err != nil {
+		// エラー時は元のテキストを切り詰めて返す
+		return truncateRunes(content, maxLen)
+	}
+	plainText := stripHTMLTags(htmlContent)
+	return truncateRunes(plainText, maxLen)
+}
+
 // highlightQuery は検索クエリに一致する文字列を<mark>タグでハイライトします
 // XSS対策のため、テキストはHTMLエスケープしてから処理します
 func highlightQuery(text string, query string) template.HTML {
@@ -120,6 +160,8 @@ func NewPublicHandlers(postService service.PostService, blogTitle string, templa
 		"formatDateWithTZ":       formatDateWithTZ,
 		"formatDateDetailWithTZ": formatDateDetailWithTZ,
 		"highlightQuery":         highlightQuery,
+		"renderMarkdown":         renderMarkdown,
+		"markdownExcerpt":        markdownExcerpt,
 	}
 
 	// 各ページごとに独立したテンプレートセットを作成
