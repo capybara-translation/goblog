@@ -1,8 +1,19 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { formatInTimeZone } from 'date-fns-tz';
 import { apiClient, Post } from '../api/client';
 import { StatusBadge } from '../components/StatusBadge';
 import { MarkdownEditor } from '../components/MarkdownEditor';
+
+const BLOG_TIMEZONE = import.meta.env.VITE_BLOG_TIMEZONE || 'UTC';
+
+/**
+ * 日付をISO 8601形式でフォーマット
+ * 例: "2024-01-15 10:30:05"
+ */
+function formatDateTime(dateString: string): string {
+  return formatInTimeZone(new Date(dateString), BLOG_TIMEZONE, 'yyyy-MM-dd HH:mm:ss');
+}
 
 export function PostEdit() {
   const { id } = useParams<{ id: string }>();
@@ -172,6 +183,28 @@ export function PostEdit() {
           </div>
         )}
       </div>
+
+      {/* Post metadata */}
+      {post && (
+        <div className="bg-primary-50 border border-primary-200 rounded-lg px-4 py-3">
+          <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-primary-600">
+            <div>
+              <span className="font-medium">作成日:</span>{' '}
+              {formatDateTime(post.created_at)}
+            </div>
+            <div>
+              <span className="font-medium">更新日:</span>{' '}
+              {formatDateTime(post.updated_at)}
+            </div>
+            {post.published_at && (
+              <div>
+                <span className="font-medium">公開日:</span>{' '}
+                {formatDateTime(post.published_at)}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Error message */}
       {error && (

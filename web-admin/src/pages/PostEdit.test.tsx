@@ -204,6 +204,58 @@ describe('PostEdit', () => {
     })
   })
 
+  describe('Post metadata display', () => {
+    it('should display created_at and updated_at for draft post', async () => {
+      vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
+      renderEditMode(1)
+
+      await waitFor(() => {
+        expect(screen.getByText('作成日:')).toBeInTheDocument()
+      })
+
+      expect(screen.getByText('更新日:')).toBeInTheDocument()
+      // published_at が null の場合は公開日を表示しない
+      expect(screen.queryByText('公開日:')).not.toBeInTheDocument()
+    })
+
+    it('should display published_at for published post', async () => {
+      vi.mocked(apiClient.getPost).mockResolvedValue(mockPublishedPost)
+      renderEditMode(2)
+
+      await waitFor(() => {
+        expect(screen.getByText('公開日:')).toBeInTheDocument()
+      })
+    })
+
+    it('should format dates in ISO 8601 format (yyyy-MM-dd HH:mm:ss)', async () => {
+      const postWithSpecificDates: Post = {
+        ...mockPublishedPost,
+        created_at: '2024-06-15T10:30:45Z',
+        updated_at: '2024-06-20T14:15:30Z',
+        published_at: '2024-06-18T09:00:00Z',
+      }
+      vi.mocked(apiClient.getPost).mockResolvedValue(postWithSpecificDates)
+      renderEditMode(2)
+
+      await waitFor(() => {
+        expect(screen.getByText('作成日:')).toBeInTheDocument()
+      })
+
+      // ISO 8601形式（yyyy-MM-dd HH:mm:ss）で表示されることを確認
+      const datePattern = /\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/
+      const metadataSection = screen.getByText('作成日:').closest('div')?.parentElement
+      expect(metadataSection?.textContent).toMatch(datePattern)
+    })
+
+    it('should not display metadata in create mode', () => {
+      renderCreateMode()
+
+      expect(screen.queryByText('作成日:')).not.toBeInTheDocument()
+      expect(screen.queryByText('更新日:')).not.toBeInTheDocument()
+      expect(screen.queryByText('公開日:')).not.toBeInTheDocument()
+    })
+  })
+
   describe('Form input', () => {
     it('should allow entering title', async () => {
       const user = userEvent.setup()
