@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
 import { MarkdownEditor } from './MarkdownEditor';
 import { apiClient } from '../api/client';
 
@@ -7,10 +7,12 @@ import { apiClient } from '../api/client';
 vi.mock('../api/client', () => ({
   apiClient: {
     previewMarkdown: vi.fn(),
+    uploadImage: vi.fn(),
   },
 }));
 
 const mockPreviewMarkdown = vi.mocked(apiClient.previewMarkdown);
+const mockUploadImage = vi.mocked(apiClient.uploadImage);
 
 // タイマーを進めて非同期処理を完了させるヘルパー
 async function advanceTimersAndFlush(ms: number) {
@@ -25,6 +27,7 @@ describe('MarkdownEditor', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     mockPreviewMarkdown.mockReset();
+    mockUploadImage.mockReset();
   });
 
   afterEach(() => {
@@ -213,6 +216,169 @@ describe('MarkdownEditor', () => {
 
       // アンマウント後はAPIが呼ばれない
       expect(mockPreviewMarkdown).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('画像アップロード', () => {
+    it('非表示のファイル入力が存在する', () => {
+      render(<MarkdownEditor value="" onChange={() => {}} />);
+
+      const fileInput = screen.getByTestId('image-file-input');
+      expect(fileInput).toBeInTheDocument();
+      expect(fileInput).toHaveClass('hidden');
+      expect(fileInput).toHaveAttribute('accept', 'image/jpeg,image/png,image/gif,image/webp');
+    });
+
+    it('画像をアップロードするとonChangeが呼ばれる', async () => {
+      vi.useRealTimers(); // 非同期処理のためにリアルタイマーを使用
+      const handleChange = vi.fn();
+      mockUploadImage.mockResolvedValue({
+        url: '/uploads/test-uuid.jpg',
+        filename: 'test.jpg',
+      });
+
+      render(<MarkdownEditor value="" onChange={handleChange} />);
+
+      const fileInput = screen.getByTestId('image-file-input');
+      const file = new File(['fake image'], 'test.jpg', { type: 'image/jpeg' });
+
+      await act(async () => {
+        fireEvent.change(fileInput, { target: { files: [file] } });
+      });
+
+      await waitFor(() => {
+        expect(mockUploadImage).toHaveBeenCalledWith(file);
+      });
+
+      // textApiRef.currentがnullの場合、onChangeが呼ばれる
+      await waitFor(() => {
+        expect(handleChange).toHaveBeenCalledWith(expect.stringContaining('![test.jpg](/uploads/test-uuid.jpg)'));
+      });
+    });
+
+    it('無効なファイル形式でエラーが表示される', async () => {
+      vi.useRealTimers();
+      render(<MarkdownEditor value="" onChange={() => {}} />);
+
+      const fileInput = screen.getByTestId('image-file-input');
+      const file = new File(['fake text'], 'test.txt', { type: 'text/plain' });
+
+      await act(async () => {
+        fireEvent.change(fileInput, { target: { files: [file] } });
+      });
+
+      // アップロードAPIは呼ばれない
+      expect(mockUploadImage).not.toHaveBeenCalled();
+
+      // エラーメッセージが表示される
+      await waitFor(() => {
+        expect(screen.getByText('対応している形式は JPEG, PNG, GIF, WebP のみです')).toBeInTheDocument();
+      });
+    });
+
+    it('ファイルサイズが大きすぎるとエラーが表示される', async () => {
+      vi.useRealTimers();
+      render(<MarkdownEditor value="" onChange={() => {}} />);
+
+      const fileInput = screen.getByTestId('image-file-input');
+      // 6MBのファイルを作成
+      const largeContent = new Array(6 * 1024 * 1024).fill('a').join('');
+      const file = new File([largeContent], 'large.jpg', { type: 'image/jpeg' });
+
+      await act(async () => {
+        fireEvent.change(fileInput, { target: { files: [file] } });
+      });
+
+      // アップロードAPIは呼ばれない
+      expect(mockUploadImage).not.toHaveBeenCalled();
+
+      // エラーメッセージが表示される
+      await waitFor(() => {
+        expect(screen.getByText('ファイルサイズは 5MB 以下にしてください')).toBeInTheDocument();
+      });
+    });
+
+    it('アップロード中はローディング表示される', async () => {
+      vi.useRealTimers();
+      let resolveUpload: (value: { url: string; filename: string }) => void;
+      mockUploadImage.mockImplementation(
+        () => new Promise((resolve) => { resolveUpload = resolve; })
+      );
+
+      render(<MarkdownEditor value="" onChange={() => {}} />);
+
+      const fileInput = screen.getByTestId('image-file-input');
+      const file = new File(['fake image'], 'test.jpg', { type: 'image/jpeg' });
+
+      fireEvent.change(fileInput, { target: { files: [file] } });
+
+      // ローディング表示を確認
+      await waitFor(() => {
+        expect(screen.getByText('(アップロード中...)')).toBeInTheDocument();
+      });
+
+      // アップロードを完了
+      await act(async () => {
+        resolveUpload!({ url: '/uploads/test.jpg', filename: 'test.jpg' });
+      });
+
+      // ローディング表示が消える
+      await waitFor(() => {
+        expect(screen.queryByText('(アップロード中...)')).not.toBeInTheDocument();
+      });
+    });
+
+    it('アップロードAPIエラー時はエラーメッセージが表示される', async () => {
+      vi.useRealTimers();
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      mockUploadImage.mockRejectedValue(new Error('Upload failed'));
+
+      render(<MarkdownEditor value="" onChange={() => {}} />);
+
+      const fileInput = screen.getByTestId('image-file-input');
+      const file = new File(['fake image'], 'test.jpg', { type: 'image/jpeg' });
+
+      await act(async () => {
+        fireEvent.change(fileInput, { target: { files: [file] } });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Upload failed')).toBeInTheDocument();
+      });
+
+      consoleError.mockRestore();
+    });
+
+    it('アップロード中はtextareaがdisabledになる', async () => {
+      vi.useRealTimers();
+      let resolveUpload: (value: { url: string; filename: string }) => void;
+      mockUploadImage.mockImplementation(
+        () => new Promise((resolve) => { resolveUpload = resolve; })
+      );
+
+      render(<MarkdownEditor value="" onChange={() => {}} />);
+
+      const fileInput = screen.getByTestId('image-file-input');
+      const file = new File(['fake image'], 'test.jpg', { type: 'image/jpeg' });
+
+      fireEvent.change(fileInput, { target: { files: [file] } });
+
+      // テキストエリアがdisabledになることを確認
+      await waitFor(() => {
+        const textarea = document.querySelector('textarea');
+        expect(textarea).toHaveAttribute('disabled');
+      });
+
+      // アップロードを完了
+      await act(async () => {
+        resolveUpload!({ url: '/uploads/test.jpg', filename: 'test.jpg' });
+      });
+
+      // disabledが解除される
+      await waitFor(() => {
+        const textarea = document.querySelector('textarea');
+        expect(textarea).not.toHaveAttribute('disabled');
+      });
     });
   });
 });

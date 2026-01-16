@@ -8,12 +8,12 @@ import (
 )
 
 // NewRouter はアプリケーション全体のルーターを作成します
-func NewRouter(postService service.PostService, authService service.AuthService, secureCookie bool, blogTitle string) *mux.Router {
-	return NewRouterWithTemplates(postService, authService, secureCookie, blogTitle, "internal/view/templates/*.html")
+func NewRouter(postService service.PostService, authService service.AuthService, secureCookie bool, blogTitle string, uploadDir string, maxUploadSize int64) *mux.Router {
+	return NewRouterWithTemplates(postService, authService, secureCookie, blogTitle, "internal/view/templates/*.html", uploadDir, maxUploadSize)
 }
 
 // NewRouterWithTemplates はテンプレートパスを指定してルーターを作成します（テスト用）
-func NewRouterWithTemplates(postService service.PostService, authService service.AuthService, secureCookie bool, blogTitle string, templatePattern string) *mux.Router {
+func NewRouterWithTemplates(postService service.PostService, authService service.AuthService, secureCookie bool, blogTitle string, templatePattern string, uploadDir string, maxUploadSize int64) *mux.Router {
 	r := mux.NewRouter()
 
 	// 公開ページのハンドラーを初期化
@@ -25,9 +25,16 @@ func NewRouterWithTemplates(postService service.PostService, authService service
 	// 認証用のハンドラーを初期化
 	authHandlers := NewAuthHandlers(authService, secureCookie)
 
+	// 画像アップロード用のハンドラーを初期化
+	imageHandlers := NewImageHandlers(uploadDir, maxUploadSize)
+
 	// 静的ファイル（favicon等）
 	staticFileServer := http.FileServer(http.Dir("internal/view/static"))
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", staticFileServer))
+
+	// アップロードされた画像の配信（認証不要）
+	uploadsFileServer := http.FileServer(http.Dir(uploadDir))
+	r.PathPrefix("/uploads/").Handler(http.StripPrefix("/uploads/", uploadsFileServer))
 
 	// 公開ページ（SSR）
 	r.HandleFunc("/", publicHandlers.HandleHome).Methods("GET")
@@ -68,6 +75,9 @@ func NewRouterWithTemplates(postService service.PostService, authService service
 
 	// Markdownプレビュー
 	protectedAPI.HandleFunc("/markdown/preview", HandlePreview).Methods("POST")
+
+	// 画像アップロード
+	protectedAPI.HandleFunc("/images", imageHandlers.HandleUploadImage).Methods("POST")
 
 	return r
 }

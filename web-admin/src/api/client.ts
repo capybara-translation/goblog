@@ -50,6 +50,11 @@ export interface ApiError {
   error: string;
 }
 
+export interface ImageUploadResponse {
+  url: string;
+  filename: string;
+}
+
 export interface PostsResponse {
   posts: Post[];
   total: number;
@@ -210,6 +215,46 @@ class ApiClient {
       body: JSON.stringify({ content }),
     });
     return response.html;
+  }
+
+  // Image upload endpoint
+  async uploadImage(file: File): Promise<ImageUploadResponse> {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const headers: Record<string, string> = {};
+
+    // Add CSRF token
+    const csrfToken = getCsrfToken();
+    if (csrfToken) {
+      headers['X-CSRF-Token'] = csrfToken;
+    }
+
+    // Content-Typeは設定しない（ブラウザがmultipart/form-dataのboundaryを自動設定）
+    const response = await fetch(`${this.baseUrl}/images`, {
+      method: 'POST',
+      headers,
+      body: formData,
+      credentials: 'include',
+    });
+
+    // Handle 401 Unauthorized - redirect to login
+    if (response.status === 401) {
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/admin/login';
+      }
+      throw new Error('Unauthorized');
+    }
+
+    // Parse JSON response
+    const data = await response.json();
+
+    // Handle error responses
+    if (!response.ok) {
+      throw new Error((data as ApiError).error || `HTTP ${response.status}`);
+    }
+
+    return data as ImageUploadResponse;
   }
 }
 

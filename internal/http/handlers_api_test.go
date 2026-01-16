@@ -269,7 +269,7 @@ func TestHandleHealth_ViaRouter(t *testing.T) {
 	// ルーター経由でもテスト
 	mockPostService := &mockPostServiceForAPI{}
 	mockAuthService := createTestAuthService()
-	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
 	w := httptest.NewRecorder()
@@ -294,7 +294,7 @@ func TestHandleHealth_ViaRouter(t *testing.T) {
 func TestUnauthenticated_Endpoints(t *testing.T) {
 	mockPostService := &mockPostServiceForAPI{}
 	mockAuthService := createTestAuthService()
-	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 	tests := []struct {
 		name   string
@@ -343,7 +343,7 @@ func TestUnauthenticated_Endpoints(t *testing.T) {
 func TestHandleGetPosts(t *testing.T) {
 	mockPostService := &mockPostServiceForAPI{}
 	mockAuthService := createTestAuthService()
-	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/posts", nil)
 	addSessionCookie(req)
@@ -373,7 +373,7 @@ func TestHandleGetPosts_Empty(t *testing.T) {
 		},
 	}
 	mockAuthService := createTestAuthService()
-	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/posts", nil)
 	addSessionCookie(req)
@@ -410,7 +410,7 @@ func TestHandleGetPosts_Empty(t *testing.T) {
 func TestHandleGetPost_NotFound(t *testing.T) {
 	mockPostService := &mockPostServiceForAPI{}
 	mockAuthService := createTestAuthService()
-	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/posts/999", nil)
 	addSessionCookie(req)
@@ -491,7 +491,7 @@ func TestHandleGetPosts_WithFilters(t *testing.T) {
 				getAllPostsFunc: tt.mockFunc,
 			}
 			mockAuthService := createTestAuthService()
-			router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+			router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/posts"+tt.queryParams, nil)
 			addSessionCookie(req)
@@ -531,7 +531,7 @@ func TestHandleGetPost_Success(t *testing.T) {
 		},
 	}
 	mockAuthService := createTestAuthService()
-	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/posts/1", nil)
 	addSessionCookie(req)
@@ -570,7 +570,7 @@ func TestHandleCreatePost_Success(t *testing.T) {
 		},
 	}
 	mockAuthService := createTestAuthService()
-	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 	body := `{"title":"New Post","slug":"new-post","content":"Content here","tags":"tag1,tag2"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/posts", strings.NewReader(body))
@@ -600,7 +600,7 @@ func TestHandleCreatePost_Success(t *testing.T) {
 func TestHandleCreatePost_InvalidJSON(t *testing.T) {
 	mockPostService := &mockPostServiceForAPI{}
 	mockAuthService := createTestAuthService()
-	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 	body := `{invalid json}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/posts", strings.NewReader(body))
@@ -627,7 +627,7 @@ func TestHandleCreatePost_InvalidJSON(t *testing.T) {
 func TestHandleCreatePost_Validation(t *testing.T) {
 	mockPostService := &mockPostServiceForAPI{}
 	mockAuthService := createTestAuthService()
-	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 	tests := []struct {
 		name          string
@@ -719,7 +719,7 @@ func TestHandleCreatePost_Validation(t *testing.T) {
 func TestHandleUpdatePost_Validation(t *testing.T) {
 	mockPostService := &mockPostServiceForAPI{}
 	mockAuthService := createTestAuthService()
-	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 	tests := []struct {
 		name          string
@@ -785,7 +785,7 @@ func TestHandleUpdatePost_Success(t *testing.T) {
 		},
 	}
 	mockAuthService := createTestAuthService()
-	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 	body := `{"title":"Updated Post","slug":"updated-post","content":"Updated content","tags":"new-tags"}`
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/posts/1", strings.NewReader(body))
@@ -819,7 +819,7 @@ func TestHandleDeletePost_Success(t *testing.T) {
 		},
 	}
 	mockAuthService := createTestAuthService()
-	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/posts/1", nil)
 	addAuthAndCSRF(req)
@@ -850,7 +850,7 @@ func TestHandlePublishPost_Success(t *testing.T) {
 		},
 	}
 	mockAuthService := createTestAuthService()
-	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/posts/1/publish", nil)
 	addAuthAndCSRF(req)
@@ -886,7 +886,7 @@ func TestHandleUnpublishPost_Success(t *testing.T) {
 		},
 	}
 	mockAuthService := createTestAuthService()
-	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/posts/1/unpublish", nil)
 	addAuthAndCSRF(req)
@@ -911,7 +911,7 @@ func TestHandleUnpublishPost_Success(t *testing.T) {
 func TestHandleGetPost_InvalidID(t *testing.T) {
 	mockPostService := &mockPostServiceForAPI{}
 	mockAuthService := createTestAuthService()
-	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/posts/invalid", nil)
 	addSessionCookie(req)
@@ -946,7 +946,7 @@ func TestHandleGetPosts_LimitMax(t *testing.T) {
 		},
 	}
 	mockAuthService := createTestAuthService()
-	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 	tests := []struct {
 		name          string
@@ -1014,7 +1014,7 @@ func TestHandleGetPosts_WithTagFilter(t *testing.T) {
 			},
 		}
 
-		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?tag=Go", nil)
 		addSessionCookie(req)
@@ -1043,7 +1043,7 @@ func TestHandleGetPosts_WithTagFilter(t *testing.T) {
 			},
 		}
 
-		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?tag=React&status=published", nil)
 		addSessionCookie(req)
@@ -1068,7 +1068,7 @@ func TestHandleGetPosts_WithTagFilter(t *testing.T) {
 func TestHandleGetPosts_InvalidStatus(t *testing.T) {
 	mockPostService := &mockPostServiceForAPI{}
 	mockAuthService := createTestAuthService()
-	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 	tests := []struct {
 		name           string
@@ -1132,7 +1132,7 @@ func TestHandleGetTags(t *testing.T) {
 				}, nil
 			},
 		}
-		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/tags", nil)
 		addSessionCookie(req)
@@ -1177,7 +1177,7 @@ func TestHandleGetTags(t *testing.T) {
 				return map[string]int{"Go": 5}, nil
 			},
 		}
-		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/tags?status=published", nil)
 		addSessionCookie(req)
@@ -1196,7 +1196,7 @@ func TestHandleGetTags(t *testing.T) {
 
 	t.Run("無効なステータス値でエラー", func(t *testing.T) {
 		mockPostService := &mockPostServiceForAPI{}
-		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/tags?status=invalid", nil)
 		addSessionCookie(req)
@@ -1222,7 +1222,7 @@ func TestHandleGetTags(t *testing.T) {
 				return nil, fmt.Errorf("database error")
 			},
 		}
-		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/tags", nil)
 		addSessionCookie(req)
@@ -1241,7 +1241,7 @@ func TestHandleGetTags(t *testing.T) {
 				return map[string]int{}, nil
 			},
 		}
-		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/tags", nil)
 		addSessionCookie(req)
@@ -1278,7 +1278,7 @@ func TestHandleGetTags_Sorting(t *testing.T) {
 		},
 	}
 
-	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/tags", nil)
 	addSessionCookie(req)
@@ -1343,7 +1343,7 @@ func TestHandleGetPosts_WithSearchQuery(t *testing.T) {
 				return 2, nil
 			},
 		}
-		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?q=Go", nil)
 		addSessionCookie(req)
@@ -1389,7 +1389,7 @@ func TestHandleGetPosts_WithSearchQuery(t *testing.T) {
 				return 1, nil
 			},
 		}
-		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?q=Go&status=published", nil)
 		addSessionCookie(req)
@@ -1423,7 +1423,7 @@ func TestHandleGetPosts_WithSearchQuery(t *testing.T) {
 				return 1, nil
 			},
 		}
-		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?q=%E3%83%97%E3%83%AD%E3%82%B0%E3%83%A9%E3%83%9F%E3%83%B3%E3%82%B0", nil) // "プログラミング"
 		addSessionCookie(req)
@@ -1449,7 +1449,7 @@ func TestHandleGetPosts_WithSearchQuery(t *testing.T) {
 				return 0, nil
 			},
 		}
-		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?q=notfound", nil)
 		addSessionCookie(req)
@@ -1491,7 +1491,7 @@ func TestHandleGetPosts_WithSearchQuery(t *testing.T) {
 				return 25, nil
 			},
 		}
-		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?q=Go&limit=10&offset=10", nil)
 		addSessionCookie(req)
@@ -1527,7 +1527,7 @@ func TestHandleGetPosts_WithSearchQuery(t *testing.T) {
 				return nil, fmt.Errorf("database error")
 			},
 		}
-		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?q=Go", nil)
 		addSessionCookie(req)
@@ -1558,7 +1558,7 @@ func TestHandleGetPosts_WithSearchQuery(t *testing.T) {
 				return 0, fmt.Errorf("count error")
 			},
 		}
-		router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?q=Go", nil)
 		addSessionCookie(req)
@@ -1575,7 +1575,7 @@ func TestHandleGetPosts_WithSearchQuery(t *testing.T) {
 func TestHandlePreview(t *testing.T) {
 	mockPostService := &mockPostServiceForAPI{}
 	mockAuthService := createTestAuthService()
-	router := NewRouterWithTemplates(mockPostService, mockAuthService, false, "goblog", testTemplatePattern)
+	router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 	t.Run("MarkdownをHTMLに変換", func(t *testing.T) {
 		body := `{"content":"# Hello\n\nThis is **bold** text."}`

@@ -30,7 +30,14 @@ type Config struct {
 
 	// Site settings
 	BlogTitle string // ブログのタイトル
+
+	// Upload settings
+	UploadDir     string // アップロードファイルの保存先ディレクトリ
+	MaxUploadSize int64  // アップロードファイルの最大サイズ（バイト）
 }
+
+// デフォルトの最大アップロードサイズ（5MB）
+const DefaultMaxUploadSize int64 = 5 * 1024 * 1024
 
 // Load は環境変数から設定を読み込みます
 func Load() *Config {
@@ -40,6 +47,8 @@ func Load() *Config {
 		PasswordPolicy: getPasswordPolicy("PASSWORD_POLICY", PasswordPolicyNone),
 		DatabasePath:   getEnv("DATABASE_PATH", "data/goblog.db"),
 		BlogTitle:      getEnv("BLOG_TITLE", "goblog"),
+		UploadDir:      getEnv("UPLOAD_DIR", "data/uploads"),
+		MaxUploadSize:  getEnvAsInt64("MAX_UPLOAD_SIZE", DefaultMaxUploadSize),
 	}
 }
 
@@ -58,6 +67,19 @@ func getEnvAsBool(key string, defaultValue bool) bool {
 		return defaultValue
 	}
 	val, err := strconv.ParseBool(valStr)
+	if err != nil {
+		return defaultValue
+	}
+	return val
+}
+
+// getEnvAsInt64 は環境変数をint64として取得します
+func getEnvAsInt64(key string, defaultValue int64) int64 {
+	valStr := os.Getenv(key)
+	if valStr == "" {
+		return defaultValue
+	}
+	val, err := strconv.ParseInt(valStr, 10, 64)
 	if err != nil {
 		return defaultValue
 	}

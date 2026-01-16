@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/capybara-translation/goblog/internal/auth"
 	"github.com/capybara-translation/goblog/internal/config"
@@ -49,8 +50,13 @@ func main() {
 	postService := service.NewPostService(postRepo)
 	authService := service.NewAuthService(userRepo, sessionStore, cfg.PasswordPolicy)
 
+	// アップロードディレクトリの作成
+	if err := os.MkdirAll(cfg.UploadDir, 0755); err != nil {
+		log.Fatalf("Failed to create upload directory: %v", err)
+	}
+
 	// ルーターの初期化
-	r := gobloghttp.NewRouter(postService, authService, cfg.SecureCookie, cfg.BlogTitle)
+	r := gobloghttp.NewRouter(postService, authService, cfg.SecureCookie, cfg.BlogTitle, cfg.UploadDir, cfg.MaxUploadSize)
 
 	// サーバー起動
 	port := ":" + cfg.Port

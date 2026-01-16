@@ -1,0 +1,487 @@
+package http
+
+import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestNewImageHandlers(t *testing.T) {
+	handlers := NewImageHandlers("/tmp/uploads", 5*1024*1024)
+
+	if handlers.uploadDir != "/tmp/uploads" {
+		t.Errorf("expected uploadDir to be /tmp/uploads, got %s", handlers.uploadDir)
+	}
+	if handlers.maxUploadSize != 5*1024*1024 {
+		t.Errorf("expected maxUploadSize to be 5MB, got %d", handlers.maxUploadSize)
+	}
+}
+
+func TestHandleUploadImage(t *testing.T) {
+	// テスト用の一時ディレクトリを作成
+	tempDir, err := os.MkdirTemp("", "upload_test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	handlers := NewImageHandlers(tempDir, 5*1024*1024)
+
+	tests := []struct {
+		name           string
+		setupRequest   func() (*http.Request, error)
+		expectedStatus int
+		expectedError  string
+		checkResponse  func(*testing.T, *httptest.ResponseRecorder)
+	}{
+		{
+			name: "valid JPEG image upload",
+			setupRequest: func() (*http.Request, error) {
+				return createMultipartRequest("image", "test.jpg", createJPEGData(), "image/jpeg")
+			},
+			expectedStatus: http.StatusCreated,
+			checkResponse: func(t *testing.T, rr *httptest.ResponseRecorder) {
+				var response ImageUploadResponse
+				if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+					t.Fatalf("failed to decode response: %v", err)
+				}
+				if !strings.HasPrefix(response.URL, "/uploads/") {
+					t.Errorf("expected URL to start with /uploads/, got %s", response.URL)
+				}
+				if !strings.HasSuffix(response.URL, ".jpg") {
+					t.Errorf("expected URL to end with .jpg, got %s", response.URL)
+				}
+				if response.Filename != "test.jpg" {
+					t.Errorf("expected filename to be test.jpg, got %s", response.Filename)
+				}
+			},
+		},
+		{
+			name: "valid PNG image upload",
+			setupRequest: func() (*http.Request, error) {
+				return createMultipartRequest("image", "test.png", createPNGData(), "image/png")
+			},
+			expectedStatus: http.StatusCreated,
+			checkResponse: func(t *testing.T, rr *httptest.ResponseRecorder) {
+				var response ImageUploadResponse
+				if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+					t.Fatalf("failed to decode response: %v", err)
+				}
+				if !strings.HasSuffix(response.URL, ".png") {
+					t.Errorf("expected URL to end with .png, got %s", response.URL)
+				}
+			},
+		},
+		{
+			name: "valid GIF image upload",
+			setupRequest: func() (*http.Request, error) {
+				return createMultipartRequest("image", "test.gif", createGIFData(), "image/gif")
+			},
+			expectedStatus: http.StatusCreated,
+			checkResponse: func(t *testing.T, rr *httptest.ResponseRecorder) {
+				var response ImageUploadResponse
+				if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+					t.Fatalf("failed to decode response: %v", err)
+				}
+				if !strings.HasSuffix(response.URL, ".gif") {
+					t.Errorf("expected URL to end with .gif, got %s", response.URL)
+				}
+			},
+		},
+		{
+			name: "valid WebP image upload",
+			setupRequest: func() (*http.Request, error) {
+				return createMultipartRequest("image", "test.webp", createWebPData(), "image/webp")
+			},
+			expectedStatus: http.StatusCreated,
+			checkResponse: func(t *testing.T, rr *httptest.ResponseRecorder) {
+				var response ImageUploadResponse
+				if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+					t.Fatalf("failed to decode response: %v", err)
+				}
+				if !strings.HasSuffix(response.URL, ".webp") {
+					t.Errorf("expected URL to end with .webp, got %s", response.URL)
+				}
+			},
+		},
+		{
+			name: "no file provided",
+			setupRequest: func() (*http.Request, error) {
+				body := &bytes.Buffer{}
+				writer := multipart.NewWriter(body)
+				writer.Close()
+				req := httptest.NewRequest("POST", "/api/v1/images", body)
+				req.Header.Set("Content-Type", writer.FormDataContentType())
+				return req, nil
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "No image file provided",
+		},
+		{
+			name: "invalid content type",
+			setupRequest: func() (*http.Request, error) {
+				return createMultipartRequest("image", "test.txt", []byte("plain text"), "text/plain")
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "Invalid file type",
+		},
+		{
+			name: "content type mismatch (fake JPEG header)",
+			setupRequest: func() (*http.Request, error) {
+				// PNGヘッダーを持つがJPEGとして送信
+				return createMultipartRequest("image", "test.jpg", createPNGData(), "image/jpeg")
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "Invalid file content",
+		},
+		{
+			name: "content type mismatch (fake PNG header)",
+			setupRequest: func() (*http.Request, error) {
+				// JPEGヘッダーを持つがPNGとして送信
+				return createMultipartRequest("image", "test.png", createJPEGData(), "image/png")
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "Invalid file content",
+		},
+		{
+			name: "wrong field name",
+			setupRequest: func() (*http.Request, error) {
+				return createMultipartRequest("file", "test.jpg", createJPEGData(), "image/jpeg")
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "No image file provided",
+		},
+		{
+			name: "filename with path traversal attempt",
+			setupRequest: func() (*http.Request, error) {
+				return createMultipartRequest("image", "../../../etc/passwd.jpg", createJPEGData(), "image/jpeg")
+			},
+			expectedStatus: http.StatusCreated,
+			checkResponse: func(t *testing.T, rr *httptest.ResponseRecorder) {
+				var response ImageUploadResponse
+				if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+					t.Fatalf("failed to decode response: %v", err)
+				}
+				// パストラバーサルが無効化されていることを確認
+				if strings.Contains(response.Filename, "..") {
+					t.Errorf("filename should not contain path traversal: %s", response.Filename)
+				}
+				if strings.Contains(response.URL, "..") {
+					t.Errorf("URL should not contain path traversal: %s", response.URL)
+				}
+			},
+		},
+		{
+			name: "filename with special characters",
+			setupRequest: func() (*http.Request, error) {
+				return createMultipartRequest("image", "<script>alert('xss')</script>.jpg", createJPEGData(), "image/jpeg")
+			},
+			expectedStatus: http.StatusCreated,
+			checkResponse: func(t *testing.T, rr *httptest.ResponseRecorder) {
+				var response ImageUploadResponse
+				if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+					t.Fatalf("failed to decode response: %v", err)
+				}
+				// 危険な文字が除去されていることを確認
+				if strings.Contains(response.Filename, "<") || strings.Contains(response.Filename, ">") {
+					t.Errorf("filename should not contain special characters: %s", response.Filename)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := tt.setupRequest()
+			if err != nil {
+				t.Fatalf("failed to setup request: %v", err)
+			}
+
+			rr := httptest.NewRecorder()
+			handlers.HandleUploadImage(rr, req)
+
+			if rr.Code != tt.expectedStatus {
+				t.Errorf("expected status %d, got %d, body: %s", tt.expectedStatus, rr.Code, rr.Body.String())
+			}
+
+			if tt.expectedError != "" {
+				if !strings.Contains(rr.Body.String(), tt.expectedError) {
+					t.Errorf("expected error containing %q, got %q", tt.expectedError, rr.Body.String())
+				}
+			}
+
+			if tt.checkResponse != nil {
+				tt.checkResponse(t, rr)
+			}
+		})
+	}
+}
+
+func TestHandleUploadImage_FileTooLarge(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "upload_test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// 100バイトの制限を設定
+	handlers := NewImageHandlers(tempDir, 100)
+
+	// 200バイトのファイルを作成
+	largeData := make([]byte, 200)
+	copy(largeData, createJPEGData())
+
+	req, err := createMultipartRequest("image", "large.jpg", largeData, "image/jpeg")
+	if err != nil {
+		t.Fatalf("failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handlers.HandleUploadImage(rr, req)
+
+	// サイズ制限のエラーを期待
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", rr.Code)
+	}
+}
+
+func TestHandleUploadImage_FileActuallySaved(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "upload_test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	handlers := NewImageHandlers(tempDir, 5*1024*1024)
+
+	jpegData := createJPEGData()
+	req, err := createMultipartRequest("image", "test.jpg", jpegData, "image/jpeg")
+	if err != nil {
+		t.Fatalf("failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handlers.HandleUploadImage(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d", rr.Code)
+	}
+
+	var response ImageUploadResponse
+	if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	// ファイルが実際に保存されていることを確認
+	filename := strings.TrimPrefix(response.URL, "/uploads/")
+	savedPath := filepath.Join(tempDir, filename)
+
+	savedData, err := os.ReadFile(savedPath)
+	if err != nil {
+		t.Fatalf("failed to read saved file: %v", err)
+	}
+
+	if !bytes.Equal(savedData, jpegData) {
+		t.Error("saved file content does not match original")
+	}
+}
+
+func TestValidateMagicBytes(t *testing.T) {
+	tests := []struct {
+		name        string
+		data        []byte
+		contentType string
+		expected    bool
+	}{
+		{
+			name:        "valid JPEG",
+			data:        createJPEGData(),
+			contentType: "image/jpeg",
+			expected:    true,
+		},
+		{
+			name:        "valid PNG",
+			data:        createPNGData(),
+			contentType: "image/png",
+			expected:    true,
+		},
+		{
+			name:        "valid GIF",
+			data:        createGIFData(),
+			contentType: "image/gif",
+			expected:    true,
+		},
+		{
+			name:        "valid WebP",
+			data:        createWebPData(),
+			contentType: "image/webp",
+			expected:    true,
+		},
+		{
+			name:        "invalid - JPEG header with PNG type",
+			data:        createJPEGData(),
+			contentType: "image/png",
+			expected:    false,
+		},
+		{
+			name:        "invalid - PNG header with JPEG type",
+			data:        createPNGData(),
+			contentType: "image/jpeg",
+			expected:    false,
+		},
+		{
+			name:        "invalid - random data",
+			data:        []byte{0x00, 0x01, 0x02, 0x03},
+			contentType: "image/jpeg",
+			expected:    false,
+		},
+		{
+			name:        "invalid - empty data",
+			data:        []byte{},
+			contentType: "image/jpeg",
+			expected:    false,
+		},
+		{
+			name:        "invalid - unsupported type",
+			data:        []byte{0x00, 0x01, 0x02, 0x03},
+			contentType: "image/bmp",
+			expected:    false,
+		},
+		{
+			name:        "invalid WebP - missing WEBP signature",
+			data:        []byte{0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x41, 0x56, 0x49, 0x20},
+			contentType: "image/webp",
+			expected:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := validateMagicBytes(tt.data, tt.contentType)
+			if result != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestSanitizeFilename(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "normal filename",
+			input:    "test.jpg",
+			expected: "test.jpg",
+		},
+		{
+			name:     "path traversal",
+			input:    "../../../etc/passwd",
+			expected: "passwd",
+		},
+		{
+			name:     "windows path",
+			input:    "C:\\Users\\test\\image.jpg",
+			expected: "CUserstestimage.jpg", // Unix系ではバックスラッシュはパス区切りではないため、全体がファイル名として扱われ、:と\が除去される
+		},
+		{
+			name:     "special characters",
+			input:    "<script>alert('xss')</script>.jpg",
+			expected: "script.jpg", // /がパス区切りとして扱われ、script>.jpgとなり、その後>が除去される
+		},
+		{
+			name:     "control characters",
+			input:    "test\x00\x1f.jpg",
+			expected: "test.jpg",
+		},
+		{
+			name:     "pipe and question mark",
+			input:    "file|name?.jpg",
+			expected: "filename.jpg",
+		},
+		{
+			name:     "quotes",
+			input:    "file\"name.jpg",
+			expected: "filename.jpg",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := sanitizeFilename(tt.input)
+			if result != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, result)
+			}
+		})
+	}
+}
+
+// ヘルパー関数
+
+func createMultipartRequest(fieldName, filename string, data []byte, contentType string) (*http.Request, error) {
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	h := make(map[string][]string)
+	h["Content-Disposition"] = []string{`form-data; name="` + fieldName + `"; filename="` + filename + `"`}
+	h["Content-Type"] = []string{contentType}
+
+	part, err := writer.CreatePart(h)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := io.Copy(part, bytes.NewReader(data)); err != nil {
+		return nil, err
+	}
+
+	writer.Close()
+
+	req := httptest.NewRequest("POST", "/api/v1/images", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	return req, nil
+}
+
+// 最小限の有効な画像データを生成
+func createJPEGData() []byte {
+	// 最小限のJPEGヘッダー
+	return []byte{
+		0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01,
+		0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xFF, 0xD9,
+	}
+}
+
+func createPNGData() []byte {
+	// 最小限のPNGヘッダー
+	return []byte{
+		0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+		0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+	}
+}
+
+func createGIFData() []byte {
+	// 最小限のGIFヘッダー（GIF89a）
+	return []byte{
+		0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+	}
+}
+
+func createWebPData() []byte {
+	// 最小限のWebPヘッダー（RIFF....WEBP）
+	return []byte{
+		0x52, 0x49, 0x46, 0x46, // RIFF
+		0x24, 0x00, 0x00, 0x00, // ファイルサイズ
+		0x57, 0x45, 0x42, 0x50, // WEBP
+		0x56, 0x50, 0x38, 0x4C, // VP8L
+	}
+}

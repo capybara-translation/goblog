@@ -321,6 +321,49 @@ export const handlers = [
     return HttpResponse.json({ html });
   }),
 
+  // Image upload endpoint
+  http.post(`${API_BASE}/images`, async ({ request }) => {
+    const formData = await request.formData();
+    const file = formData.get('image') as File | null;
+
+    if (!file) {
+      return HttpResponse.json(
+        { error: 'No image file provided' },
+        { status: 400 }
+      );
+    }
+
+    // Check file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      return HttpResponse.json(
+        { error: 'Invalid file type. Allowed types: JPEG, PNG, GIF, WebP' },
+        { status: 400 }
+      );
+    }
+
+    // Check file size (5MB)
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      return HttpResponse.json(
+        { error: `File too large. Maximum size is ${maxSize} bytes` },
+        { status: 400 }
+      );
+    }
+
+    // Generate mock response
+    const extension = file.type.split('/')[1] === 'jpeg' ? 'jpg' : file.type.split('/')[1];
+    const mockFilename = `mock-uuid-${Date.now()}.${extension}`;
+
+    return HttpResponse.json(
+      {
+        url: `/uploads/${mockFilename}`,
+        filename: file.name,
+      },
+      { status: 201 }
+    );
+  }),
+
   // Tags endpoint
   http.get(`${API_BASE}/tags`, ({ request }) => {
     const url = new URL(request.url);
