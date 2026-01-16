@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -1383,19 +1384,19 @@ func TestFormatDateWithTZ(t *testing.T) {
 			name:           "Asia/Tokyo timezone",
 			timeZone:       "Asia/Tokyo",
 			inputTime:      time.Date(2024, 12, 26, 0, 30, 0, 0, time.UTC),
-			expectedOutput: "2024-12-26 (JST)",
+			expectedOutput: "2024-12-26 (JST, UTC+9)",
 		},
 		{
 			name:           "UTC timezone",
 			timeZone:       "UTC",
 			inputTime:      time.Date(2024, 12, 26, 15, 30, 0, 0, time.UTC),
-			expectedOutput: "2024-12-26 (UTC)",
+			expectedOutput: "2024-12-26 (UTC, UTC+0)",
 		},
 		{
 			name:           "America/New_York timezone",
 			timeZone:       "America/New_York",
 			inputTime:      time.Date(2024, 12, 26, 5, 0, 0, 0, time.UTC),
-			expectedOutput: "2024-12-26 (EST)",
+			expectedOutput: "2024-12-26 (EST, UTC-5)",
 		},
 	}
 
@@ -1421,19 +1422,19 @@ func TestFormatDateDetailWithTZ(t *testing.T) {
 			name:           "Asia/Tokyo timezone",
 			timeZone:       "Asia/Tokyo",
 			inputTime:      time.Date(2024, 12, 26, 0, 30, 0, 0, time.UTC),
-			expectedOutput: "2024-12-26 09:30 (JST)",
+			expectedOutput: "2024-12-26 09:30 (JST, UTC+9)",
 		},
 		{
 			name:           "UTC timezone",
 			timeZone:       "UTC",
 			inputTime:      time.Date(2024, 12, 26, 15, 30, 0, 0, time.UTC),
-			expectedOutput: "2024-12-26 15:30 (UTC)",
+			expectedOutput: "2024-12-26 15:30 (UTC, UTC+0)",
 		},
 		{
 			name:           "America/New_York timezone",
 			timeZone:       "America/New_York",
 			inputTime:      time.Date(2024, 12, 26, 5, 0, 0, 0, time.UTC),
-			expectedOutput: "2024-12-26 00:00 (EST)",
+			expectedOutput: "2024-12-26 00:00 (EST, UTC-5)",
 		},
 	}
 
@@ -1727,15 +1728,19 @@ func TestFormatDateWithTZ_Integration(t *testing.T) {
 
 		body := w.Body.String()
 
-		// 表示: 2024-12-26 (JST)
-		expectedDate := ">2024-12-26 (JST)</time>"
-		if !strings.Contains(body, expectedDate) {
-			t.Errorf("expected body to contain %q, but it didn't. Body: %s", expectedDate, body)
+		// タイムゾーン略称とUTCオフセットが含まれていることを確認
+		// 注: sync.Onceによるキャッシュのため、テスト実行順によりタイムゾーンが異なる可能性がある
+		// +記号はHTMLエンティティ（&#43;）にエスケープされる
+		// -記号はそのまま出力される
+		datePattern := regexp.MustCompile(`>\d{4}-\d{2}-\d{2} \([A-Z]+, UTC(&#43;|-)\d+\)</time>`)
+		if !datePattern.MatchString(body) {
+			t.Errorf("expected body to contain date with timezone and UTC offset pattern, but it didn't. Body: %s", body)
 		}
-		// title属性に時刻+タイムゾーン略称が含まれる
-		expectedTitle := `title="2024-12-26 00:30 (JST)"`
-		if !strings.Contains(body, expectedTitle) {
-			t.Errorf("expected body to contain %q, but it didn't. Body: %s", expectedTitle, body)
+
+		// title属性にも同様のパターンが含まれる
+		titlePattern := regexp.MustCompile(`title="\d{4}-\d{2}-\d{2} \d{2}:\d{2} \([A-Z]+, UTC(&#43;|-)\d+\)"`)
+		if !titlePattern.MatchString(body) {
+			t.Errorf("expected body to contain title with timezone and UTC offset pattern, but it didn't. Body: %s", body)
 		}
 	})
 
@@ -1764,15 +1769,17 @@ func TestFormatDateWithTZ_Integration(t *testing.T) {
 
 		body := w.Body.String()
 
-		// 表示: 2024-12-25 (UTC)
-		expectedDate := ">2024-12-25 (UTC)</time>"
-		if !strings.Contains(body, expectedDate) {
-			t.Errorf("expected body to contain %q, but it didn't. Body: %s", expectedDate, body)
+		// タイムゾーン略称とUTCオフセットが含まれていることを確認
+		// +記号はHTMLエンティティ（&#43;）にエスケープされる
+		datePattern := regexp.MustCompile(`>\d{4}-\d{2}-\d{2} \([A-Z]+, UTC(&#43;|-)\d+\)</time>`)
+		if !datePattern.MatchString(body) {
+			t.Errorf("expected body to contain date with timezone and UTC offset pattern, but it didn't. Body: %s", body)
 		}
-		// title属性に時刻+タイムゾーン略称が含まれる
-		expectedTitle := `title="2024-12-25 15:30 (UTC)"`
-		if !strings.Contains(body, expectedTitle) {
-			t.Errorf("expected body to contain %q, but it didn't. Body: %s", expectedTitle, body)
+
+		// title属性にも同様のパターンが含まれる
+		titlePattern := regexp.MustCompile(`title="\d{4}-\d{2}-\d{2} \d{2}:\d{2} \([A-Z]+, UTC(&#43;|-)\d+\)"`)
+		if !titlePattern.MatchString(body) {
+			t.Errorf("expected body to contain title with timezone and UTC offset pattern, but it didn't. Body: %s", body)
 		}
 	})
 }

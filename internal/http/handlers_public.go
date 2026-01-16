@@ -1,6 +1,7 @@
 package http
 
 import (
+	"fmt"
 	"html"
 	"html/template"
 	"log"
@@ -86,16 +87,31 @@ func getTimezoneLocation() *time.Location {
 	return loc
 }
 
-// formatDateWithTZ は日付をISO 8601形式 + タイムゾーン略称で表示します
-// TZ環境変数で設定されたタイムゾーンに変換してからフォーマットします
-func formatDateWithTZ(t time.Time) string {
-	return t.In(getTimezoneLocation()).Format("2006-01-02 (MST)")
+// getUTCOffsetString はタイムゾーンのUTCオフセットを文字列で返します
+// 例: "UTC+9", "UTC-5", "UTC+0"
+func getUTCOffsetString(t time.Time) string {
+	_, offset := t.Zone()
+	hours := offset / 3600
+	if hours >= 0 {
+		return fmt.Sprintf("UTC+%d", hours)
+	}
+	return fmt.Sprintf("UTC%d", hours)
 }
 
-// formatDateDetailWithTZ は日付を詳細形式（時刻+タイムゾーン略称）で表示します
+// formatDateWithTZ は日付をISO 8601形式 + タイムゾーン略称 + UTCオフセットで表示します
+// TZ環境変数で設定されたタイムゾーンに変換してからフォーマットします
+// 例: "2026-01-17 (JST, UTC+9)"
+func formatDateWithTZ(t time.Time) string {
+	localTime := t.In(getTimezoneLocation())
+	return localTime.Format("2006-01-02") + " (" + localTime.Format("MST") + ", " + getUTCOffsetString(localTime) + ")"
+}
+
+// formatDateDetailWithTZ は日付を詳細形式（時刻+タイムゾーン略称+UTCオフセット）で表示します
 // マウスオーバー時のツールチップ用
+// 例: "2026-01-17 22:00 (JST, UTC+9)"
 func formatDateDetailWithTZ(t time.Time) string {
-	return t.In(getTimezoneLocation()).Format("2006-01-02 15:04 (MST)")
+	localTime := t.In(getTimezoneLocation())
+	return localTime.Format("2006-01-02 15:04") + " (" + localTime.Format("MST") + ", " + getUTCOffsetString(localTime) + ")"
 }
 
 // mdConverter はMarkdown変換器のシングルトンインスタンス
