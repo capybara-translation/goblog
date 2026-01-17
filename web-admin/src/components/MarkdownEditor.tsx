@@ -11,6 +11,7 @@ interface MarkdownEditorProps {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  onSave?: () => void;
 }
 
 /**
@@ -18,7 +19,7 @@ interface MarkdownEditorProps {
  * サーバーサイドでMarkdownをHTMLに変換してプレビュー表示
  * 公開ページと同じ見た目でプレビューできる
  */
-export function MarkdownEditor({ value, onChange, disabled = false }: MarkdownEditorProps) {
+export function MarkdownEditor({ value, onChange, disabled = false, onSave }: MarkdownEditorProps) {
   const [previewHtml, setPreviewHtml] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -174,6 +175,12 @@ export function MarkdownEditor({ value, onChange, disabled = false }: MarkdownEd
 - コードブロック: \`\`\`言語名
 - 引用: > 引用テキスト
 - タスクリスト: - [x] 完了`,
+            onKeyDown: (e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                e.preventDefault();
+                onSave?.();
+              }
+            },
           }}
         />
       </div>

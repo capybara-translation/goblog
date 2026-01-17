@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, useCallback, FormEvent } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { formatInTimeZone } from 'date-fns-tz';
 import { apiClient, Post } from '../api/client';
@@ -38,25 +38,10 @@ export function PostEdit() {
     }
   }, [id, isEditMode]);
 
-  const loadPost = async (postId: number) => {
-    try {
-      setIsLoading(true);
-      setError('');
-      const data = await apiClient.getPost(postId);
-      setPost(data);
-      setTitle(data.title);
-      setSlug(data.slug);
-      setContent(data.content);
-      setTags(data.tags);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '記事の取得に失敗しました');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // 保存処理（フォーム送信とショートカットキーで共有）
+  const performSave = useCallback(async () => {
+    if (isSaving) return;
 
-  const handleSave = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
     setError('');
 
     if (!title.trim() || !slug.trim()) {
@@ -91,6 +76,28 @@ export function PostEdit() {
     } finally {
       setIsSaving(false);
     }
+  }, [title, slug, content, tags, isSaving, isEditMode, id, navigate, showAlert]);
+
+  const loadPost = async (postId: number) => {
+    try {
+      setIsLoading(true);
+      setError('');
+      const data = await apiClient.getPost(postId);
+      setPost(data);
+      setTitle(data.title);
+      setSlug(data.slug);
+      setContent(data.content);
+      setTags(data.tags);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '記事の取得に失敗しました');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSave = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    performSave();
   };
 
   const handlePublish = async () => {
@@ -286,6 +293,7 @@ export function PostEdit() {
             value={content}
             onChange={setContent}
             disabled={isSaving}
+            onSave={performSave}
           />
         </div>
 

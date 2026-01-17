@@ -219,6 +219,68 @@ describe('MarkdownEditor', () => {
     });
   });
 
+  describe('保存ショートカット', () => {
+    it('Cmd+Enter でonSaveが呼ばれる（Mac）', () => {
+      const handleSave = vi.fn();
+      render(<MarkdownEditor value="# Test" onChange={() => {}} onSave={handleSave} />);
+
+      const textarea = document.querySelector('textarea');
+      expect(textarea).toBeInTheDocument();
+
+      fireEvent.keyDown(textarea!, { key: 'Enter', metaKey: true });
+
+      expect(handleSave).toHaveBeenCalledTimes(1);
+    });
+
+    it('Ctrl+Enter でonSaveが呼ばれる（Windows/Linux）', () => {
+      const handleSave = vi.fn();
+      render(<MarkdownEditor value="# Test" onChange={() => {}} onSave={handleSave} />);
+
+      const textarea = document.querySelector('textarea');
+      expect(textarea).toBeInTheDocument();
+
+      fireEvent.keyDown(textarea!, { key: 'Enter', ctrlKey: true });
+
+      expect(handleSave).toHaveBeenCalledTimes(1);
+    });
+
+    it('修飾キーなしのEnterではonSaveが呼ばれない', () => {
+      const handleSave = vi.fn();
+      render(<MarkdownEditor value="# Test" onChange={() => {}} onSave={handleSave} />);
+
+      const textarea = document.querySelector('textarea');
+      expect(textarea).toBeInTheDocument();
+
+      fireEvent.keyDown(textarea!, { key: 'Enter' });
+
+      expect(handleSave).not.toHaveBeenCalled();
+    });
+
+    it('onSaveが未設定の場合でもエラーにならない', () => {
+      render(<MarkdownEditor value="# Test" onChange={() => {}} />);
+
+      const textarea = document.querySelector('textarea');
+      expect(textarea).toBeInTheDocument();
+
+      // エラーが発生しないことを確認
+      expect(() => {
+        fireEvent.keyDown(textarea!, { key: 'Enter', metaKey: true });
+      }).not.toThrow();
+    });
+
+    it('Cmd+他のキーではonSaveが呼ばれない', () => {
+      const handleSave = vi.fn();
+      render(<MarkdownEditor value="# Test" onChange={() => {}} onSave={handleSave} />);
+
+      const textarea = document.querySelector('textarea');
+      expect(textarea).toBeInTheDocument();
+
+      fireEvent.keyDown(textarea!, { key: 's', metaKey: true });
+
+      expect(handleSave).not.toHaveBeenCalled();
+    });
+  });
+
   describe('画像アップロード', () => {
     it('非表示のファイル入力が存在する', () => {
       render(<MarkdownEditor value="" onChange={() => {}} />);
