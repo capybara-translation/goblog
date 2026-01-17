@@ -4,6 +4,7 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { apiClient, Post } from '../api/client';
 import { StatusBadge } from '../components/StatusBadge';
 import { MarkdownEditor } from '../components/MarkdownEditor';
+import { TagInput } from '../components/TagInput';
 
 const BLOG_TIMEZONE = import.meta.env.VITE_BLOG_TIMEZONE || 'UTC';
 
@@ -256,24 +257,15 @@ export function PostEdit() {
         </div>
 
         <div>
-          <label
-            htmlFor="tags"
-            className="block text-sm font-medium text-primary-700 mb-1"
-          >
+          <label className="block text-sm font-medium text-primary-700 mb-1">
             タグ
           </label>
-          <input
-            id="tags"
-            type="text"
+          <TagInput
             value={tags}
-            onChange={(e) => setTags(e.target.value)}
-            className="w-full px-3 py-2 border border-primary-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            onChange={setTags}
             disabled={isSaving}
-            placeholder="Go, Web, Tutorial"
+            placeholder="タグを入力..."
           />
-          <p className="mt-1 text-sm text-primary-500">
-            カンマ区切りで複数指定できます
-          </p>
         </div>
 
         <div>

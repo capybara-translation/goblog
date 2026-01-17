@@ -1149,6 +1149,153 @@ func TestPostService_SearchPublishedPosts(t *testing.T) {
 	})
 }
 
+func TestNormalizeTags(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "スペースなしのタグ",
+			input:    "Go,React,TypeScript",
+			expected: "Go,React,TypeScript",
+		},
+		{
+			name:     "スペース付きのタグ（カンマ後）",
+			input:    "Go, React, TypeScript",
+			expected: "Go,React,TypeScript",
+		},
+		{
+			name:     "スペース付きのタグ（カンマ前後）",
+			input:    "Go , React , TypeScript",
+			expected: "Go,React,TypeScript",
+		},
+		{
+			name:     "複数スペース",
+			input:    "Go,   React,    TypeScript",
+			expected: "Go,React,TypeScript",
+		},
+		{
+			name:     "空のタグを除外",
+			input:    "Go,,React,  ,TypeScript",
+			expected: "Go,React,TypeScript",
+		},
+		{
+			name:     "単一タグ",
+			input:    "Go",
+			expected: "Go",
+		},
+		{
+			name:     "単一タグ（前後スペース）",
+			input:    "  Go  ",
+			expected: "Go",
+		},
+		{
+			name:     "空文字列",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "スペースのみ",
+			input:    "   ",
+			expected: "",
+		},
+		{
+			name:     "カンマのみ",
+			input:    ",,,",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizeTags(tt.input)
+			if result != tt.expected {
+				t.Errorf("normalizeTags(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPostService_CreatePost_NormalizesTags(t *testing.T) {
+	t.Run("タグが正規化されて保存される", func(t *testing.T) {
+		var savedPost *domain.Post
+
+		mockRepo := &mockPostRepository{
+			findBySlugFunc: func(slug string) (*domain.Post, error) {
+				return nil, nil
+			},
+			createFunc: func(post *domain.Post) error {
+				savedPost = post
+				post.ID = 1
+				return nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		post, err := service.CreatePost("Test Post", "test-post", "Content", "Go, React, TypeScript")
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// 返却されたpostのタグが正規化されていることを確認
+		if post.Tags != "Go,React,TypeScript" {
+			t.Errorf("expected tags %q, got %q", "Go,React,TypeScript", post.Tags)
+		}
+
+		// リポジトリに保存されたタグも正規化されていることを確認
+		if savedPost.Tags != "Go,React,TypeScript" {
+			t.Errorf("expected saved tags %q, got %q", "Go,React,TypeScript", savedPost.Tags)
+		}
+	})
+}
+
+func TestPostService_UpdatePost_NormalizesTags(t *testing.T) {
+	t.Run("タグが正規化されて更新される", func(t *testing.T) {
+		existingPost := &domain.Post{
+			ID:      1,
+			Title:   "Original Title",
+			Slug:    "original-slug",
+			Content: "Original content",
+			Tags:    "OldTag",
+			Status:  domain.PostStatusDraft,
+		}
+
+		var updatedPost *domain.Post
+
+		mockRepo := &mockPostRepository{
+			findByIDFunc: func(id int64) (*domain.Post, error) {
+				return existingPost, nil
+			},
+			findBySlugFunc: func(slug string) (*domain.Post, error) {
+				return nil, nil
+			},
+			updateFunc: func(post *domain.Post) error {
+				updatedPost = post
+				return nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		post, err := service.UpdatePost(1, "Updated Title", "updated-slug", "Content", "Go, React, TypeScript")
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// 返却されたpostのタグが正規化されていることを確認
+		if post.Tags != "Go,React,TypeScript" {
+			t.Errorf("expected tags %q, got %q", "Go,React,TypeScript", post.Tags)
+		}
+
+		// リポジトリに保存されたタグも正規化されていることを確認
+		if updatedPost.Tags != "Go,React,TypeScript" {
+			t.Errorf("expected saved tags %q, got %q", "Go,React,TypeScript", updatedPost.Tags)
+		}
+	})
+}
+
 func TestPostService_CountSearchPublishedPosts(t *testing.T) {
 	t.Run("公開済み記事の検索件数を取得", func(t *testing.T) {
 		mockRepo := &mockPostRepository{

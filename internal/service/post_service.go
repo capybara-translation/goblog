@@ -2,11 +2,29 @@ package service
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/capybara-translation/goblog/internal/domain"
 	"github.com/capybara-translation/goblog/internal/repo"
 )
+
+// normalizeTags はタグ文字列を正規化します
+// "Go, React, TypeScript" → "Go,React,TypeScript"
+func normalizeTags(tags string) string {
+	if tags == "" {
+		return ""
+	}
+	parts := strings.Split(tags, ",")
+	var normalized []string
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			normalized = append(normalized, trimmed)
+		}
+	}
+	return strings.Join(normalized, ",")
+}
 
 // PostService は記事に関するビジネスロジックを提供します
 type PostService interface {
@@ -125,7 +143,7 @@ func (s *postService) CreatePost(title, slug, content, tags string) (*domain.Pos
 		Slug:      slug,
 		Content:   content,
 		Status:    domain.PostStatusDraft,
-		Tags:      tags,
+		Tags:      normalizeTags(tags),
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
@@ -161,7 +179,7 @@ func (s *postService) UpdatePost(id int64, title, slug, content, tags string) (*
 	post.Title = title
 	post.Slug = slug
 	post.Content = content
-	post.Tags = tags
+	post.Tags = normalizeTags(tags)
 	post.UpdatedAt = time.Now()
 
 	if err := s.repo.Update(post); err != nil {

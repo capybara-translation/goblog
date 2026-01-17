@@ -15,6 +15,7 @@ vi.mock('../api/client', () => ({
     publishPost: vi.fn(),
     unpublishPost: vi.fn(),
     deletePost: vi.fn(),
+    getTags: vi.fn(),
   },
 }))
 
@@ -61,6 +62,12 @@ describe('PostEdit', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // TagInputコンポーネント用のモック
+    vi.mocked(apiClient.getTags).mockResolvedValue([
+      { name: 'Go', count: 5 },
+      { name: 'React', count: 3 },
+      { name: 'Testing', count: 2 },
+    ])
   })
 
   const renderCreateMode = () => {
@@ -95,7 +102,8 @@ describe('PostEdit', () => {
       renderCreateMode()
       expect(screen.getByLabelText(/タイトル/)).toHaveValue('')
       expect(screen.getByLabelText(/スラッグ/)).toHaveValue('')
-      expect(screen.getByLabelText(/タグ/)).toHaveValue('')
+      // TagInputコンポーネントはlabel関連付けが異なるため、ラベル表示のみ確認
+      expect(screen.getByText('タグ')).toBeInTheDocument()
       // MarkdownEditor コンポーネントはlabel関連付けが異なるため、ラベル表示のみ確認
       expect(screen.getByText('本文（Markdown）')).toBeInTheDocument()
     })
@@ -149,7 +157,9 @@ describe('PostEdit', () => {
       })
 
       expect(screen.getByLabelText(/スラッグ/)).toHaveValue('draft-post')
-      expect(screen.getByLabelText(/タグ/)).toHaveValue('Go, Testing')
+      // TagInputコンポーネントはタグをチップで表示
+      expect(screen.getByText('Go')).toBeInTheDocument()
+      expect(screen.getByText('Testing')).toBeInTheDocument()
       // MarkdownEditorのtextareaは直接取得できないため、APIコールを確認
       expect(apiClient.getPost).toHaveBeenCalledWith(1)
     })
@@ -281,10 +291,15 @@ describe('PostEdit', () => {
       const user = userEvent.setup()
       renderCreateMode()
 
-      const tagsInput = screen.getByLabelText(/タグ/)
-      await user.type(tagsInput, 'Go, React')
+      // TagInputコンポーネントのinputを取得
+      const tagsInput = screen.getByLabelText('タグ入力')
+      // タグを入力してカンマで区切ると追加される
+      await user.type(tagsInput, 'NewTag,')
 
-      expect(tagsInput).toHaveValue('Go, React')
+      // 追加されたタグがチップとして表示される
+      await waitFor(() => {
+        expect(screen.getByText('NewTag')).toBeInTheDocument()
+      })
     })
 
     it('should render markdown editor', () => {
@@ -329,7 +344,8 @@ describe('PostEdit', () => {
 
       await user.type(screen.getByLabelText(/タイトル/), 'New Post')
       await user.type(screen.getByLabelText(/スラッグ/), 'new-post')
-      await user.type(screen.getByLabelText(/タグ/), 'React')
+      // TagInputでタグを追加（カンマで区切って追加）
+      await user.type(screen.getByLabelText('タグ入力'), 'React,')
       // MarkdownEditorはlabel関連付けが異なるため、content入力はスキップ
       await user.click(screen.getByRole('button', { name: '保存' }))
 
@@ -379,7 +395,7 @@ describe('PostEdit', () => {
 
       const titleInput = screen.getByLabelText(/タイトル/)
       const slugInput = screen.getByLabelText(/スラッグ/)
-      const tagsInput = screen.getByLabelText(/タグ/)
+      const tagsInput = screen.getByLabelText('タグ入力')
       const saveButton = screen.getByRole('button', { name: '保存' })
 
       await user.type(titleInput, 'Test')
