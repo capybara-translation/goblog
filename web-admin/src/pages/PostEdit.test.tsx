@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { PostEdit } from './PostEdit'
+import { ModalProvider } from '../hooks/useModal'
 import { apiClient } from '../api/client'
 import type { Post } from '../api/client'
 
@@ -28,12 +29,6 @@ vi.mock('react-router-dom', async () => {
     useNavigate: () => mockNavigate,
   }
 })
-
-// window.alert と window.confirm をモック
-const mockAlert = vi.fn()
-const mockConfirm = vi.fn()
-global.alert = mockAlert
-global.confirm = mockConfirm
 
 describe('PostEdit', () => {
   const mockDraftPost: Post = {
@@ -73,10 +68,12 @@ describe('PostEdit', () => {
   const renderCreateMode = async () => {
     const result = render(
       <MemoryRouter initialEntries={['/posts/new']}>
-        <Routes>
-          <Route path="/posts/new" element={<PostEdit />} />
-          <Route path="/posts/:id/edit" element={<div>Edit Page</div>} />
-        </Routes>
+        <ModalProvider>
+          <Routes>
+            <Route path="/posts/new" element={<PostEdit />} />
+            <Route path="/posts/:id/edit" element={<div>Edit Page</div>} />
+          </Routes>
+        </ModalProvider>
       </MemoryRouter>
     )
     // TagInput の getTags 呼び出し完了を待つ
@@ -89,10 +86,12 @@ describe('PostEdit', () => {
   const renderEditMode = async (postId: number) => {
     const result = render(
       <MemoryRouter initialEntries={[`/posts/${postId}/edit`]}>
-        <Routes>
-          <Route path="/posts/:id/edit" element={<PostEdit />} />
-          <Route path="/posts" element={<div>Post List</div>} />
-        </Routes>
+        <ModalProvider>
+          <Routes>
+            <Route path="/posts/:id/edit" element={<PostEdit />} />
+            <Route path="/posts" element={<div>Post List</div>} />
+          </Routes>
+        </ModalProvider>
       </MemoryRouter>
     )
     // TagInput の getTags 呼び出し完了を待つ
@@ -368,8 +367,16 @@ describe('PostEdit', () => {
         })
       })
 
-      expect(mockAlert).toHaveBeenCalledWith('記事を作成しました')
-      expect(mockNavigate).toHaveBeenCalledWith('/posts/999/edit')
+      // モーダルが表示されることを確認
+      await waitFor(() => {
+        expect(screen.getByText('記事を作成しました')).toBeInTheDocument()
+      })
+      // OKをクリックしてモーダルを閉じる
+      await user.click(screen.getByRole('button', { name: 'OK' }))
+
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith('/posts/999/edit')
+      })
     })
 
     it('should show error message when create fails', async () => {
@@ -388,7 +395,8 @@ describe('PostEdit', () => {
         expect(screen.getByText('スラッグが既に存在します')).toBeInTheDocument()
       })
 
-      expect(mockAlert).not.toHaveBeenCalled()
+      // エラー時はモーダルが表示されない
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
       expect(mockNavigate).not.toHaveBeenCalled()
     })
 
@@ -423,6 +431,14 @@ describe('PostEdit', () => {
       })
 
       resolveCreate!(mockDraftPost)
+
+      // モーダルが表示されることを確認
+      await waitFor(() => {
+        expect(screen.getByText('記事を作成しました')).toBeInTheDocument()
+      })
+
+      // OKをクリックしてモーダルを閉じる
+      await user.click(screen.getByRole('button', { name: 'OK' }))
 
       await waitFor(() => {
         expect(titleInput).not.toBeDisabled()
@@ -459,7 +475,13 @@ describe('PostEdit', () => {
         })
       })
 
-      expect(mockAlert).toHaveBeenCalledWith('記事を更新しました')
+      // モーダルが表示されることを確認
+      await waitFor(() => {
+        expect(screen.getByText('記事を更新しました')).toBeInTheDocument()
+      })
+      // OKをクリックしてモーダルを閉じる
+      await user.click(screen.getByRole('button', { name: 'OK' }))
+
       expect(mockNavigate).not.toHaveBeenCalled()
     })
 
@@ -482,7 +504,8 @@ describe('PostEdit', () => {
         expect(screen.getByText('更新に失敗しました')).toBeInTheDocument()
       })
 
-      expect(mockAlert).not.toHaveBeenCalled()
+      // エラー時はモーダルが表示されない
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
   })
 
@@ -507,7 +530,12 @@ describe('PostEdit', () => {
         expect(apiClient.publishPost).toHaveBeenCalledWith(1)
       })
 
-      expect(mockAlert).toHaveBeenCalledWith('記事を公開しました')
+      // モーダルが表示されることを確認
+      await waitFor(() => {
+        expect(screen.getByText('記事を公開しました')).toBeInTheDocument()
+      })
+      // OKをクリックしてモーダルを閉じる
+      await user.click(screen.getByRole('button', { name: 'OK' }))
     })
 
     it('should show error message when publish fails', async () => {
@@ -529,7 +557,8 @@ describe('PostEdit', () => {
         expect(screen.getByText('公開に失敗しました')).toBeInTheDocument()
       })
 
-      expect(mockAlert).not.toHaveBeenCalled()
+      // エラー時はモーダルが表示されない
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
 
     it('should update status badge after publish', async () => {
@@ -577,7 +606,12 @@ describe('PostEdit', () => {
         expect(apiClient.unpublishPost).toHaveBeenCalledWith(2)
       })
 
-      expect(mockAlert).toHaveBeenCalledWith('記事を非公開にしました')
+      // モーダルが表示されることを確認
+      await waitFor(() => {
+        expect(screen.getByText('記事を非公開にしました')).toBeInTheDocument()
+      })
+      // OKをクリックしてモーダルを閉じる
+      await user.click(screen.getByRole('button', { name: 'OK' }))
     })
 
     it('should show error message when unpublish fails', async () => {
@@ -599,7 +633,8 @@ describe('PostEdit', () => {
         expect(screen.getByText('非公開化に失敗しました')).toBeInTheDocument()
       })
 
-      expect(mockAlert).not.toHaveBeenCalled()
+      // エラー時はモーダルが表示されない
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
   })
 
@@ -607,7 +642,6 @@ describe('PostEdit', () => {
     it('should not delete when confirm is cancelled', async () => {
       const user = userEvent.setup()
       vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
-      mockConfirm.mockReturnValue(false)
 
       await renderEditMode(1)
 
@@ -617,9 +651,15 @@ describe('PostEdit', () => {
 
       await user.click(screen.getByRole('button', { name: '削除' }))
 
-      expect(mockConfirm).toHaveBeenCalledWith(
-        '本当に削除しますか？この操作は取り消せません。'
-      )
+      // 確認ダイアログが表示されることを確認
+      await waitFor(() => {
+        expect(screen.getByText('本当に削除しますか？この操作は取り消せません。')).toBeInTheDocument()
+        expect(screen.getByText('記事の削除')).toBeInTheDocument()
+      })
+
+      // キャンセルをクリック
+      await user.click(screen.getByRole('button', { name: 'キャンセル' }))
+
       expect(apiClient.deletePost).not.toHaveBeenCalled()
     })
 
@@ -627,7 +667,6 @@ describe('PostEdit', () => {
       const user = userEvent.setup()
       vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
       vi.mocked(apiClient.deletePost).mockResolvedValue(undefined)
-      mockConfirm.mockReturnValue(true)
 
       await renderEditMode(1)
 
@@ -637,12 +676,29 @@ describe('PostEdit', () => {
 
       await user.click(screen.getByRole('button', { name: '削除' }))
 
+      // 確認ダイアログが表示されることを確認
+      await waitFor(() => {
+        expect(screen.getByText('本当に削除しますか？この操作は取り消せません。')).toBeInTheDocument()
+      })
+
+      // 削除ボタン（確認ダイアログ内）をクリック
+      const dialogDeleteButton = screen.getByRole('dialog').querySelector('button.bg-red-600')
+      await user.click(dialogDeleteButton!)
+
       await waitFor(() => {
         expect(apiClient.deletePost).toHaveBeenCalledWith(1)
       })
 
-      expect(mockAlert).toHaveBeenCalledWith('記事を削除しました')
-      expect(mockNavigate).toHaveBeenCalledWith('/posts')
+      // 削除完了モーダルが表示される
+      await waitFor(() => {
+        expect(screen.getByText('記事を削除しました')).toBeInTheDocument()
+      })
+      // OKをクリックしてモーダルを閉じる
+      await user.click(screen.getByRole('button', { name: 'OK' }))
+
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith('/posts')
+      })
     })
 
     it('should show error message when delete fails', async () => {
@@ -651,7 +707,6 @@ describe('PostEdit', () => {
       vi.mocked(apiClient.deletePost).mockRejectedValue(
         new Error('削除に失敗しました')
       )
-      mockConfirm.mockReturnValue(true)
 
       await renderEditMode(1)
 
@@ -661,11 +716,19 @@ describe('PostEdit', () => {
 
       await user.click(screen.getByRole('button', { name: '削除' }))
 
+      // 確認ダイアログが表示されることを確認
+      await waitFor(() => {
+        expect(screen.getByText('本当に削除しますか？この操作は取り消せません。')).toBeInTheDocument()
+      })
+
+      // 削除ボタン（確認ダイアログ内）をクリック
+      const dialogDeleteButton = screen.getByRole('dialog').querySelector('button.bg-red-600')
+      await user.click(dialogDeleteButton!)
+
       await waitFor(() => {
         expect(screen.getByText('削除に失敗しました')).toBeInTheDocument()
       })
 
-      expect(mockAlert).not.toHaveBeenCalled()
       expect(mockNavigate).not.toHaveBeenCalled()
     })
   })

@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './hooks/useAuth';
+import { ModalProvider } from './hooks/useModal';
 import { PrivateRoute } from './components/PrivateRoute';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
@@ -9,8 +10,9 @@ import { PostEdit } from './pages/PostEdit';
 function App() {
   return (
     <BrowserRouter basename="/admin">
-      <AuthProvider>
-        <Routes>
+      <ModalProvider>
+        <AuthProvider>
+          <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
 
@@ -31,8 +33,9 @@ function App() {
 
           {/* 404 */}
           <Route path="*" element={<Navigate to="/posts" replace />} />
-        </Routes>
-      </AuthProvider>
+          </Routes>
+        </AuthProvider>
+      </ModalProvider>
     </BrowserRouter>
   );
 }

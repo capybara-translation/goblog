@@ -5,6 +5,7 @@ import { apiClient, Post } from '../api/client';
 import { StatusBadge } from '../components/StatusBadge';
 import { MarkdownEditor } from '../components/MarkdownEditor';
 import { TagInput } from '../components/TagInput';
+import { useModal } from '../hooks/useModal';
 
 const BLOG_TIMEZONE = import.meta.env.VITE_BLOG_TIMEZONE || 'UTC';
 
@@ -19,6 +20,7 @@ function formatDateTime(dateString: string): string {
 export function PostEdit() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { showAlert, confirm } = useModal();
   const isEditMode = Boolean(id);
 
   const [post, setPost] = useState<Post | null>(null);
@@ -73,7 +75,7 @@ export function PostEdit() {
           tags,
         });
         setPost(updated);
-        alert('記事を更新しました');
+        await showAlert('記事を更新しました');
       } else {
         const created = await apiClient.createPost({
           title,
@@ -81,7 +83,7 @@ export function PostEdit() {
           content,
           tags,
         });
-        alert('記事を作成しました');
+        await showAlert('記事を作成しました');
         navigate(`/posts/${created.id}/edit`);
       }
     } catch (err) {
@@ -98,7 +100,7 @@ export function PostEdit() {
       setError('');
       const updated = await apiClient.publishPost(Number(id));
       setPost(updated);
-      alert('記事を公開しました');
+      await showAlert('記事を公開しました');
     } catch (err) {
       setError(err instanceof Error ? err.message : '公開に失敗しました');
     }
@@ -111,7 +113,7 @@ export function PostEdit() {
       setError('');
       const updated = await apiClient.unpublishPost(Number(id));
       setPost(updated);
-      alert('記事を非公開にしました');
+      await showAlert('記事を非公開にしました');
     } catch (err) {
       setError(err instanceof Error ? err.message : '非公開化に失敗しました');
     }
@@ -120,14 +122,19 @@ export function PostEdit() {
   const handleDelete = async () => {
     if (!post || !id) return;
 
-    if (!confirm('本当に削除しますか？この操作は取り消せません。')) {
-      return;
-    }
+    const confirmed = await confirm('本当に削除しますか？この操作は取り消せません。', {
+      title: '記事の削除',
+      confirmText: '削除',
+      cancelText: 'キャンセル',
+      danger: true,
+    });
+
+    if (!confirmed) return;
 
     try {
       setError('');
       await apiClient.deletePost(Number(id));
-      alert('記事を削除しました');
+      await showAlert('記事を削除しました');
       navigate('/posts');
     } catch (err) {
       setError(err instanceof Error ? err.message : '削除に失敗しました');
