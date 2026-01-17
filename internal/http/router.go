@@ -19,6 +19,11 @@ func NewRouterWithTemplates(postService service.PostService, authService service
 	// 公開ページのハンドラーを初期化
 	publicHandlers := NewPublicHandlers(postService, blogTitle, templatePattern)
 
+	// 存在しないルートへのアクセス時にカスタム404ページを表示
+	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		publicHandlers.renderNotFound(w)
+	})
+
 	// 管理画面API用のハンドラーを初期化
 	apiHandlers := NewAPIHandlers(postService)
 

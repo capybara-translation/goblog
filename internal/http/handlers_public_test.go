@@ -823,7 +823,14 @@ func TestHandlePostDetail(t *testing.T) {
 				return nil, nil
 			},
 			expectedStatus: http.StatusNotFound,
-			containsText:   []string{},
+			containsText: []string{
+				"<!DOCTYPE html>",
+				"404",
+				"ページが見つかりません",
+				"お探しのページは存在しないか、移動された可能性があります",
+				"ホームに戻る",
+				"記事一覧へ",
+			},
 		},
 		{
 			name: "英語のスラッグ",
@@ -866,12 +873,10 @@ func TestHandlePostDetail(t *testing.T) {
 				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
 			}
 
-			if tt.expectedStatus == http.StatusOK {
-				body := w.Body.String()
-				for _, text := range tt.containsText {
-					if !strings.Contains(body, text) {
-						t.Errorf("expected body to contain %q", text)
-					}
+			body := w.Body.String()
+			for _, text := range tt.containsText {
+				if !strings.Contains(body, text) {
+					t.Errorf("expected body to contain %q", text)
 				}
 			}
 		})
@@ -1985,6 +1990,129 @@ func TestHandlePosts_SearchHighlight(t *testing.T) {
 			for _, text := range tt.notContains {
 				if strings.Contains(body, text) {
 					t.Errorf("expected body NOT to contain %q", text)
+				}
+			}
+		})
+	}
+}
+
+func TestCustom404Page(t *testing.T) {
+	tests := []struct {
+		name         string
+		blogTitle    string
+		url          string
+		setup        func(*mockPostService)
+		containsText []string
+	}{
+		{
+			name:      "存在しないURLへのアクセス",
+			blogTitle: "goblog",
+			url:       "/not_exists",
+			setup:     func(m *mockPostService) {},
+			containsText: []string{
+				"<!DOCTYPE html>",
+				"<title>ページが見つかりません - goblog</title>",
+				"404",
+				"ページが見つかりません",
+				"お探しのページは存在しないか、移動された可能性があります",
+				`href="/"`,
+				"ホームに戻る",
+				`href="/posts"`,
+				"記事一覧へ",
+			},
+		},
+		{
+			name:      "深いパスの存在しないURL",
+			blogTitle: "goblog",
+			url:       "/foo/bar/baz",
+			setup:     func(m *mockPostService) {},
+			containsText: []string{
+				"404",
+				"ページが見つかりません",
+			},
+		},
+		{
+			name:      "記事が見つからない場合の404ページ",
+			blogTitle: "goblog",
+			url:       "/posts/non-existent-post",
+			setup: func(m *mockPostService) {
+				m.getPostBySlugFunc = func(slug string) (*domain.Post, error) {
+					return nil, nil
+				}
+			},
+			containsText: []string{
+				"<!DOCTYPE html>",
+				"<title>ページが見つかりません - goblog</title>",
+				"404",
+				"ページが見つかりません",
+				"お探しのページは存在しないか、移動された可能性があります",
+				`href="/"`,
+				"ホームに戻る",
+				`href="/posts"`,
+				"記事一覧へ",
+				"&copy; 2025 goblog. All rights reserved.",
+			},
+		},
+		{
+			name:      "カスタムブログタイトルでの404ページ",
+			blogTitle: "My Tech Blog",
+			url:       "/posts/not-found",
+			setup: func(m *mockPostService) {
+				m.getPostBySlugFunc = func(slug string) (*domain.Post, error) {
+					return nil, nil
+				}
+			},
+			containsText: []string{
+				"<title>ページが見つかりません - My Tech Blog</title>",
+				"404",
+				"ページが見つかりません",
+				">My Tech Blog</a>",
+				"&copy; 2025 My Tech Blog. All rights reserved.",
+			},
+		},
+		{
+			name:      "日本語ブログタイトルでの404ページ",
+			blogTitle: "テストブログ",
+			url:       "/posts/missing",
+			setup: func(m *mockPostService) {
+				m.getPostBySlugFunc = func(slug string) (*domain.Post, error) {
+					return nil, nil
+				}
+			},
+			containsText: []string{
+				"<title>ページが見つかりません - テストブログ</title>",
+				">テストブログ</a>",
+				"&copy; 2025 テストブログ. All rights reserved.",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := &mockPostService{}
+			tt.setup(mockService)
+
+			router := NewRouterWithTemplates(mockService, nil, false, tt.blogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
+
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			if w.Code != http.StatusNotFound {
+				t.Errorf("expected status %d, got %d", http.StatusNotFound, w.Code)
+			}
+
+			contentType := w.Header().Get("Content-Type")
+			expected := "text/html; charset=utf-8"
+			if contentType != expected {
+				t.Errorf("expected Content-Type %q, got %q", expected, contentType)
+			}
+
+			body := w.Body.String()
+			for _, text := range tt.containsText {
+				if !strings.Contains(body, text) {
+					t.Errorf("expected body to contain %q", text)
 				}
 			}
 		})

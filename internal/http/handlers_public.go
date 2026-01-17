@@ -30,6 +30,7 @@ type PublicHandlers struct {
 	postTemplate     *template.Template
 	tagsTemplate     *template.Template
 	tagPostsTemplate *template.Template
+	notFoundTemplate *template.Template
 }
 
 // truncateRunes は文字列をルーン（文字）単位で切り詰めます
@@ -186,6 +187,7 @@ func NewPublicHandlers(postService service.PostService, blogTitle string, templa
 	postTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "post.html")))
 	tagsTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "tags.html")))
 	tagPostsTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "tag_posts.html")))
+	notFoundTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "notfound.html")))
 
 	return &PublicHandlers{
 		postService:      postService,
@@ -195,6 +197,21 @@ func NewPublicHandlers(postService service.PostService, blogTitle string, templa
 		postTemplate:     postTemplate,
 		tagsTemplate:     tagsTemplate,
 		tagPostsTemplate: tagPostsTemplate,
+		notFoundTemplate: notFoundTemplate,
+	}
+}
+
+// renderNotFound は404ページをレンダリングします
+func (h *PublicHandlers) renderNotFound(w http.ResponseWriter) {
+	data := map[string]any{
+		"SiteTitle": h.blogTitle,
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusNotFound)
+	if err := h.notFoundTemplate.ExecuteTemplate(w, "notfound", data); err != nil {
+		log.Printf("failed to execute notfound template: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
 
@@ -290,7 +307,7 @@ func (h *PublicHandlers) HandlePostDetail(w http.ResponseWriter, r *http.Request
 	}
 
 	if post == nil {
-		http.NotFound(w, r)
+		h.renderNotFound(w)
 		return
 	}
 
@@ -360,14 +377,14 @@ func (h *PublicHandlers) HandleTagPosts(w http.ResponseWriter, r *http.Request) 
 	tag := vars["tag"]
 
 	if tag == "" {
-		http.NotFound(w, r)
+		h.renderNotFound(w)
 		return
 	}
 
 	// URLデコード
 	decodedTag, err := url.QueryUnescape(tag)
 	if err != nil {
-		http.NotFound(w, r)
+		h.renderNotFound(w)
 		return
 	}
 	tag = decodedTag
