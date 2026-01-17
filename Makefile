@@ -1,4 +1,4 @@
-.PHONY: help run stop test test-v test-cover clean seed reset build install deps install-admin build-admin dev-admin clean-admin
+.PHONY: help run stop test test-v test-cover clean seed reset build install deps install-admin build-admin dev-admin clean-admin adduser
 
 # デフォルトターゲット: ヘルプを表示
 help:
@@ -14,6 +14,7 @@ help:
 	@echo "  make build        - フロントエンドとバックエンドをビルド"
 	@echo "  make install      - バイナリをインストール"
 	@echo "  make deps         - 依存関係をダウンロード"
+	@echo "  make adduser      - 管理者ユーザーを追加"
 	@echo "  make install-admin - 管理画面のnpm依存関係をインストール"
 	@echo "  make build-admin   - 管理画面をビルド"
 	@echo "  make dev-admin     - 管理画面の開発サーバーを起動"
@@ -58,6 +59,11 @@ seed:
 	@echo "テストデータを投入中..."
 	go run cmd/seed/main.go
 
+# 管理者ユーザーを追加（本番環境用）
+adduser:
+	@echo "管理者ユーザーを追加..."
+	go run cmd/adduser/main.go
+
 # データベースをリセットしてテストデータ投入（管理画面も再ビルド）
 reset: clean build-admin seed
 
@@ -67,13 +73,15 @@ build: build-admin
 	@mkdir -p bin
 	go build -o bin/goblog cmd/goblog/main.go
 	go build -o bin/seed cmd/seed/main.go
-	@echo "ビルド完了: bin/goblog, bin/seed"
+	go build -o bin/adduser cmd/adduser/main.go
+	@echo "ビルド完了: bin/goblog, bin/seed, bin/adduser"
 
 # バイナリをインストール
 install:
 	@echo "バイナリをインストール中..."
 	go install ./cmd/goblog
 	go install ./cmd/seed
+	go install ./cmd/adduser
 	@echo "インストール完了"
 
 # 依存関係をダウンロード
