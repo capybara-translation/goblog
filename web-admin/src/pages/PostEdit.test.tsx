@@ -70,8 +70,8 @@ describe('PostEdit', () => {
     ])
   })
 
-  const renderCreateMode = () => {
-    return render(
+  const renderCreateMode = async () => {
+    const result = render(
       <MemoryRouter initialEntries={['/posts/new']}>
         <Routes>
           <Route path="/posts/new" element={<PostEdit />} />
@@ -79,10 +79,15 @@ describe('PostEdit', () => {
         </Routes>
       </MemoryRouter>
     )
+    // TagInput の getTags 呼び出し完了を待つ
+    await waitFor(() => {
+      expect(apiClient.getTags).toHaveBeenCalled()
+    })
+    return result
   }
 
-  const renderEditMode = (postId: number) => {
-    return render(
+  const renderEditMode = async (postId: number) => {
+    const result = render(
       <MemoryRouter initialEntries={[`/posts/${postId}/edit`]}>
         <Routes>
           <Route path="/posts/:id/edit" element={<PostEdit />} />
@@ -90,16 +95,21 @@ describe('PostEdit', () => {
         </Routes>
       </MemoryRouter>
     )
+    // TagInput の getTags 呼び出し完了を待つ
+    await waitFor(() => {
+      expect(apiClient.getTags).toHaveBeenCalled()
+    })
+    return result
   }
 
   describe('Create mode rendering', () => {
-    it('should render page title as "新規作成"', () => {
-      renderCreateMode()
+    it('should render page title as "新規作成"', async () => {
+      await renderCreateMode()
       expect(screen.getByText('新規作成')).toBeInTheDocument()
     })
 
-    it('should render empty form fields', () => {
-      renderCreateMode()
+    it('should render empty form fields', async () => {
+      await renderCreateMode()
       expect(screen.getByLabelText(/タイトル/)).toHaveValue('')
       expect(screen.getByLabelText(/スラッグ/)).toHaveValue('')
       // TagInputコンポーネントはlabel関連付けが異なるため、ラベル表示のみ確認
@@ -108,40 +118,40 @@ describe('PostEdit', () => {
       expect(screen.getByText('本文（Markdown）')).toBeInTheDocument()
     })
 
-    it('should render save button', () => {
-      renderCreateMode()
+    it('should render save button', async () => {
+      await renderCreateMode()
       expect(screen.getByRole('button', { name: '保存' })).toBeInTheDocument()
     })
 
-    it('should not render publish/unpublish/delete buttons', () => {
-      renderCreateMode()
+    it('should not render publish/unpublish/delete buttons', async () => {
+      await renderCreateMode()
       expect(screen.queryByRole('button', { name: '公開する' })).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: '非公開にする' })).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: '削除' })).not.toBeInTheDocument()
     })
 
-    it('should render back link', () => {
-      renderCreateMode()
+    it('should render back link', async () => {
+      await renderCreateMode()
       expect(screen.getByText('← 記事一覧に戻る')).toBeInTheDocument()
     })
 
-    it('should have required attributes on title and slug fields', () => {
-      renderCreateMode()
+    it('should have required attributes on title and slug fields', async () => {
+      await renderCreateMode()
       expect(screen.getByLabelText(/タイトル/)).toBeRequired()
       expect(screen.getByLabelText(/スラッグ/)).toBeRequired()
     })
   })
 
   describe('Edit mode rendering', () => {
-    it('should show loading state initially', () => {
+    it('should show loading state initially', async () => {
       vi.mocked(apiClient.getPost).mockReturnValue(new Promise(() => {}))
-      renderEditMode(1)
+      await renderEditMode(1)
       expect(screen.getByText('読み込み中...')).toBeInTheDocument()
     })
 
     it('should render page title as "記事編集"', async () => {
       vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
-      renderEditMode(1)
+      await renderEditMode(1)
 
       await waitFor(() => {
         expect(screen.getByText('記事編集')).toBeInTheDocument()
@@ -150,7 +160,7 @@ describe('PostEdit', () => {
 
     it('should load and display post data', async () => {
       vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
-      renderEditMode(1)
+      await renderEditMode(1)
 
       await waitFor(() => {
         expect(screen.getByLabelText(/タイトル/)).toHaveValue('Draft Post')
@@ -166,7 +176,7 @@ describe('PostEdit', () => {
 
     it('should show error message when post load fails', async () => {
       vi.mocked(apiClient.getPost).mockRejectedValue(new Error('記事が見つかりません'))
-      renderEditMode(1)
+      await renderEditMode(1)
 
       await waitFor(() => {
         expect(screen.getByText('記事が見つかりません')).toBeInTheDocument()
@@ -175,7 +185,7 @@ describe('PostEdit', () => {
 
     it('should render publish button for draft post', async () => {
       vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
-      renderEditMode(1)
+      await renderEditMode(1)
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: '公開する' })).toBeInTheDocument()
@@ -186,7 +196,7 @@ describe('PostEdit', () => {
 
     it('should render unpublish button for published post', async () => {
       vi.mocked(apiClient.getPost).mockResolvedValue(mockPublishedPost)
-      renderEditMode(2)
+      await renderEditMode(2)
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: '非公開にする' })).toBeInTheDocument()
@@ -197,7 +207,7 @@ describe('PostEdit', () => {
 
     it('should render delete button', async () => {
       vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
-      renderEditMode(1)
+      await renderEditMode(1)
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument()
@@ -206,7 +216,7 @@ describe('PostEdit', () => {
 
     it('should render status badge', async () => {
       vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
-      renderEditMode(1)
+      await renderEditMode(1)
 
       await waitFor(() => {
         expect(screen.getByText('下書き')).toBeInTheDocument()
@@ -217,7 +227,7 @@ describe('PostEdit', () => {
   describe('Post metadata display', () => {
     it('should display created_at and updated_at for draft post', async () => {
       vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
-      renderEditMode(1)
+      await renderEditMode(1)
 
       await waitFor(() => {
         expect(screen.getByText('作成日:')).toBeInTheDocument()
@@ -230,7 +240,7 @@ describe('PostEdit', () => {
 
     it('should display published_at for published post', async () => {
       vi.mocked(apiClient.getPost).mockResolvedValue(mockPublishedPost)
-      renderEditMode(2)
+      await renderEditMode(2)
 
       await waitFor(() => {
         expect(screen.getByText('公開日:')).toBeInTheDocument()
@@ -245,7 +255,7 @@ describe('PostEdit', () => {
         published_at: '2024-06-18T09:00:00Z',
       }
       vi.mocked(apiClient.getPost).mockResolvedValue(postWithSpecificDates)
-      renderEditMode(2)
+      await renderEditMode(2)
 
       await waitFor(() => {
         expect(screen.getByText('作成日:')).toBeInTheDocument()
@@ -257,8 +267,8 @@ describe('PostEdit', () => {
       expect(metadataSection?.textContent).toMatch(datePattern)
     })
 
-    it('should not display metadata in create mode', () => {
-      renderCreateMode()
+    it('should not display metadata in create mode', async () => {
+      await renderCreateMode()
 
       expect(screen.queryByText('作成日:')).not.toBeInTheDocument()
       expect(screen.queryByText('更新日:')).not.toBeInTheDocument()
@@ -269,7 +279,7 @@ describe('PostEdit', () => {
   describe('Form input', () => {
     it('should allow entering title', async () => {
       const user = userEvent.setup()
-      renderCreateMode()
+      await renderCreateMode()
 
       const titleInput = screen.getByLabelText(/タイトル/)
       await user.type(titleInput, 'New Post Title')
@@ -279,7 +289,7 @@ describe('PostEdit', () => {
 
     it('should allow entering slug', async () => {
       const user = userEvent.setup()
-      renderCreateMode()
+      await renderCreateMode()
 
       const slugInput = screen.getByLabelText(/スラッグ/)
       await user.type(slugInput, 'new-post-slug')
@@ -289,7 +299,7 @@ describe('PostEdit', () => {
 
     it('should allow entering tags', async () => {
       const user = userEvent.setup()
-      renderCreateMode()
+      await renderCreateMode()
 
       // TagInputコンポーネントのinputを取得
       const tagsInput = screen.getByLabelText('タグ入力')
@@ -302,8 +312,8 @@ describe('PostEdit', () => {
       })
     })
 
-    it('should render markdown editor', () => {
-      renderCreateMode()
+    it('should render markdown editor', async () => {
+      await renderCreateMode()
       // MarkdownEditorコンポーネントがレンダリングされていることを確認
       expect(screen.getByText('本文（Markdown）')).toBeInTheDocument()
       // MDEditorはツールバーを表示する
@@ -314,7 +324,7 @@ describe('PostEdit', () => {
   describe('Create post', () => {
     it('should show validation error when both are whitespace', async () => {
       const user = userEvent.setup()
-      renderCreateMode()
+      await renderCreateMode()
 
       await user.type(screen.getByLabelText(/タイトル/), '   ')
       await user.type(screen.getByLabelText(/スラッグ/), '   ')
@@ -340,7 +350,7 @@ describe('PostEdit', () => {
 
       vi.mocked(apiClient.createPost).mockResolvedValue(createdPost)
 
-      renderCreateMode()
+      await renderCreateMode()
 
       await user.type(screen.getByLabelText(/タイトル/), 'New Post')
       await user.type(screen.getByLabelText(/スラッグ/), 'new-post')
@@ -368,7 +378,7 @@ describe('PostEdit', () => {
         new Error('スラッグが既に存在します')
       )
 
-      renderCreateMode()
+      await renderCreateMode()
 
       await user.type(screen.getByLabelText(/タイトル/), 'New Post')
       await user.type(screen.getByLabelText(/スラッグ/), 'duplicate-slug')
@@ -391,7 +401,7 @@ describe('PostEdit', () => {
         })
       )
 
-      renderCreateMode()
+      await renderCreateMode()
 
       const titleInput = screen.getByLabelText(/タイトル/)
       const slugInput = screen.getByLabelText(/スラッグ/)
@@ -429,7 +439,7 @@ describe('PostEdit', () => {
         title: 'Updated Title',
       })
 
-      renderEditMode(1)
+      await renderEditMode(1)
 
       await waitFor(() => {
         expect(screen.getByLabelText(/タイトル/)).toHaveValue('Draft Post')
@@ -460,7 +470,7 @@ describe('PostEdit', () => {
         new Error('更新に失敗しました')
       )
 
-      renderEditMode(1)
+      await renderEditMode(1)
 
       await waitFor(() => {
         expect(screen.getByLabelText(/タイトル/)).toHaveValue('Draft Post')
@@ -485,7 +495,7 @@ describe('PostEdit', () => {
         status: 'published',
       })
 
-      renderEditMode(1)
+      await renderEditMode(1)
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: '公開する' })).toBeInTheDocument()
@@ -507,7 +517,7 @@ describe('PostEdit', () => {
         new Error('公開に失敗しました')
       )
 
-      renderEditMode(1)
+      await renderEditMode(1)
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: '公開する' })).toBeInTheDocument()
@@ -530,7 +540,7 @@ describe('PostEdit', () => {
         status: 'published',
       })
 
-      renderEditMode(1)
+      await renderEditMode(1)
 
       await waitFor(() => {
         expect(screen.getByText('下書き')).toBeInTheDocument()
@@ -555,7 +565,7 @@ describe('PostEdit', () => {
         status: 'draft',
       })
 
-      renderEditMode(2)
+      await renderEditMode(2)
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: '非公開にする' })).toBeInTheDocument()
@@ -577,7 +587,7 @@ describe('PostEdit', () => {
         new Error('非公開化に失敗しました')
       )
 
-      renderEditMode(2)
+      await renderEditMode(2)
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: '非公開にする' })).toBeInTheDocument()
@@ -599,7 +609,7 @@ describe('PostEdit', () => {
       vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
       mockConfirm.mockReturnValue(false)
 
-      renderEditMode(1)
+      await renderEditMode(1)
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument()
@@ -619,7 +629,7 @@ describe('PostEdit', () => {
       vi.mocked(apiClient.deletePost).mockResolvedValue(undefined)
       mockConfirm.mockReturnValue(true)
 
-      renderEditMode(1)
+      await renderEditMode(1)
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument()
@@ -643,7 +653,7 @@ describe('PostEdit', () => {
       )
       mockConfirm.mockReturnValue(true)
 
-      renderEditMode(1)
+      await renderEditMode(1)
 
       await waitFor(() => {
         expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument()
@@ -667,7 +677,7 @@ describe('PostEdit', () => {
         .mockRejectedValueOnce(new Error('First error'))
         .mockResolvedValueOnce(mockDraftPost)
 
-      renderCreateMode()
+      await renderCreateMode()
 
       await user.type(screen.getByLabelText(/タイトル/), 'Test')
       await user.type(screen.getByLabelText(/スラッグ/), 'test')
@@ -688,7 +698,7 @@ describe('PostEdit', () => {
       const user = userEvent.setup()
       vi.mocked(apiClient.createPost).mockRejectedValue('Unknown error')
 
-      renderCreateMode()
+      await renderCreateMode()
 
       await user.type(screen.getByLabelText(/タイトル/), 'Test')
       await user.type(screen.getByLabelText(/スラッグ/), 'test')

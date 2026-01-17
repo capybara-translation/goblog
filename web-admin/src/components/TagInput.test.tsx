@@ -60,12 +60,20 @@ describe('TagInput', () => {
       const onChange = vi.fn();
       render(<TagInput value="" onChange={onChange} placeholder="カスタムプレースホルダー" />);
 
+      await waitFor(() => {
+        expect(apiClient.getTags).toHaveBeenCalled();
+      });
+
       expect(screen.getByPlaceholderText('カスタムプレースホルダー')).toBeInTheDocument();
     });
 
     it('should render disabled state', async () => {
       const onChange = vi.fn();
       render(<TagInput value="Go" onChange={onChange} disabled />);
+
+      await waitFor(() => {
+        expect(apiClient.getTags).toHaveBeenCalled();
+      });
 
       expect(screen.getByRole('textbox')).toBeDisabled();
       // 削除ボタンが表示されないことを確認
