@@ -21,13 +21,20 @@ func setupTestDB(t *testing.T) *sqlx.DB {
 	}
 
 	// マイグレーションファイルを読み込んで実行
-	schema, err := os.ReadFile("../../migrations/001_create_posts.sql")
-	if err != nil {
-		t.Fatalf("failed to read migration file: %v", err)
+	migrations := []string{
+		"../../migrations/001_create_posts.sql",
+		"../../migrations/003_add_is_pinned.sql",
 	}
 
-	if _, err := db.Exec(string(schema)); err != nil {
-		t.Fatalf("failed to create schema: %v", err)
+	for _, migrationPath := range migrations {
+		schema, err := os.ReadFile(migrationPath)
+		if err != nil {
+			t.Fatalf("failed to read migration file %s: %v", migrationPath, err)
+		}
+
+		if _, err := db.Exec(string(schema)); err != nil {
+			t.Fatalf("failed to execute migration %s: %v", migrationPath, err)
+		}
 	}
 
 	return db
@@ -930,6 +937,116 @@ func TestPostRepository_CountSearch(t *testing.T) {
 
 		if count != 0 {
 			t.Errorf("expected count 0, got %d", count)
+		}
+	})
+}
+
+func TestPostRepository_FindPinnedPublished(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	repo := NewPostRepository(db)
+	now := time.Now()
+
+	// テストデータを作成
+	posts := []*domain.Post{
+		{
+			Title:       "ピン留め＆公開",
+			Slug:        "pinned-published",
+			Content:     "ピン留めされた公開記事",
+			Status:      domain.PostStatusPublished,
+			IsPinned:    true,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+			PublishedAt: &now,
+		},
+		{
+			Title:       "ピン留め＆下書き",
+			Slug:        "pinned-draft",
+			Content:     "ピン留めされた下書き記事",
+			Status:      domain.PostStatusDraft,
+			IsPinned:    true,
+			CreatedAt:   now.Add(1 * time.Hour),
+			UpdatedAt:   now.Add(1 * time.Hour),
+		},
+		{
+			Title:       "通常の公開記事",
+			Slug:        "normal-published",
+			Content:     "普通の公開記事",
+			Status:      domain.PostStatusPublished,
+			IsPinned:    false,
+			CreatedAt:   now.Add(2 * time.Hour),
+			UpdatedAt:   now.Add(2 * time.Hour),
+			PublishedAt: &now,
+		},
+		{
+			Title:       "もう一つのピン留め＆公開",
+			Slug:        "pinned-published-2",
+			Content:     "2つ目のピン留め公開記事",
+			Status:      domain.PostStatusPublished,
+			IsPinned:    true,
+			CreatedAt:   now.Add(3 * time.Hour),
+			UpdatedAt:   now.Add(3 * time.Hour),
+			PublishedAt: &now,
+		},
+	}
+
+	for _, p := range posts {
+		if err := repo.Create(p); err != nil {
+			t.Fatalf("failed to create post: %v", err)
+		}
+	}
+
+	t.Run("ピン留めされた公開記事のみ取得", func(t *testing.T) {
+		results, err := repo.FindPinnedPublished()
+		if err != nil {
+			t.Fatalf("failed to find pinned published posts: %v", err)
+		}
+
+		// ピン留め＆公開の記事は2件
+		if len(results) != 2 {
+			t.Errorf("expected 2 pinned published posts, got %d", len(results))
+		}
+
+		// すべてピン留めかつ公開であることを確認
+		for _, post := range results {
+			if !post.IsPinned {
+				t.Errorf("expected post to be pinned, got is_pinned=false for %q", post.Title)
+			}
+			if post.Status != domain.PostStatusPublished {
+				t.Errorf("expected published status, got %s for %q", post.Status, post.Title)
+			}
+		}
+	})
+
+	t.Run("タイトル順にソートされている", func(t *testing.T) {
+		results, err := repo.FindPinnedPublished()
+		if err != nil {
+			t.Fatalf("failed to find pinned published posts: %v", err)
+		}
+
+		// タイトル昇順でソートされていることを確認
+		for i := 1; i < len(results); i++ {
+			if results[i-1].Title > results[i].Title {
+				t.Errorf("posts not sorted by title: %q > %q", results[i-1].Title, results[i].Title)
+			}
+		}
+	})
+
+	t.Run("ピン留め記事がない場合", func(t *testing.T) {
+		// すべての記事を削除
+		allPosts, _ := repo.FindAll(nil, 100, 0)
+		for _, p := range allPosts {
+			repo.Delete(p.ID)
+		}
+
+		results, err := repo.FindPinnedPublished()
+		if err != nil {
+			t.Fatalf("failed to find pinned published posts: %v", err)
+		}
+
+		if len(results) != 0 {
+			t.Errorf("expected 0 pinned posts for empty database, got %d", len(results))
 		}
 	})
 }

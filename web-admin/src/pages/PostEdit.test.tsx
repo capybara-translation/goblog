@@ -38,6 +38,7 @@ describe('PostEdit', () => {
     content: 'Draft content',
     status: 'draft',
     tags: 'Go, Testing',
+    is_pinned: false,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     published_at: null,
@@ -50,6 +51,7 @@ describe('PostEdit', () => {
     content: 'Published content',
     status: 'published',
     tags: 'Go',
+    is_pinned: false,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     published_at: '2024-01-01T10:00:00Z',
@@ -364,6 +366,7 @@ describe('PostEdit', () => {
           slug: 'new-post',
           content: '',
           tags: 'React',
+          is_pinned: false,
         })
       })
 
@@ -472,6 +475,7 @@ describe('PostEdit', () => {
           slug: 'draft-post',
           content: 'Draft content',
           tags: 'Go, Testing',
+          is_pinned: false,
         })
       })
 

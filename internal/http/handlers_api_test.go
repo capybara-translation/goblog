@@ -21,8 +21,8 @@ type mockPostServiceForAPI struct {
 	getAllPostsByTagFunc        func(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
 	getAllTagsFunc              func(status *domain.PostStatus) (map[string]int, error)
 	getPostByIDFunc             func(id int64) (*domain.Post, error)
-	createPostFunc              func(title, slug, content, tags string) (*domain.Post, error)
-	updatePostFunc              func(id int64, title, slug, content, tags string) (*domain.Post, error)
+	createPostFunc              func(title, slug, content, tags string, isPinned bool) (*domain.Post, error)
+	updatePostFunc              func(id int64, title, slug, content, tags string, isPinned bool) (*domain.Post, error)
 	deletePostFunc              func(id int64) error
 	publishPostFunc             func(id int64) (*domain.Post, error)
 	unpublishPostFunc           func(id int64) (*domain.Post, error)
@@ -32,6 +32,8 @@ type mockPostServiceForAPI struct {
 	countSearchPostsFunc        func(query string, status *domain.PostStatus) (int, error)
 	searchPublishedPostsFunc    func(query string, limit, offset int) ([]*domain.Post, error)
 	countSearchPublishedFunc    func(query string) (int, error)
+	getPinnedPostsFunc          func() ([]*domain.Post, error)
+	setPinnedFunc               func(id int64, pinned bool) (*domain.Post, error)
 }
 
 func (m *mockPostServiceForAPI) GetPublishedPosts(limit, offset int) ([]*domain.Post, error) {
@@ -78,16 +80,16 @@ func (m *mockPostServiceForAPI) GetPostByID(id int64) (*domain.Post, error) {
 	return nil, nil
 }
 
-func (m *mockPostServiceForAPI) CreatePost(title, slug, content, tags string) (*domain.Post, error) {
+func (m *mockPostServiceForAPI) CreatePost(title, slug, content, tags string, isPinned bool) (*domain.Post, error) {
 	if m.createPostFunc != nil {
-		return m.createPostFunc(title, slug, content, tags)
+		return m.createPostFunc(title, slug, content, tags, isPinned)
 	}
 	return nil, nil
 }
 
-func (m *mockPostServiceForAPI) UpdatePost(id int64, title, slug, content, tags string) (*domain.Post, error) {
+func (m *mockPostServiceForAPI) UpdatePost(id int64, title, slug, content, tags string, isPinned bool) (*domain.Post, error) {
 	if m.updatePostFunc != nil {
-		return m.updatePostFunc(id, title, slug, content, tags)
+		return m.updatePostFunc(id, title, slug, content, tags, isPinned)
 	}
 	return nil, nil
 }
@@ -153,6 +155,20 @@ func (m *mockPostServiceForAPI) CountSearchPublishedPosts(query string) (int, er
 		return m.countSearchPublishedFunc(query)
 	}
 	return 0, nil
+}
+
+func (m *mockPostServiceForAPI) GetPinnedPosts() ([]*domain.Post, error) {
+	if m.getPinnedPostsFunc != nil {
+		return m.getPinnedPostsFunc()
+	}
+	return []*domain.Post{}, nil
+}
+
+func (m *mockPostServiceForAPI) SetPinned(id int64, pinned bool) (*domain.Post, error) {
+	if m.setPinnedFunc != nil {
+		return m.setPinnedFunc(id, pinned)
+	}
+	return nil, nil
 }
 
 var _ service.PostService = (*mockPostServiceForAPI)(nil)
@@ -558,14 +574,15 @@ func TestHandleGetPost_Success(t *testing.T) {
 
 func TestHandleCreatePost_Success(t *testing.T) {
 	mockPostService := &mockPostServiceForAPI{
-		createPostFunc: func(title, slug, content, tags string) (*domain.Post, error) {
+		createPostFunc: func(title, slug, content, tags string, isPinned bool) (*domain.Post, error) {
 			return &domain.Post{
-				ID:      1,
-				Title:   title,
-				Slug:    slug,
-				Content: content,
-				Tags:    tags,
-				Status:  domain.PostStatusDraft,
+				ID:       1,
+				Title:    title,
+				Slug:     slug,
+				Content:  content,
+				Tags:     tags,
+				Status:   domain.PostStatusDraft,
+				IsPinned: isPinned,
 			}, nil
 		},
 	}
@@ -770,15 +787,16 @@ func TestHandleUpdatePost_Validation(t *testing.T) {
 
 func TestHandleUpdatePost_Success(t *testing.T) {
 	mockPostService := &mockPostServiceForAPI{
-		updatePostFunc: func(id int64, title, slug, content, tags string) (*domain.Post, error) {
+		updatePostFunc: func(id int64, title, slug, content, tags string, isPinned bool) (*domain.Post, error) {
 			if id == 1 {
 				return &domain.Post{
-					ID:      id,
-					Title:   title,
-					Slug:    slug,
-					Content: content,
-					Tags:    tags,
-					Status:  domain.PostStatusDraft,
+					ID:       id,
+					Title:    title,
+					Slug:     slug,
+					Content:  content,
+					Tags:     tags,
+					Status:   domain.PostStatusDraft,
+					IsPinned: isPinned,
 				}, nil
 			}
 			return nil, nil
@@ -1724,6 +1742,189 @@ func TestHandlePreview(t *testing.T) {
 
 		if w.Code != http.StatusForbidden {
 			t.Errorf("expected status %d, got %d", http.StatusForbidden, w.Code)
+		}
+	})
+}
+
+func TestHandlePinPost(t *testing.T) {
+	t.Run("記事をピン留めする", func(t *testing.T) {
+		mockPostService := &mockPostServiceForAPI{
+			setPinnedFunc: func(id int64, pinned bool) (*domain.Post, error) {
+				if id != 1 {
+					t.Errorf("expected id 1, got %d", id)
+				}
+				if !pinned {
+					t.Errorf("expected pinned to be true")
+				}
+				return &domain.Post{
+					ID:       1,
+					Title:    "Test Post",
+					Slug:     "test-post",
+					IsPinned: true,
+					Status:   domain.PostStatusPublished,
+				}, nil
+			},
+		}
+		mockAuthService := createTestAuthService()
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/posts/1/pin", nil)
+		addAuthAndCSRF(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		var post domain.Post
+		if err := json.Unmarshal(w.Body.Bytes(), &post); err != nil {
+			t.Fatalf("failed to parse JSON response: %v", err)
+		}
+
+		if !post.IsPinned {
+			t.Errorf("expected is_pinned to be true")
+		}
+	})
+
+	t.Run("不正なIDでエラー", func(t *testing.T) {
+		mockPostService := &mockPostServiceForAPI{}
+		mockAuthService := createTestAuthService()
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/posts/invalid/pin", nil)
+		addAuthAndCSRF(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+		}
+
+		var response ErrorResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatalf("failed to parse JSON response: %v", err)
+		}
+
+		if response.Error != "Invalid post ID" {
+			t.Errorf("expected error 'Invalid post ID', got %q", response.Error)
+		}
+	})
+
+	t.Run("サービスエラー", func(t *testing.T) {
+		mockPostService := &mockPostServiceForAPI{
+			setPinnedFunc: func(id int64, pinned bool) (*domain.Post, error) {
+				return nil, fmt.Errorf("post not found: %d", id)
+			},
+		}
+		mockAuthService := createTestAuthService()
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/posts/999/pin", nil)
+		addAuthAndCSRF(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+		}
+	})
+
+	t.Run("未認証でエラー", func(t *testing.T) {
+		mockPostService := &mockPostServiceForAPI{}
+		mockAuthService := createTestAuthService()
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/posts/1/pin", nil)
+		// 認証なし
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("expected status %d, got %d", http.StatusUnauthorized, w.Code)
+		}
+	})
+}
+
+func TestHandleUnpinPost(t *testing.T) {
+	t.Run("記事のピン留めを解除する", func(t *testing.T) {
+		mockPostService := &mockPostServiceForAPI{
+			setPinnedFunc: func(id int64, pinned bool) (*domain.Post, error) {
+				if id != 1 {
+					t.Errorf("expected id 1, got %d", id)
+				}
+				if pinned {
+					t.Errorf("expected pinned to be false")
+				}
+				return &domain.Post{
+					ID:       1,
+					Title:    "Test Post",
+					Slug:     "test-post",
+					IsPinned: false,
+					Status:   domain.PostStatusPublished,
+				}, nil
+			},
+		}
+		mockAuthService := createTestAuthService()
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/posts/1/unpin", nil)
+		addAuthAndCSRF(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		var post domain.Post
+		if err := json.Unmarshal(w.Body.Bytes(), &post); err != nil {
+			t.Fatalf("failed to parse JSON response: %v", err)
+		}
+
+		if post.IsPinned {
+			t.Errorf("expected is_pinned to be false")
+		}
+	})
+
+	t.Run("不正なIDでエラー", func(t *testing.T) {
+		mockPostService := &mockPostServiceForAPI{}
+		mockAuthService := createTestAuthService()
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/posts/invalid/unpin", nil)
+		addAuthAndCSRF(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+		}
+	})
+
+	t.Run("サービスエラー", func(t *testing.T) {
+		mockPostService := &mockPostServiceForAPI{
+			setPinnedFunc: func(id int64, pinned bool) (*domain.Post, error) {
+				return nil, fmt.Errorf("post not found: %d", id)
+			},
+		}
+		mockAuthService := createTestAuthService()
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/posts/999/unpin", nil)
+		addAuthAndCSRF(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
 		}
 	})
 }

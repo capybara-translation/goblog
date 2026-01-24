@@ -54,7 +54,10 @@
             <nav class="font-sans text-sm">
                 <a href="/" class="text-primary-600 hover:text-primary-900 transition-colors duration-200 mr-6">ホーム</a>
                 <a href="/posts" class="text-primary-600 hover:text-primary-900 transition-colors duration-200 mr-6">記事一覧</a>
-                <a href="/tags" class="text-primary-600 hover:text-primary-900 transition-colors duration-200">タグ</a>
+                <a href="/tags" class="text-primary-600 hover:text-primary-900 transition-colors duration-200{{if .PinnedPosts}} mr-6{{end}}">タグ</a>
+                {{- range .PinnedPosts}}
+                <a href="/posts/{{.Slug}}" class="text-primary-600 hover:text-primary-900 transition-colors duration-200 mr-6">{{.Title}}</a>
+                {{- end}}
             </nav>
         </div>
     </header>

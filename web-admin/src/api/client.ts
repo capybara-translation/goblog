@@ -17,6 +17,7 @@ export interface Post {
   content: string;
   status: 'draft' | 'published';
   tags: string;
+  is_pinned: boolean;
   created_at: string;
   updated_at: string;
   published_at: string | null;
@@ -37,6 +38,7 @@ export interface PostCreateRequest {
   slug: string;
   content: string;
   tags?: string;
+  is_pinned?: boolean;
 }
 
 export interface PostUpdateRequest {
@@ -44,6 +46,7 @@ export interface PostUpdateRequest {
   slug: string;
   content: string;
   tags?: string;
+  is_pinned?: boolean;
 }
 
 export interface ApiError {
@@ -193,6 +196,18 @@ class ApiClient {
 
   async unpublishPost(id: number): Promise<Post> {
     return this.request<Post>(`/posts/${id}/unpublish`, {
+      method: 'POST',
+    });
+  }
+
+  async pinPost(id: number): Promise<Post> {
+    return this.request<Post>(`/posts/${id}/pin`, {
+      method: 'POST',
+    });
+  }
+
+  async unpinPost(id: number): Promise<Post> {
+    return this.request<Post>(`/posts/${id}/unpin`, {
       method: 'POST',
     });
   }

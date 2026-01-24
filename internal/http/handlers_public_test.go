@@ -35,6 +35,7 @@ type mockPostService struct {
 	countSearchPostsFunc         func(query string, status *domain.PostStatus) (int, error)
 	searchPublishedPostsFunc     func(query string, limit, offset int) ([]*domain.Post, error)
 	countSearchPublishedFunc     func(query string) (int, error)
+	getPinnedPostsFunc           func() ([]*domain.Post, error)
 }
 
 func (m *mockPostService) GetPublishedPosts(limit, offset int) ([]*domain.Post, error) {
@@ -84,11 +85,11 @@ func (m *mockPostService) GetPostByID(id int64) (*domain.Post, error) {
 	return nil, nil
 }
 
-func (m *mockPostService) CreatePost(title, slug, content, tags string) (*domain.Post, error) {
+func (m *mockPostService) CreatePost(title, slug, content, tags string, isPinned bool) (*domain.Post, error) {
 	return nil, nil
 }
 
-func (m *mockPostService) UpdatePost(id int64, title, slug, content, tags string) (*domain.Post, error) {
+func (m *mockPostService) UpdatePost(id int64, title, slug, content, tags string, isPinned bool) (*domain.Post, error) {
 	return nil, nil
 }
 
@@ -144,6 +145,17 @@ func (m *mockPostService) CountSearchPublishedPosts(query string) (int, error) {
 		return m.countSearchPublishedFunc(query)
 	}
 	return 0, nil
+}
+
+func (m *mockPostService) GetPinnedPosts() ([]*domain.Post, error) {
+	if m.getPinnedPostsFunc != nil {
+		return m.getPinnedPostsFunc()
+	}
+	return []*domain.Post{}, nil
+}
+
+func (m *mockPostService) SetPinned(id int64, pinned bool) (*domain.Post, error) {
+	return nil, nil
 }
 
 var _ service.PostService = (*mockPostService)(nil)
@@ -2113,6 +2125,93 @@ func TestCustom404Page(t *testing.T) {
 			for _, text := range tt.containsText {
 				if !strings.Contains(body, text) {
 					t.Errorf("expected body to contain %q", text)
+				}
+			}
+		})
+	}
+}
+
+func TestPinnedPostsInHeader(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name           string
+		pinnedPosts    []*domain.Post
+		containsText   []string
+		notContains    []string
+	}{
+		{
+			name: "ピン留め記事がヘッダーに表示される",
+			pinnedPosts: []*domain.Post{
+				{
+					ID:          1,
+					Title:       "自己紹介",
+					Slug:        "about",
+					Status:      domain.PostStatusPublished,
+					IsPinned:    true,
+					PublishedAt: &now,
+				},
+				{
+					ID:          2,
+					Title:       "お問い合わせ",
+					Slug:        "contact",
+					Status:      domain.PostStatusPublished,
+					IsPinned:    true,
+					PublishedAt: &now,
+				},
+			},
+			containsText: []string{
+				`href="/posts/about"`,
+				">自己紹介</a>",
+				`href="/posts/contact"`,
+				">お問い合わせ</a>",
+			},
+		},
+		{
+			name:        "ピン留め記事がない場合",
+			pinnedPosts: []*domain.Post{},
+			containsText: []string{
+				`href="/tags"`,
+			},
+			notContains: []string{
+				"自己紹介",
+				"お問い合わせ",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := &mockPostService{
+				getPublishedPostsFunc: func(limit, offset int) ([]*domain.Post, error) {
+					return []*domain.Post{}, nil
+				},
+				getPinnedPostsFunc: func() ([]*domain.Post, error) {
+					return tt.pinnedPosts, nil
+				},
+			}
+
+			router := NewRouterWithTemplates(mockService, nil, testSecureCookie, testBlogTitle, testTemplatePattern, testUploadDir, testMaxUploadSize)
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+			}
+
+			body := w.Body.String()
+			for _, text := range tt.containsText {
+				if !strings.Contains(body, text) {
+					t.Errorf("expected body to contain %q", text)
+				}
+			}
+
+			for _, text := range tt.notContains {
+				if strings.Contains(body, text) {
+					t.Errorf("expected body NOT to contain %q", text)
 				}
 			}
 		})

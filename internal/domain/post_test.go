@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -111,24 +112,9 @@ func TestParsePostStatus_ErrorMessage(t *testing.T) {
 		}
 
 		for _, substr := range expectedSubstrings {
-			if !contains(errMsg, substr) {
+			if !strings.Contains(errMsg, substr) {
 				t.Errorf("expected error message to contain %q, got: %s", substr, errMsg)
 			}
 		}
 	})
-}
-
-// ヘルパー関数
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) &&
-		(s == substr || len(s) > len(substr) && containsAt(s, substr))
-}
-
-func containsAt(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

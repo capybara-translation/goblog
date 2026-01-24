@@ -22,6 +22,7 @@ describe('PostList', () => {
       content: 'Content 1',
       status: 'published',
       tags: 'Go, Web',
+      is_pinned: false,
       created_at: '2024-01-01T00:00:00Z',
       updated_at: '2024-01-05T00:00:00Z',
       published_at: '2024-01-02T00:00:00Z',
@@ -33,6 +34,7 @@ describe('PostList', () => {
       content: 'Content 2',
       status: 'draft',
       tags: 'React',
+      is_pinned: false,
       created_at: '2024-01-03T00:00:00Z',
       updated_at: '2024-01-06T00:00:00Z',
       published_at: null,
@@ -44,6 +46,7 @@ describe('PostList', () => {
       content: 'Content 3',
       status: 'published',
       tags: '',
+      is_pinned: false,
       created_at: '2024-01-04T00:00:00Z',
       updated_at: '2024-01-07T00:00:00Z',
       published_at: '2024-01-05T00:00:00Z',
@@ -246,6 +249,95 @@ describe('PostList', () => {
     })
   })
 
+  describe('Pin column display', () => {
+    it('should render pin emoji for pinned posts', async () => {
+      const postsWithPinned: Post[] = [
+        {
+          id: 1,
+          title: 'Pinned Post',
+          slug: 'pinned-post',
+          content: 'Content',
+          status: 'published',
+          tags: '',
+          is_pinned: true,
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+          published_at: '2024-01-01T00:00:00Z',
+        },
+        {
+          id: 2,
+          title: 'Normal Post',
+          slug: 'normal-post',
+          content: 'Content',
+          status: 'published',
+          tags: '',
+          is_pinned: false,
+          created_at: '2024-01-02T00:00:00Z',
+          updated_at: '2024-01-02T00:00:00Z',
+          published_at: '2024-01-02T00:00:00Z',
+        },
+      ]
+
+      vi.mocked(apiClient.getPosts).mockResolvedValue({ posts: postsWithPinned, total: 2 })
+      renderPostList()
+
+      await waitFor(() => {
+        const table = screen.getByRole('table')
+        // ピン留めされた記事の行には📌が表示される
+        expect(within(table).getByText('📌')).toBeInTheDocument()
+      })
+    })
+
+    it('should not render pin emoji for non-pinned posts', async () => {
+      const postsWithoutPinned: Post[] = [
+        {
+          id: 1,
+          title: 'Normal Post 1',
+          slug: 'normal-post-1',
+          content: 'Content',
+          status: 'published',
+          tags: '',
+          is_pinned: false,
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+          published_at: '2024-01-01T00:00:00Z',
+        },
+        {
+          id: 2,
+          title: 'Normal Post 2',
+          slug: 'normal-post-2',
+          content: 'Content',
+          status: 'published',
+          tags: '',
+          is_pinned: false,
+          created_at: '2024-01-02T00:00:00Z',
+          updated_at: '2024-01-02T00:00:00Z',
+          published_at: '2024-01-02T00:00:00Z',
+        },
+      ]
+
+      vi.mocked(apiClient.getPosts).mockResolvedValue({ posts: postsWithoutPinned, total: 2 })
+      renderPostList()
+
+      await waitFor(() => {
+        expect(screen.getByText('Normal Post 1')).toBeInTheDocument()
+      })
+
+      const table = screen.getByRole('table')
+      expect(within(table).queryByText('📌')).not.toBeInTheDocument()
+    })
+
+    it('should render pin column header', async () => {
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
+      renderPostList()
+
+      await waitFor(() => {
+        const table = screen.getByRole('table')
+        expect(within(table).getByText('ピン留め')).toBeInTheDocument()
+      })
+    })
+  })
+
   describe('Empty state', () => {
     it('should show empty message when no posts exist', async () => {
       vi.mocked(apiClient.getPosts).mockResolvedValue({ posts: [], total: 0 })
@@ -378,6 +470,7 @@ describe('PostList', () => {
         content: `Content ${offset + i + 1}`,
         status: 'published' as const,
         tags: '',
+        is_pinned: false,
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-01T00:00:00Z',
         published_at: '2024-01-01T00:00:00Z',
@@ -697,6 +790,7 @@ describe('PostList', () => {
           content: `Content ${i + 1}`,
           status: 'published' as const,
           tags: '',
+          is_pinned: false,
           created_at: '2024-01-01T00:00:00Z',
           updated_at: '2024-01-01T00:00:00Z',
           published_at: '2024-01-01T00:00:00Z',
@@ -824,6 +918,7 @@ describe('PostList', () => {
           content: 'test',
           status: 'published',
           tags: '',
+          is_pinned: false,
           created_at: '2024-12-25T15:30:00Z',
           updated_at: '2024-12-25T15:30:00Z',
           published_at: '2024-12-25T15:30:00Z',

@@ -17,6 +17,7 @@ interface Post {
   content: string;
   status: 'draft' | 'published';
   tags: string;
+  is_pinned: boolean;
   created_at: string;
   updated_at: string;
   published_at: string | null;
@@ -62,6 +63,7 @@ let mockPosts: Post[] = [
     content: 'This is test content for the first post.\n\nIt has multiple paragraphs.',
     status: 'published',
     tags: 'Go, Testing',
+    is_pinned: false,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     published_at: '2024-01-01T10:00:00Z',
@@ -73,6 +75,7 @@ let mockPosts: Post[] = [
     content: 'Draft content that has not been published yet.',
     status: 'draft',
     tags: 'Go',
+    is_pinned: false,
     created_at: '2024-01-02T00:00:00Z',
     updated_at: '2024-01-02T00:00:00Z',
     published_at: null,
@@ -84,6 +87,7 @@ let mockPosts: Post[] = [
     content: 'This is another published post with different tags.',
     status: 'published',
     tags: 'Web, Tutorial',
+    is_pinned: false,
     created_at: '2024-01-03T00:00:00Z',
     updated_at: '2024-01-03T00:00:00Z',
     published_at: '2024-01-03T12:00:00Z',
@@ -186,6 +190,7 @@ export const handlers = [
       slug: body.slug,
       content: body.content,
       tags: body.tags || '',
+      is_pinned: false,
       status: 'draft',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -278,6 +283,44 @@ export const handlers = [
       ...mockPosts[postIndex]!,
       status: 'draft',
       published_at: null,
+      updated_at: new Date().toISOString(),
+    };
+
+    return HttpResponse.json(mockPosts[postIndex]);
+  }),
+
+  http.post(`${API_BASE}/posts/:id/pin`, ({ params }) => {
+    const postIndex = mockPosts.findIndex(p => p.id === Number(params.id));
+
+    if (postIndex === -1) {
+      return HttpResponse.json(
+        { error: 'Post not found' },
+        { status: 404 }
+      );
+    }
+
+    mockPosts[postIndex] = {
+      ...mockPosts[postIndex]!,
+      is_pinned: true,
+      updated_at: new Date().toISOString(),
+    };
+
+    return HttpResponse.json(mockPosts[postIndex]);
+  }),
+
+  http.post(`${API_BASE}/posts/:id/unpin`, ({ params }) => {
+    const postIndex = mockPosts.findIndex(p => p.id === Number(params.id));
+
+    if (postIndex === -1) {
+      return HttpResponse.json(
+        { error: 'Post not found' },
+        { status: 404 }
+      );
+    }
+
+    mockPosts[postIndex] = {
+      ...mockPosts[postIndex]!,
+      is_pinned: false,
       updated_at: new Date().toISOString(),
     };
 

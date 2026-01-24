@@ -215,6 +215,9 @@ export function PostList() {
                   ステータス
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-primary-700 uppercase tracking-wider">
+                  ピン留め
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-primary-700 uppercase tracking-wider">
                   タグ
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-primary-700 uppercase tracking-wider">
@@ -241,6 +244,13 @@ export function PostList() {
                   </td>
                   <td className="px-6 py-4">
                     <StatusBadge status={post.status} />
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    {post.is_pinned && (
+                      <span title="ピン留めすると記事がヘッダーに表示されます">
+                        📌
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     <TagList tags={post.tags} />

@@ -10,18 +10,19 @@ import (
 
 // mockPostRepository はPostRepositoryのモック実装です
 type mockPostRepository struct {
-	findAllFunc       func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
-	findAllByTagFunc  func(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
-	getAllTagsFunc    func(status *domain.PostStatus) (map[string]int, error)
-	findBySlugFunc    func(slug string) (*domain.Post, error)
-	findByIDFunc      func(id int64) (*domain.Post, error)
-	createFunc        func(post *domain.Post) error
-	updateFunc        func(post *domain.Post) error
-	deleteFunc        func(id int64) error
-	countFunc         func(status *domain.PostStatus) (int, error)
-	countByTagFunc    func(tag string, status *domain.PostStatus) (int, error)
-	searchFunc        func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
-	countSearchFunc   func(query string, status *domain.PostStatus) (int, error)
+	findAllFunc            func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	findAllByTagFunc       func(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	getAllTagsFunc         func(status *domain.PostStatus) (map[string]int, error)
+	findBySlugFunc         func(slug string) (*domain.Post, error)
+	findByIDFunc           func(id int64) (*domain.Post, error)
+	createFunc             func(post *domain.Post) error
+	updateFunc             func(post *domain.Post) error
+	deleteFunc             func(id int64) error
+	countFunc              func(status *domain.PostStatus) (int, error)
+	countByTagFunc         func(tag string, status *domain.PostStatus) (int, error)
+	searchFunc             func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	countSearchFunc        func(query string, status *domain.PostStatus) (int, error)
+	findPinnedPublishedFunc func() ([]*domain.Post, error)
 }
 
 func (m *mockPostRepository) FindAll(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
@@ -106,6 +107,13 @@ func (m *mockPostRepository) CountSearch(query string, status *domain.PostStatus
 		return m.countSearchFunc(query, status)
 	}
 	return 0, nil
+}
+
+func (m *mockPostRepository) FindPinnedPublished() ([]*domain.Post, error) {
+	if m.findPinnedPublishedFunc != nil {
+		return m.findPinnedPublishedFunc()
+	}
+	return nil, nil
 }
 
 func TestPostService_GetPublishedPosts(t *testing.T) {
@@ -248,7 +256,7 @@ func TestPostService_CreatePost(t *testing.T) {
 		}
 
 		service := NewPostService(mockRepo)
-		post, err := service.CreatePost("Test Post", "test-post", "Test content", "go,test")
+		post, err := service.CreatePost("Test Post", "test-post", "Test content", "go,test", false)
 
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -277,7 +285,7 @@ func TestPostService_CreatePost(t *testing.T) {
 		}
 
 		service := NewPostService(mockRepo)
-		_, err := service.CreatePost("Test Post", "existing-slug", "Test content", "go")
+		_, err := service.CreatePost("Test Post", "existing-slug", "Test content", "go", false)
 
 		if err == nil {
 			t.Fatal("expected error for duplicate slug, got nil")
@@ -312,7 +320,7 @@ func TestPostService_UpdatePost(t *testing.T) {
 		}
 
 		service := NewPostService(mockRepo)
-		updated, err := service.UpdatePost(1, "Updated Title", "updated-slug", "Updated content", "go")
+		updated, err := service.UpdatePost(1, "Updated Title", "updated-slug", "Updated content", "go", false)
 
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -349,7 +357,7 @@ func TestPostService_UpdatePost(t *testing.T) {
 		}
 
 		service := NewPostService(mockRepo)
-		_, err := service.UpdatePost(1, "Updated Title", "same-slug", "Updated content", "go")
+		_, err := service.UpdatePost(1, "Updated Title", "same-slug", "Updated content", "go", false)
 
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -376,7 +384,7 @@ func TestPostService_UpdatePost(t *testing.T) {
 		}
 
 		service := NewPostService(mockRepo)
-		_, err := service.UpdatePost(1, "Title", "existing-slug", "Content", "go")
+		_, err := service.UpdatePost(1, "Title", "existing-slug", "Content", "go", false)
 
 		if err == nil {
 			t.Fatal("expected error for duplicate slug, got nil")
@@ -391,7 +399,7 @@ func TestPostService_UpdatePost(t *testing.T) {
 		}
 
 		service := NewPostService(mockRepo)
-		_, err := service.UpdatePost(999, "Title", "slug", "Content", "go")
+		_, err := service.UpdatePost(999, "Title", "slug", "Content", "go", false)
 
 		if err == nil {
 			t.Fatal("expected error for non-existent post, got nil")
@@ -1233,7 +1241,7 @@ func TestPostService_CreatePost_NormalizesTags(t *testing.T) {
 		}
 
 		service := NewPostService(mockRepo)
-		post, err := service.CreatePost("Test Post", "test-post", "Content", "Go, React, TypeScript")
+		post, err := service.CreatePost("Test Post", "test-post", "Content", "Go, React, TypeScript", false)
 
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -1278,7 +1286,7 @@ func TestPostService_UpdatePost_NormalizesTags(t *testing.T) {
 		}
 
 		service := NewPostService(mockRepo)
-		post, err := service.UpdatePost(1, "Updated Title", "updated-slug", "Content", "Go, React, TypeScript")
+		post, err := service.UpdatePost(1, "Updated Title", "updated-slug", "Content", "Go, React, TypeScript", false)
 
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -1357,6 +1365,229 @@ func TestPostService_CountSearchPublishedPosts(t *testing.T) {
 
 		service := NewPostService(mockRepo)
 		_, err := service.CountSearchPublishedPosts("Go")
+
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+}
+
+func TestPostService_GetPinnedPosts(t *testing.T) {
+	now := time.Now()
+
+	t.Run("ピン留めされた公開記事を取得", func(t *testing.T) {
+		expectedPosts := []*domain.Post{
+			{
+				ID:          1,
+				Title:       "Pinned Post 1",
+				Slug:        "pinned-1",
+				Status:      domain.PostStatusPublished,
+				IsPinned:    true,
+				PublishedAt: &now,
+			},
+			{
+				ID:          2,
+				Title:       "Pinned Post 2",
+				Slug:        "pinned-2",
+				Status:      domain.PostStatusPublished,
+				IsPinned:    true,
+				PublishedAt: &now,
+			},
+		}
+
+		mockRepo := &mockPostRepository{
+			findPinnedPublishedFunc: func() ([]*domain.Post, error) {
+				return expectedPosts, nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		posts, err := service.GetPinnedPosts()
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(posts) != 2 {
+			t.Errorf("expected 2 posts, got %d", len(posts))
+		}
+
+		for _, post := range posts {
+			if !post.IsPinned {
+				t.Errorf("expected post to be pinned, got is_pinned=false")
+			}
+		}
+	})
+
+	t.Run("ピン留め記事がない場合", func(t *testing.T) {
+		mockRepo := &mockPostRepository{
+			findPinnedPublishedFunc: func() ([]*domain.Post, error) {
+				return []*domain.Post{}, nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		posts, err := service.GetPinnedPosts()
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(posts) != 0 {
+			t.Errorf("expected 0 posts, got %d", len(posts))
+		}
+	})
+
+	t.Run("リポジトリエラー", func(t *testing.T) {
+		mockRepo := &mockPostRepository{
+			findPinnedPublishedFunc: func() ([]*domain.Post, error) {
+				return nil, fmt.Errorf("database error")
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		_, err := service.GetPinnedPosts()
+
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+}
+
+func TestPostService_SetPinned(t *testing.T) {
+	t.Run("記事をピン留めする", func(t *testing.T) {
+		existingPost := &domain.Post{
+			ID:       1,
+			Title:    "Test Post",
+			Slug:     "test-post",
+			Status:   domain.PostStatusPublished,
+			IsPinned: false,
+		}
+
+		var updatedPost *domain.Post
+
+		mockRepo := &mockPostRepository{
+			findByIDFunc: func(id int64) (*domain.Post, error) {
+				if id == 1 {
+					return existingPost, nil
+				}
+				return nil, nil
+			},
+			updateFunc: func(post *domain.Post) error {
+				updatedPost = post
+				return nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		post, err := service.SetPinned(1, true)
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if !post.IsPinned {
+			t.Errorf("expected post to be pinned, got is_pinned=false")
+		}
+
+		if updatedPost == nil {
+			t.Fatal("expected update to be called")
+		}
+
+		if !updatedPost.IsPinned {
+			t.Errorf("expected updated post to be pinned")
+		}
+	})
+
+	t.Run("記事のピン留めを解除する", func(t *testing.T) {
+		existingPost := &domain.Post{
+			ID:       1,
+			Title:    "Test Post",
+			Slug:     "test-post",
+			Status:   domain.PostStatusPublished,
+			IsPinned: true,
+		}
+
+		var updatedPost *domain.Post
+
+		mockRepo := &mockPostRepository{
+			findByIDFunc: func(id int64) (*domain.Post, error) {
+				return existingPost, nil
+			},
+			updateFunc: func(post *domain.Post) error {
+				updatedPost = post
+				return nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		post, err := service.SetPinned(1, false)
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if post.IsPinned {
+			t.Errorf("expected post to be unpinned, got is_pinned=true")
+		}
+
+		if updatedPost == nil {
+			t.Fatal("expected update to be called")
+		}
+
+		if updatedPost.IsPinned {
+			t.Errorf("expected updated post to be unpinned")
+		}
+	})
+
+	t.Run("存在しない記事をピン留めしようとするとエラー", func(t *testing.T) {
+		mockRepo := &mockPostRepository{
+			findByIDFunc: func(id int64) (*domain.Post, error) {
+				return nil, nil
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		_, err := service.SetPinned(999, true)
+
+		if err == nil {
+			t.Fatal("expected error for non-existent post, got nil")
+		}
+	})
+
+	t.Run("リポジトリのFindByIDでエラー", func(t *testing.T) {
+		mockRepo := &mockPostRepository{
+			findByIDFunc: func(id int64) (*domain.Post, error) {
+				return nil, fmt.Errorf("database error")
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		_, err := service.SetPinned(1, true)
+
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+
+	t.Run("リポジトリのUpdateでエラー", func(t *testing.T) {
+		existingPost := &domain.Post{
+			ID:       1,
+			Title:    "Test Post",
+			IsPinned: false,
+		}
+
+		mockRepo := &mockPostRepository{
+			findByIDFunc: func(id int64) (*domain.Post, error) {
+				return existingPost, nil
+			},
+			updateFunc: func(post *domain.Post) error {
+				return fmt.Errorf("database error")
+			},
+		}
+
+		service := NewPostService(mockRepo)
+		_, err := service.SetPinned(1, true)
 
 		if err == nil {
 			t.Fatal("expected error, got nil")

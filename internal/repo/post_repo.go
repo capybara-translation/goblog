@@ -47,6 +47,9 @@ type PostRepository interface {
 
 	// CountSearch は検索クエリに一致する記事数を取得します
 	CountSearch(query string, status *domain.PostStatus) (int, error)
+
+	// FindPinnedPublished はピン留めされた公開記事を取得します
+	FindPinnedPublished() ([]*domain.Post, error)
 }
 
 // postRepository はPostRepositoryのSQLite実装です
@@ -117,8 +120,8 @@ func (r *postRepository) FindByID(id int64) (*domain.Post, error) {
 // Create は新しい記事を作成します
 func (r *postRepository) Create(post *domain.Post) error {
 	query := `
-		INSERT INTO posts (title, slug, content, status, tags, created_at, updated_at, published_at)
-		VALUES (:title, :slug, :content, :status, :tags, :created_at, :updated_at, :published_at)
+		INSERT INTO posts (title, slug, content, status, tags, is_pinned, created_at, updated_at, published_at)
+		VALUES (:title, :slug, :content, :status, :tags, :is_pinned, :created_at, :updated_at, :published_at)
 	`
 
 	result, err := r.db.NamedExec(query, post)
@@ -140,7 +143,7 @@ func (r *postRepository) Update(post *domain.Post) error {
 	query := `
 		UPDATE posts
 		SET title = :title, slug = :slug, content = :content, status = :status,
-		    tags = :tags, updated_at = :updated_at, published_at = :published_at
+		    tags = :tags, is_pinned = :is_pinned, updated_at = :updated_at, published_at = :published_at
 		WHERE id = :id
 	`
 
@@ -321,4 +324,16 @@ func (r *postRepository) CountSearch(query string, status *domain.PostStatus) (i
 	}
 
 	return count, nil
+}
+
+// FindPinnedPublished はピン留めされた公開記事を取得します
+func (r *postRepository) FindPinnedPublished() ([]*domain.Post, error) {
+	var posts []*domain.Post
+	query := `SELECT * FROM posts WHERE is_pinned = 1 AND status = 'published' ORDER BY title ASC`
+
+	if err := r.db.Select(&posts, query); err != nil {
+		return nil, fmt.Errorf("failed to query pinned posts: %w", err)
+	}
+
+	return posts, nil
 }

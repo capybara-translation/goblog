@@ -15,11 +15,12 @@ import (
 
 // seedPost はシードデータの記事を表す構造体です
 type seedPost struct {
-	title   string
-	slug    string
-	content string
-	tags    string
-	publish bool
+	title    string
+	slug     string
+	content  string
+	tags     string
+	publish  bool
+	isPinned bool
 }
 
 // getSeedPosts はシードデータの記事一覧を返します
@@ -27,9 +28,34 @@ type seedPost struct {
 func getSeedPosts() []seedPost {
 	return []seedPost{
 		{
-			title:   "Markdownの書き方ガイド",
-			slug:    "markdown-guide",
-			content: `この記事では、Markdownの基本的な書き方を紹介します。
+			title: "このブログについて",
+			slug:  "about",
+			content: `## はじめまして
+
+このブログは、Go言語で構築されたシンプルなブログシステムです。
+
+### 著者について
+
+プログラミングが好きなエンジニアです。主にGo、TypeScript、Pythonを使って開発しています。
+
+### このブログの技術スタック
+
+- **バックエンド**: Go (gorilla/mux, sqlx)
+- **フロントエンド**: HTML/CSS (Tailwind CSS), React (管理画面)
+- **データベース**: SQLite
+
+### お問い合わせ
+
+何かありましたら、お気軽にご連絡ください。`,
+			tags:     "自己紹介",
+			publish:  true,
+			isPinned: true,
+		},
+		{
+			title:    "Markdownの書き方ガイド",
+			slug:     "markdown-guide",
+			isPinned: true,
+			content:  `この記事では、Markdownの基本的な書き方を紹介します。
 
 ## 見出し
 
@@ -442,7 +468,7 @@ func main() {
 	defer database.Close()
 
 	// マイグレーションの実行
-	if err := db.RunMigrations(database, "migrations/001_create_posts.sql", "migrations/002_create_users.sql"); err != nil {
+	if err := db.RunMigrations(database, "migrations/001_create_posts.sql", "migrations/002_create_users.sql", "migrations/003_add_is_pinned.sql"); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
@@ -471,6 +497,7 @@ func main() {
 	seedPosts := getSeedPosts()
 	publishedCount := 0
 	draftCount := 0
+	pinnedCount := 0
 
 	fmt.Printf("Inserting %d posts...\n", len(seedPosts))
 
@@ -495,6 +522,7 @@ func main() {
 			Content:     seed.content,
 			Status:      domain.PostStatusDraft,
 			Tags:        seed.tags,
+			IsPinned:    seed.isPinned,
 			CreatedAt:   createdAt,
 			UpdatedAt:   updatedAt,
 			PublishedAt: publishedAt,
@@ -507,6 +535,9 @@ func main() {
 		} else {
 			draftCount++
 		}
+		if seed.isPinned {
+			pinnedCount++
+		}
 
 		// Repositoryで直接作成
 		if err := postRepo.Create(post); err != nil {
@@ -517,6 +548,7 @@ func main() {
 
 	fmt.Printf("\n公開記事: %d件\n", publishedCount)
 	fmt.Printf("下書き: %d件\n", draftCount)
+	fmt.Printf("ピン留め: %d件\n", pinnedCount)
 	fmt.Printf("合計: %d件\n", publishedCount+draftCount)
 
 	// テストユーザーの作成

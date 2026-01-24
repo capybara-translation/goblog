@@ -28,6 +28,7 @@ export function PostEdit() {
   const [slug, setSlug] = useState('');
   const [content, setContent] = useState('');
   const [tags, setTags] = useState('');
+  const [isPinned, setIsPinned] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -58,6 +59,7 @@ export function PostEdit() {
           slug,
           content,
           tags,
+          is_pinned: isPinned,
         });
         setPost(updated);
         await showAlert('記事を更新しました');
@@ -67,6 +69,7 @@ export function PostEdit() {
           slug,
           content,
           tags,
+          is_pinned: isPinned,
         });
         await showAlert('記事を作成しました');
         navigate(`/posts/${created.id}/edit`);
@@ -76,7 +79,7 @@ export function PostEdit() {
     } finally {
       setIsSaving(false);
     }
-  }, [title, slug, content, tags, isSaving, isEditMode, id, navigate, showAlert]);
+  }, [title, slug, content, tags, isPinned, isSaving, isEditMode, id, navigate, showAlert]);
 
   const loadPost = async (postId: number) => {
     try {
@@ -88,6 +91,7 @@ export function PostEdit() {
       setSlug(data.slug);
       setContent(data.content);
       setTags(data.tags);
+      setIsPinned(data.is_pinned);
     } catch (err) {
       setError(err instanceof Error ? err.message : '記事の取得に失敗しました');
     } finally {
@@ -280,6 +284,24 @@ export function PostEdit() {
             disabled={isSaving}
             placeholder="タグを入力..."
           />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="is_pinned"
+            checked={isPinned}
+            onChange={(e) => setIsPinned(e.target.checked)}
+            disabled={isSaving}
+            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-primary-300 rounded"
+          />
+          <label
+            htmlFor="is_pinned"
+            className="text-sm text-primary-700"
+            title="ピン留めすると記事がヘッダーに表示されます"
+          >
+            ピン留め
+          </label>
         </div>
 
         <div>

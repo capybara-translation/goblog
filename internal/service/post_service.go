@@ -41,10 +41,10 @@ type PostService interface {
 	GetPostByID(id int64) (*domain.Post, error)
 
 	// CreatePost は新しい記事を作成します
-	CreatePost(title, slug, content, tags string) (*domain.Post, error)
+	CreatePost(title, slug, content, tags string, isPinned bool) (*domain.Post, error)
 
 	// UpdatePost は記事を更新します
-	UpdatePost(id int64, title, slug, content, tags string) (*domain.Post, error)
+	UpdatePost(id int64, title, slug, content, tags string, isPinned bool) (*domain.Post, error)
 
 	// PublishPost は記事を公開します
 	PublishPost(id int64) (*domain.Post, error)
@@ -84,6 +84,12 @@ type PostService interface {
 
 	// CountSearchPublishedPosts は公開済み記事の検索結果数を取得します
 	CountSearchPublishedPosts(query string) (int, error)
+
+	// GetPinnedPosts はピン留めされた公開記事を取得します（公開ページ用）
+	GetPinnedPosts() ([]*domain.Post, error)
+
+	// SetPinned は記事のピン留め状態を設定します
+	SetPinned(id int64, pinned bool) (*domain.Post, error)
 }
 
 type postService struct {
@@ -127,7 +133,7 @@ func (s *postService) GetPostByID(id int64) (*domain.Post, error) {
 }
 
 // CreatePost は新しい記事を作成します
-func (s *postService) CreatePost(title, slug, content, tags string) (*domain.Post, error) {
+func (s *postService) CreatePost(title, slug, content, tags string, isPinned bool) (*domain.Post, error) {
 	// スラッグの重複チェック
 	existing, err := s.repo.FindBySlug(slug)
 	if err != nil {
@@ -144,6 +150,7 @@ func (s *postService) CreatePost(title, slug, content, tags string) (*domain.Pos
 		Content:   content,
 		Status:    domain.PostStatusDraft,
 		Tags:      normalizeTags(tags),
+		IsPinned:  isPinned,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
@@ -156,7 +163,7 @@ func (s *postService) CreatePost(title, slug, content, tags string) (*domain.Pos
 }
 
 // UpdatePost は記事を更新します
-func (s *postService) UpdatePost(id int64, title, slug, content, tags string) (*domain.Post, error) {
+func (s *postService) UpdatePost(id int64, title, slug, content, tags string, isPinned bool) (*domain.Post, error) {
 	post, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, err
@@ -180,6 +187,7 @@ func (s *postService) UpdatePost(id int64, title, slug, content, tags string) (*
 	post.Slug = slug
 	post.Content = content
 	post.Tags = normalizeTags(tags)
+	post.IsPinned = isPinned
 	post.UpdatedAt = time.Now()
 
 	if err := s.repo.Update(post); err != nil {
@@ -309,4 +317,29 @@ func (s *postService) CountSearchPublishedPosts(query string) (int, error) {
 		return s.repo.Count(&status)
 	}
 	return s.repo.CountSearch(query, &status)
+}
+
+// GetPinnedPosts はピン留めされた公開記事を取得します（公開ページ用）
+func (s *postService) GetPinnedPosts() ([]*domain.Post, error) {
+	return s.repo.FindPinnedPublished()
+}
+
+// SetPinned は記事のピン留め状態を設定します
+func (s *postService) SetPinned(id int64, pinned bool) (*domain.Post, error) {
+	post, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if post == nil {
+		return nil, fmt.Errorf("post not found: %d", id)
+	}
+
+	post.IsPinned = pinned
+	post.UpdatedAt = time.Now()
+
+	if err := s.repo.Update(post); err != nil {
+		return nil, err
+	}
+
+	return post, nil
 }

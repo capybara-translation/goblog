@@ -33,7 +33,8 @@ type Post struct {
 	Slug        string     `json:"slug" db:"slug"`
 	Content     string     `json:"content" db:"content"`
 	Status      PostStatus `json:"status" db:"status"`
-	Tags        string     `json:"tags" db:"tags"` // カンマ区切りで保存（シンプルのため）
+	Tags        string     `json:"tags" db:"tags"`           // カンマ区切りで保存（シンプルのため）
+	IsPinned    bool       `json:"is_pinned" db:"is_pinned"` // ヘッダーにピン留め表示
 	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at" db:"updated_at"`
 	PublishedAt *time.Time `json:"published_at,omitempty" db:"published_at"` // 公開日時（nilの場合は未公開）

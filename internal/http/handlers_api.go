@@ -38,18 +38,20 @@ func HandleHealth(w http.ResponseWriter, r *http.Request) {
 
 // CreatePostRequest は記事作成リクエストの構造体です
 type CreatePostRequest struct {
-	Title   string `json:"title"`
-	Slug    string `json:"slug"`
-	Content string `json:"content"`
-	Tags    string `json:"tags"`
+	Title    string `json:"title"`
+	Slug     string `json:"slug"`
+	Content  string `json:"content"`
+	Tags     string `json:"tags"`
+	IsPinned bool   `json:"is_pinned"`
 }
 
 // UpdatePostRequest は記事更新リクエストの構造体です
 type UpdatePostRequest struct {
-	Title   string `json:"title"`
-	Slug    string `json:"slug"`
-	Content string `json:"content"`
-	Tags    string `json:"tags"`
+	Title    string `json:"title"`
+	Slug     string `json:"slug"`
+	Content  string `json:"content"`
+	Tags     string `json:"tags"`
+	IsPinned bool   `json:"is_pinned"`
 }
 
 // ErrorResponse はエラーレスポンスの構造体です
@@ -226,7 +228,7 @@ func (h *APIHandlers) HandleCreatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	post, err := h.postService.CreatePost(req.Title, req.Slug, req.Content, req.Tags)
+	post, err := h.postService.CreatePost(req.Title, req.Slug, req.Content, req.Tags, req.IsPinned)
 	if err != nil {
 		log.Printf("failed to create post: %v", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -260,7 +262,7 @@ func (h *APIHandlers) HandleUpdatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	post, err := h.postService.UpdatePost(id, req.Title, req.Slug, req.Content, req.Tags)
+	post, err := h.postService.UpdatePost(id, req.Title, req.Slug, req.Content, req.Tags, req.IsPinned)
 	if err != nil {
 		log.Printf("failed to update post: %v", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -414,4 +416,48 @@ func HandlePreview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, PreviewResponse{HTML: html})
+}
+
+// HandlePinPost は記事をピン留めします
+// POST /api/v1/posts/{id}/pin
+func (h *APIHandlers) HandlePinPost(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid post ID")
+		return
+	}
+
+	post, err := h.postService.SetPinned(id, true)
+	if err != nil {
+		log.Printf("failed to pin post: %v", err)
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, post)
+}
+
+// HandleUnpinPost は記事のピン留めを解除します
+// POST /api/v1/posts/{id}/unpin
+func (h *APIHandlers) HandleUnpinPost(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid post ID")
+		return
+	}
+
+	post, err := h.postService.SetPinned(id, false)
+	if err != nil {
+		log.Printf("failed to unpin post: %v", err)
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, post)
 }

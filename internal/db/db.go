@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
@@ -42,9 +43,22 @@ func RunMigrations(db *sqlx.DB, migrationPaths ...string) error {
 
 		// マイグレーションを実行
 		if _, err := db.Exec(string(content)); err != nil {
+			// SQLiteはALTER TABLE ADD COLUMN IF NOT EXISTSをサポートしていないため、
+			// 重複カラムエラーは無視する（マイグレーションが既に適用済みの場合）
+			if isDuplicateColumnError(err) {
+				continue
+			}
 			return fmt.Errorf("failed to execute migration %s: %w", migrationPath, err)
 		}
 	}
 
 	return nil
+}
+
+// isDuplicateColumnError は重複カラムエラーかどうかを判定します
+func isDuplicateColumnError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "duplicate column name")
 }

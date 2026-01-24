@@ -201,10 +201,21 @@ func NewPublicHandlers(postService service.PostService, blogTitle string, templa
 	}
 }
 
+// getPinnedPosts はピン留めされた公開記事を取得するヘルパーメソッドです
+func (h *PublicHandlers) getPinnedPosts() []*domain.Post {
+	pinnedPosts, err := h.postService.GetPinnedPosts()
+	if err != nil {
+		log.Printf("failed to get pinned posts: %v", err)
+		return []*domain.Post{}
+	}
+	return pinnedPosts
+}
+
 // renderNotFound は404ページをレンダリングします
 func (h *PublicHandlers) renderNotFound(w http.ResponseWriter) {
 	data := map[string]any{
-		"SiteTitle": h.blogTitle,
+		"SiteTitle":   h.blogTitle,
+		"PinnedPosts": h.getPinnedPosts(),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -226,8 +237,9 @@ func (h *PublicHandlers) HandleHome(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]any{
-		"SiteTitle": h.blogTitle,
-		"Posts":     posts,
+		"SiteTitle":   h.blogTitle,
+		"Posts":       posts,
+		"PinnedPosts": h.getPinnedPosts(),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -284,6 +296,7 @@ func (h *PublicHandlers) HandlePosts(w http.ResponseWriter, r *http.Request) {
 		"PrevPage":    page - 1,
 		"NextPage":    page + 1,
 		"Query":       queryStr,
+		"PinnedPosts": h.getPinnedPosts(),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -312,8 +325,9 @@ func (h *PublicHandlers) HandlePostDetail(w http.ResponseWriter, r *http.Request
 	}
 
 	data := map[string]any{
-		"SiteTitle": h.blogTitle,
-		"Post":      post,
+		"SiteTitle":   h.blogTitle,
+		"Post":        post,
+		"PinnedPosts": h.getPinnedPosts(),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -360,8 +374,9 @@ func (h *PublicHandlers) HandleTags(w http.ResponseWriter, r *http.Request) {
 	})
 
 	data := map[string]any{
-		"SiteTitle": h.blogTitle,
-		"Tags":      tags,
+		"SiteTitle":   h.blogTitle,
+		"Tags":        tags,
+		"PinnedPosts": h.getPinnedPosts(),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -424,6 +439,7 @@ func (h *PublicHandlers) HandleTagPosts(w http.ResponseWriter, r *http.Request) 
 		"HasNext":     hasNext,
 		"PrevPage":    page - 1,
 		"NextPage":    page + 1,
+		"PinnedPosts": h.getPinnedPosts(),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

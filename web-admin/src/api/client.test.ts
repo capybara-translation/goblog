@@ -214,6 +214,34 @@ describe('API Client', () => {
         await expect(apiClient.unpublishPost(9999)).rejects.toThrow()
       })
     })
+
+    describe('pinPost', () => {
+      it('should pin a post', async () => {
+        // ID 2 is a draft post that won't be deleted by previous tests
+        const post = await apiClient.pinPost(2)
+
+        expect(post).toHaveProperty('id', 2)
+        expect(post).toHaveProperty('is_pinned', true)
+      })
+
+      it('should throw error for non-existent post', async () => {
+        await expect(apiClient.pinPost(9999)).rejects.toThrow()
+      })
+    })
+
+    describe('unpinPost', () => {
+      it('should unpin a post', async () => {
+        // ID 2 was pinned in the previous test
+        const post = await apiClient.unpinPost(2)
+
+        expect(post).toHaveProperty('id', 2)
+        expect(post).toHaveProperty('is_pinned', false)
+      })
+
+      it('should throw error for non-existent post', async () => {
+        await expect(apiClient.unpinPost(9999)).rejects.toThrow()
+      })
+    })
   })
 
   describe('Tags endpoints', () => {

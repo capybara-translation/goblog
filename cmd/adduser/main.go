@@ -112,7 +112,7 @@ func main() {
 	defer database.Close()
 
 	// マイグレーションの実行
-	if err := db.RunMigrations(database, "migrations/001_create_posts.sql", "migrations/002_create_users.sql"); err != nil {
+	if err := db.RunMigrations(database, "migrations/001_create_posts.sql", "migrations/002_create_users.sql", "migrations/003_add_is_pinned.sql"); err != nil {
 		fmt.Fprintf(os.Stderr, "エラー: マイグレーションに失敗しました: %v\n", err)
 		os.Exit(1)
 	}
