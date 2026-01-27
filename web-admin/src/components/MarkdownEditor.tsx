@@ -7,6 +7,12 @@ const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'
 // 最大ファイルサイズ（5MB）
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
+// カーソル位置マーカーのID（バックエンドと同じ値）
+const CURSOR_LINE_MARKER_ID = 'cursor-line-marker';
+
+// カーソル位置マーカー（ゼロ幅スペース）
+const CURSOR_MARKER = '\u200B';
+
 interface MarkdownEditorProps {
   value: string;
   onChange: (value: string) => void;
@@ -27,6 +33,37 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
   const debounceTimerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textApiRef = useRef<TextAreaTextApi | null>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
+  // カーソル位置を保持（プレビュー用）
+  const cursorPosRef = useRef<number>(0);
+
+  // カーソル位置にマーカーを挿入したコンテンツを生成
+  const getContentWithMarker = useCallback((content: string, cursorPos: number): string => {
+    // 既存のマーカーを除去してから新しい位置に挿入
+    const cleanContent = content.replace(CURSOR_MARKER, '');
+    const pos = Math.min(cursorPos, cleanContent.length);
+    return cleanContent.slice(0, pos) + CURSOR_MARKER + cleanContent.slice(pos);
+  }, []);
+
+  // プレビューを取得
+  const fetchPreview = useCallback(async (content: string, cursorPos: number) => {
+    if (!content.trim()) {
+      setPreviewHtml('');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const contentWithMarker = getContentWithMarker(content, cursorPos);
+      const html = await apiClient.previewMarkdown(contentWithMarker);
+      setPreviewHtml(html);
+    } catch (error) {
+      console.error('Failed to preview markdown:', error);
+      setPreviewHtml('<p class="text-red-500">プレビューの取得に失敗しました</p>');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [getContentWithMarker]);
 
   // デバウンス付きでプレビューを取得
   useEffect(() => {
@@ -39,17 +76,8 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
       return;
     }
 
-    debounceTimerRef.current = window.setTimeout(async () => {
-      setIsLoading(true);
-      try {
-        const html = await apiClient.previewMarkdown(value);
-        setPreviewHtml(html);
-      } catch (error) {
-        console.error('Failed to preview markdown:', error);
-        setPreviewHtml('<p class="text-red-500">プレビューの取得に失敗しました</p>');
-      } finally {
-        setIsLoading(false);
-      }
+    debounceTimerRef.current = window.setTimeout(() => {
+      fetchPreview(value, cursorPosRef.current);
     }, 300); // 300ms のデバウンス
 
     return () => {
@@ -57,7 +85,44 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [value]);
+  }, [value, fetchPreview]);
+
+  // プレビュー更新後にマーカー位置にスクロール
+  useEffect(() => {
+    if (!previewHtml) return;
+
+    const container = previewRef.current;
+    const marker = container?.querySelector(`#${CURSOR_LINE_MARKER_ID}`) as HTMLElement | null;
+    if (container && marker) {
+      // getBoundingClientRectで正確な相対位置を計算
+      const containerRect = container.getBoundingClientRect();
+      const markerRect = marker.getBoundingClientRect();
+      // マーカーのコンテナ内での相対位置（現在のスクロール位置を考慮）
+      const markerRelativeTop = markerRect.top - containerRect.top + container.scrollTop;
+      const containerHeight = container.clientHeight;
+      // マーカーを中央に配置するスクロール位置
+      const scrollTop = markerRelativeTop - containerHeight / 2;
+      container.scrollTo({
+        top: Math.max(0, scrollTop),
+        behavior: 'smooth',
+      });
+    }
+  }, [previewHtml]);
+
+  // カーソル位置変更時にプレビューを再取得
+  const handleCursorChange = useCallback((textarea: HTMLTextAreaElement) => {
+    const newPos = textarea.selectionStart;
+    if (cursorPosRef.current !== newPos) {
+      cursorPosRef.current = newPos;
+      // カーソル移動でもプレビューを更新（デバウンス）
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      debounceTimerRef.current = window.setTimeout(() => {
+        fetchPreview(value, newPos);
+      }, 300);
+    }
+  }, [value, fetchPreview]);
 
   // ファイル選択時の処理
   const handleFileSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -175,7 +240,16 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
 - コードブロック: \`\`\`言語名
 - 引用: > 引用テキスト
 - タスクリスト: - [x] 完了`,
-            onKeyDown: (e) => {
+            onSelect: (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+              handleCursorChange(e.currentTarget);
+            },
+            onKeyUp: (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+              handleCursorChange(e.currentTarget);
+            },
+            onClick: (e: React.MouseEvent<HTMLTextAreaElement>) => {
+              handleCursorChange(e.currentTarget);
+            },
+            onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
               if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
                 e.preventDefault();
                 onSave?.();
@@ -192,6 +266,7 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
           {isLoading && <span className="ml-2 text-primary-400">(読み込み中...)</span>}
         </div>
         <div
+          ref={previewRef}
           className="article-content markdown-content h-[500px] overflow-y-auto border border-primary-200"
           dangerouslySetInnerHTML={{ __html: previewHtml }}
         />

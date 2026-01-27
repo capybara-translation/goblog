@@ -399,6 +399,7 @@ type PreviewResponse struct {
 }
 
 // HandlePreview はMarkdownをHTMLに変換して返します
+// コンテンツ内に @@CURSOR@@ が含まれている場合、スクロール用マーカーに置換されます
 // POST /api/v1/preview
 func HandlePreview(w http.ResponseWriter, r *http.Request) {
 	var req PreviewRequest

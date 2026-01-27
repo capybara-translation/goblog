@@ -224,6 +224,8 @@ class ApiClient {
   }
 
   // Markdown preview endpoint
+  // コンテンツ内にゼロ幅スペース（\u200B）が含まれている場合、
+  // スクロール用マーカー <span id="cursor-line-marker"></span> に置換される
   async previewMarkdown(content: string): Promise<string> {
     const response = await this.request<{ html: string }>('/markdown/preview', {
       method: 'POST',

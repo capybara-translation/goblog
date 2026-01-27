@@ -336,6 +336,10 @@ export const handlers = [
       return HttpResponse.json({ html: '' });
     }
 
+    // ゼロ幅スペース（カーソルマーカー）
+    const CURSOR_MARKER = '\u200B';
+    const CURSOR_MARKER_SPAN = '<span id="cursor-line-marker"></span>';
+
     // 簡易的なMarkdown→HTML変換（テスト用）
     let html = content;
 
@@ -360,6 +364,9 @@ export const handlers = [
       }
       return p;
     }).join('\n');
+
+    // ゼロ幅スペースをマーカースパンに置換（最初の1つだけ）
+    html = html.replace(CURSOR_MARKER, CURSOR_MARKER_SPAN);
 
     return HttpResponse.json({ html });
   }),

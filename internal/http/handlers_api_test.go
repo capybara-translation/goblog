@@ -1717,6 +1717,55 @@ func TestHandlePreview(t *testing.T) {
 		}
 	})
 
+	t.Run("ゼロ幅スペースでマーカーが挿入される", func(t *testing.T) {
+		// ゼロ幅スペース（U+200B）を含むコンテンツ
+		body := `{"content":"# Hello\n\n\u200BParagraph text"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/markdown/preview", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		addAuthAndCSRF(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		var response PreviewResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatalf("failed to parse JSON response: %v", err)
+		}
+
+		// マーカーがspan要素として挿入されていることを確認
+		if !strings.Contains(response.HTML, `<span id="cursor-line-marker"></span>`) {
+			t.Errorf("expected HTML to contain cursor line marker, got %q", response.HTML)
+		}
+	})
+
+	t.Run("ゼロ幅スペースなしの場合マーカーは挿入されない", func(t *testing.T) {
+		body := `{"content":"# Hello\n\nParagraph text"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/markdown/preview", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		addAuthAndCSRF(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+
+		var response PreviewResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatalf("failed to parse JSON response: %v", err)
+		}
+
+		// マーカーが挿入されていないことを確認
+		if strings.Contains(response.HTML, `cursor-line-marker`) {
+			t.Errorf("expected HTML to NOT contain cursor line marker, got %q", response.HTML)
+		}
+	})
+
 	t.Run("未認証でエラー", func(t *testing.T) {
 		body := `{"content":"# Test"}`
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/markdown/preview", strings.NewReader(body))
