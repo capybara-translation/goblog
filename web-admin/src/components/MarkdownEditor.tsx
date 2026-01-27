@@ -7,11 +7,10 @@ const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'
 // 最大ファイルサイズ（5MB）
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
-// カーソル位置マーカーのID（バックエンドと同じ値）
-const CURSOR_LINE_MARKER_ID = 'cursor-line-marker';
-
-// カーソル位置マーカー（ゼロ幅スペース）
-const CURSOR_MARKER = '\u200B';
+// カーソル位置から行番号を取得（0-based）
+function getLineFromCursorPos(content: string, cursorPos: number): number {
+  return content.slice(0, cursorPos).split('\n').length - 1;
+}
 
 interface MarkdownEditorProps {
   value: string;
@@ -34,19 +33,41 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textApiRef = useRef<TextAreaTextApi | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
-  // カーソル位置を保持（プレビュー用）
-  const cursorPosRef = useRef<number>(0);
+  // 現在の行番号を保持（スクロール用）
+  const currentLineRef = useRef<number>(0);
 
-  // カーソル位置にマーカーを挿入したコンテンツを生成
-  const getContentWithMarker = useCallback((content: string, cursorPos: number): string => {
-    // 既存のマーカーを除去してから新しい位置に挿入
-    const cleanContent = content.replace(CURSOR_MARKER, '');
-    const pos = Math.min(cursorPos, cleanContent.length);
-    return cleanContent.slice(0, pos) + CURSOR_MARKER + cleanContent.slice(pos);
+  // data-line属性を使ってプレビューをスクロール
+  const scrollToLine = useCallback((line: number) => {
+    const container = previewRef.current;
+    if (!container) return;
+
+    const elements = container.querySelectorAll('[data-line]');
+    let targetElement: Element | null = null;
+    let minDiff = Infinity;
+
+    // カーソル行以下で最も近い要素を探す
+    elements.forEach((el) => {
+      const elLine = parseInt(el.getAttribute('data-line') || '0', 10);
+      if (elLine <= line) {
+        const diff = line - elLine;
+        if (diff < minDiff) {
+          minDiff = diff;
+          targetElement = el;
+        }
+      }
+    });
+
+    if (targetElement) {
+      // 要素を画面の1/3の位置にスクロール
+      const containerRect = container.getBoundingClientRect();
+      const elementRect = targetElement.getBoundingClientRect();
+      const scrollTop = elementRect.top - containerRect.top + container.scrollTop - container.clientHeight / 3;
+      container.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
+    }
   }, []);
 
-  // プレビューを取得
-  const fetchPreview = useCallback(async (content: string, cursorPos: number) => {
+  // プレビューを取得（マーカー挿入なし）
+  const fetchPreview = useCallback(async (content: string) => {
     if (!content.trim()) {
       setPreviewHtml('');
       return;
@@ -54,8 +75,7 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
 
     setIsLoading(true);
     try {
-      const contentWithMarker = getContentWithMarker(content, cursorPos);
-      const html = await apiClient.previewMarkdown(contentWithMarker);
+      const html = await apiClient.previewMarkdown(content);
       setPreviewHtml(html);
     } catch (error) {
       console.error('Failed to preview markdown:', error);
@@ -63,7 +83,7 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
     } finally {
       setIsLoading(false);
     }
-  }, [getContentWithMarker]);
+  }, []);
 
   // デバウンス付きでプレビューを取得
   useEffect(() => {
@@ -77,7 +97,7 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
     }
 
     debounceTimerRef.current = window.setTimeout(() => {
-      fetchPreview(value, cursorPosRef.current);
+      fetchPreview(value);
     }, 300); // 300ms のデバウンス
 
     return () => {
@@ -87,42 +107,20 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
     };
   }, [value, fetchPreview]);
 
-  // プレビュー更新後にマーカー位置にスクロール
+  // プレビュー更新後に現在行にスクロール
   useEffect(() => {
     if (!previewHtml) return;
+    scrollToLine(currentLineRef.current);
+  }, [previewHtml, scrollToLine]);
 
-    const container = previewRef.current;
-    const marker = container?.querySelector(`#${CURSOR_LINE_MARKER_ID}`) as HTMLElement | null;
-    if (container && marker) {
-      // getBoundingClientRectで正確な相対位置を計算
-      const containerRect = container.getBoundingClientRect();
-      const markerRect = marker.getBoundingClientRect();
-      // マーカーのコンテナ内での相対位置（現在のスクロール位置を考慮）
-      const markerRelativeTop = markerRect.top - containerRect.top + container.scrollTop;
-      const containerHeight = container.clientHeight;
-      // マーカーを中央に配置するスクロール位置
-      const scrollTop = markerRelativeTop - containerHeight / 2;
-      container.scrollTo({
-        top: Math.max(0, scrollTop),
-        behavior: 'smooth',
-      });
-    }
-  }, [previewHtml]);
-
-  // カーソル位置変更時にプレビューを再取得
+  // カーソル移動でスクロール（プレビュー再取得なし）
   const handleCursorChange = useCallback((textarea: HTMLTextAreaElement) => {
-    const newPos = textarea.selectionStart;
-    if (cursorPosRef.current !== newPos) {
-      cursorPosRef.current = newPos;
-      // カーソル移動でもプレビューを更新（デバウンス）
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-      debounceTimerRef.current = window.setTimeout(() => {
-        fetchPreview(value, newPos);
-      }, 300);
+    const line = getLineFromCursorPos(value, textarea.selectionStart);
+    if (currentLineRef.current !== line) {
+      currentLineRef.current = line;
+      scrollToLine(line);
     }
-  }, [value, fetchPreview]);
+  }, [value, scrollToLine]);
 
   // ファイル選択時の処理
   const handleFileSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {

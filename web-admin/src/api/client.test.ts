@@ -265,11 +265,13 @@ describe('API Client', () => {
 
   describe('Markdown preview endpoint', () => {
     describe('previewMarkdown', () => {
-      it('should convert markdown to HTML', async () => {
-        const html = await apiClient.previewMarkdown('# Hello\n\nThis is **bold** text.')
+      it('should convert markdown to HTML with data-line attributes', async () => {
+        const html = await apiClient.previewMarkdown('# Hello\n\nThis is text.')
 
-        expect(html).toContain('<h1>Hello</h1>')
-        expect(html).toContain('<strong>bold</strong>')
+        // data-line属性付きの見出しが含まれる
+        expect(html).toContain('<h1 data-line="0">Hello</h1>')
+        // data-line属性付きの段落が含まれる
+        expect(html).toContain('data-line="2"')
       })
 
       it('should handle empty content', async () => {
@@ -278,19 +280,13 @@ describe('API Client', () => {
         expect(html).toBe('')
       })
 
-      it('should convert code blocks', async () => {
-        const html = await apiClient.previewMarkdown('```go\nfunc main() {}\n```')
-
-        expect(html).toContain('<pre>')
-        expect(html).toContain('<code>')
-      })
-
-      it('should convert headings', async () => {
+      it('should convert headings with data-line attributes', async () => {
         const html = await apiClient.previewMarkdown('# H1\n\n## H2\n\n### H3')
 
-        expect(html).toContain('<h1>H1</h1>')
-        expect(html).toContain('<h2>H2</h2>')
-        expect(html).toContain('<h3>H3</h3>')
+        // data-line属性付きの見出しが含まれる
+        expect(html).toContain('<h1 data-line="0">H1</h1>')
+        expect(html).toContain('<h2 data-line="2">H2</h2>')
+        expect(html).toContain('<h3 data-line="4">H3</h3>')
       })
     })
   })

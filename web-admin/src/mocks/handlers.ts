@@ -336,39 +336,49 @@ export const handlers = [
       return HttpResponse.json({ html: '' });
     }
 
-    // ゼロ幅スペース（カーソルマーカー）
-    const CURSOR_MARKER = '\u200B';
-    const CURSOR_MARKER_SPAN = '<span id="cursor-line-marker"></span>';
-
     // 簡易的なMarkdown→HTML変換（テスト用）
-    let html = content;
+    // 行番号を計算してdata-line属性を付与
+    const lines = content.split('\n');
+    const htmlParts: string[] = [];
+    let lineNum = 0;
 
-    // 見出し
-    html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-    html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
-    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i] ?? '';
 
-    // 太字
-    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-
-    // 斜体
-    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-
-    // コードブロック
-    html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
-
-    // 段落
-    html = html.split('\n\n').map(p => {
-      if (!p.startsWith('<')) {
-        return `<p>${p}</p>`;
+      // 見出し
+      const h1Match = line.match(/^# (.+)$/);
+      if (h1Match) {
+        htmlParts.push(`<h1 data-line="${lineNum}">${h1Match[1]}</h1>`);
+        lineNum++;
+        continue;
       }
-      return p;
-    }).join('\n');
 
-    // ゼロ幅スペースをマーカースパンに置換（最初の1つだけ）
-    html = html.replace(CURSOR_MARKER, CURSOR_MARKER_SPAN);
+      const h2Match = line.match(/^## (.+)$/);
+      if (h2Match) {
+        htmlParts.push(`<h2 data-line="${lineNum}">${h2Match[1]}</h2>`);
+        lineNum++;
+        continue;
+      }
 
-    return HttpResponse.json({ html });
+      const h3Match = line.match(/^### (.+)$/);
+      if (h3Match) {
+        htmlParts.push(`<h3 data-line="${lineNum}">${h3Match[1]}</h3>`);
+        lineNum++;
+        continue;
+      }
+
+      // 空行は段落区切り
+      if (line.trim() === '') {
+        lineNum++;
+        continue;
+      }
+
+      // それ以外は段落
+      htmlParts.push(`<p data-line="${lineNum}">${line}</p>`);
+      lineNum++;
+    }
+
+    return HttpResponse.json({ html: htmlParts.join('') });
   }),
 
   // Image upload endpoint

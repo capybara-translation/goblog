@@ -1717,32 +1717,7 @@ func TestHandlePreview(t *testing.T) {
 		}
 	})
 
-	t.Run("ゼロ幅スペースでマーカーが挿入される", func(t *testing.T) {
-		// ゼロ幅スペース（U+200B）を含むコンテンツ
-		body := `{"content":"# Hello\n\n\u200BParagraph text"}`
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/markdown/preview", strings.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		addAuthAndCSRF(req)
-		w := httptest.NewRecorder()
-
-		router.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
-		}
-
-		var response PreviewResponse
-		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-			t.Fatalf("failed to parse JSON response: %v", err)
-		}
-
-		// マーカーがspan要素として挿入されていることを確認
-		if !strings.Contains(response.HTML, `<span id="cursor-line-marker"></span>`) {
-			t.Errorf("expected HTML to contain cursor line marker, got %q", response.HTML)
-		}
-	})
-
-	t.Run("ゼロ幅スペースなしの場合マーカーは挿入されない", func(t *testing.T) {
+	t.Run("data-line属性が付与される", func(t *testing.T) {
 		body := `{"content":"# Hello\n\nParagraph text"}`
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/markdown/preview", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -1760,9 +1735,17 @@ func TestHandlePreview(t *testing.T) {
 			t.Fatalf("failed to parse JSON response: %v", err)
 		}
 
-		// マーカーが挿入されていないことを確認
-		if strings.Contains(response.HTML, `cursor-line-marker`) {
-			t.Errorf("expected HTML to NOT contain cursor line marker, got %q", response.HTML)
+		// data-line属性が付与されていることを確認
+		if !strings.Contains(response.HTML, `data-line="`) {
+			t.Errorf("expected HTML to contain data-line attribute, got %q", response.HTML)
+		}
+		// 見出しにdata-line="0"が付与されていることを確認
+		if !strings.Contains(response.HTML, `<h1`) || !strings.Contains(response.HTML, `data-line="0"`) {
+			t.Errorf("expected HTML to contain h1 with data-line=\"0\", got %q", response.HTML)
+		}
+		// 段落にdata-line="2"が付与されていることを確認
+		if !strings.Contains(response.HTML, `<p `) || !strings.Contains(response.HTML, `data-line="2"`) {
+			t.Errorf("expected HTML to contain p with data-line=\"2\", got %q", response.HTML)
 		}
 	})
 

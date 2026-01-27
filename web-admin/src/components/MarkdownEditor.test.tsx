@@ -446,9 +446,17 @@ describe('MarkdownEditor', () => {
     });
   });
 
-  describe('カーソルマーカー機能', () => {
-    it('プレビューAPIにカーソルマーカーが含まれる', async () => {
-      mockPreviewMarkdown.mockResolvedValue('<p>Test</p>');
+  describe('data-lineスクロール機能', () => {
+    let scrollToMock: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      // scrollTo をモック
+      scrollToMock = vi.fn();
+      Element.prototype.scrollTo = scrollToMock;
+    });
+
+    it('プレビューAPIにコンテンツがそのまま送信される（マーカーなし）', async () => {
+      mockPreviewMarkdown.mockResolvedValue('<p data-line="0">Test</p>');
 
       render(<MarkdownEditor value="Test content" onChange={() => {}} />);
 
@@ -457,83 +465,53 @@ describe('MarkdownEditor', () => {
       // API呼び出しの引数を確認
       expect(mockPreviewMarkdown).toHaveBeenCalledTimes(1);
       const calledWith = mockPreviewMarkdown.mock.calls[0]?.[0] as string | undefined;
-      // ゼロ幅スペース（U+200B）がマーカーとして含まれるべき
-      expect(calledWith).toContain('\u200B');
+      // コンテンツがそのまま送信される（マーカーなし）
+      expect(calledWith).toBe('Test content');
     });
 
-    it('カーソル位置にマーカーが挿入される', async () => {
-      mockPreviewMarkdown.mockResolvedValue('<p>Test</p>');
+    it('プレビュー更新後にdata-line要素にスクロールされる', async () => {
+      const htmlWithDataLine = '<h1 data-line="0">Title</h1><p data-line="2">Content</p>';
+      mockPreviewMarkdown.mockResolvedValue(htmlWithDataLine);
 
-      render(<MarkdownEditor value="Hello World" onChange={() => {}} />);
-
-      // 初回のデバウンスを待つ
-      await advanceTimersAndFlush(300);
-
-      // カーソル位置0（デフォルト）でマーカーが先頭に挿入される
-      const calledWith = mockPreviewMarkdown.mock.calls[0]?.[0] as string | undefined;
-      expect(calledWith?.indexOf('\u200B')).toBe(0);
-    });
-
-    it('カーソル位置変更でプレビューが再取得される', async () => {
-      mockPreviewMarkdown.mockResolvedValue('<p>Test</p>');
-
-      render(<MarkdownEditor value="Hello World" onChange={() => {}} />);
-
-      // 初回のデバウンスを待つ
-      await advanceTimersAndFlush(300);
-      expect(mockPreviewMarkdown).toHaveBeenCalledTimes(1);
-
-      // カーソル位置変更をシミュレート
-      const textarea = document.querySelector('textarea');
-      expect(textarea).toBeInTheDocument();
-      if (!textarea) return;
-
-      // selectionStartを設定してonSelectイベントを発火
-      Object.defineProperty(textarea, 'selectionStart', { value: 5, configurable: true });
-      fireEvent.select(textarea);
-
-      // デバウンスを待つ
-      await advanceTimersAndFlush(300);
-
-      // プレビューが再取得される
-      expect(mockPreviewMarkdown).toHaveBeenCalledTimes(2);
-    });
-
-    it('プレビュー更新後にマーカー位置にスクロールされる', async () => {
-      const markerHtml = '<p>Line 1</p><span id="cursor-line-marker"></span><p>Line 2</p>';
-      mockPreviewMarkdown.mockResolvedValue(markerHtml);
-
-      // scrollTo をモック
-      const scrollToMock = vi.fn();
-      Element.prototype.scrollTo = scrollToMock;
-
-      render(<MarkdownEditor value="Test" onChange={() => {}} />);
+      render(<MarkdownEditor value="# Title\n\nContent" onChange={() => {}} />);
 
       await advanceTimersAndFlush(300);
 
-      // プレビューエリアにマーカーが含まれることを確認
+      // プレビューエリアにdata-line属性が含まれることを確認
       const previewArea = document.querySelector('.article-content');
-      expect(previewArea?.innerHTML).toContain('cursor-line-marker');
+      expect(previewArea?.innerHTML).toContain('data-line=');
 
       // scrollToが呼ばれることを確認
       expect(scrollToMock).toHaveBeenCalled();
     });
 
-    it('既存のマーカーが除去されてから新しいマーカーが挿入される', async () => {
-      mockPreviewMarkdown.mockResolvedValue('<p>Test</p>');
+    it('コンテンツ変更時のみプレビューが再取得される（カーソル移動では再取得しない）', async () => {
+      const htmlWithDataLine = '<h1 data-line="0">Title</h1><p data-line="2">Content</p>';
+      mockPreviewMarkdown.mockResolvedValue(htmlWithDataLine);
 
-      // すでにマーカーを含むコンテンツ
-      const valueWithMarker = 'Hello\u200BWorld';
-      render(<MarkdownEditor value={valueWithMarker} onChange={() => {}} />);
+      const { rerender } = render(<MarkdownEditor value="# Title\n\nContent" onChange={() => {}} />);
 
+      // 初回のデバウンスを待つ
+      await advanceTimersAndFlush(300);
+      expect(mockPreviewMarkdown).toHaveBeenCalledTimes(1);
+
+      // カーソル移動をシミュレート（同じコンテンツで再レンダリング）
+      rerender(<MarkdownEditor value="# Title\n\nContent" onChange={() => {}} />);
+
+      // 追加のデバウンスを待つ
       await advanceTimersAndFlush(300);
 
-      // API呼び出しの引数を確認
-      const calledWith = mockPreviewMarkdown.mock.calls[0]?.[0] as string | undefined;
-      expect(calledWith).toBeDefined();
-      // マーカーは1つだけ含まれるべき
-      const markerCount = (calledWith?.match(/\u200B/g) || []).length;
-      expect(markerCount).toBe(1);
+      // コンテンツが変わっていないので、プレビューは再取得されない
+      expect(mockPreviewMarkdown).toHaveBeenCalledTimes(1);
+
+      // コンテンツを変更
+      rerender(<MarkdownEditor value="# Title\n\nNew Content" onChange={() => {}} />);
+
+      // デバウンスを待つ
+      await advanceTimersAndFlush(300);
+
+      // コンテンツが変わったので、プレビューが再取得される
+      expect(mockPreviewMarkdown).toHaveBeenCalledTimes(2);
     });
   });
 
