@@ -121,12 +121,15 @@ make build             # bin/goblog, bin/seed を生成
 - `PASSWORD_POLICY`: NONE（開発）/STRONG（本番、15文字以上+大小英数記号）
 - `DATABASE_PATH`: SQLiteファイルパス（デフォルト: data/goblog.db）
 - `BLOG_TITLE`: ブログタイトル
+- `BASE_URL`: サイトのベースURL（例: https://example.com）
+  - sitemap.xml生成に使用される
+  - デフォルト: `http://localhost:{PORT}`
 - `TZ`: タイムゾーン（例: Asia/Tokyo, UTC, America/New_York）
   - 日付表示に使用される
   - ISO 8601形式（YYYY-MM-DD）+ タイムゾーン略称で表示（例: `2024-12-26 (JST)`）
   - デフォルト: システムのタイムゾーン
 
-**重要**: 本番環境では`SECURE_COOKIE=true`と`PASSWORD_POLICY=STRONG`を必ず設定すること。
+**重要**: 本番環境では`SECURE_COOKIE=true`と`PASSWORD_POLICY=STRONG`と`BASE_URL`を必ず設定すること。
 
 ## テスト戦略
 
@@ -190,6 +193,7 @@ func (m *mockPostRepository) FindAll(status *domain.PostStatus, limit, offset in
 
 ### 公開ページ（SSR）
 - `GET /` - トップページ
+- `GET /sitemap.xml` - サイトマップ（XML形式）
 - `GET /posts` - 記事一覧
 - `GET /posts/{slug}` - 記事詳細
 - `GET /tags` - タグ一覧

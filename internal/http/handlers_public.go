@@ -25,6 +25,7 @@ import (
 type PublicHandlers struct {
 	postService      service.PostService
 	blogTitle        string // ブログのタイトル
+	baseURL          string // サイトのベースURL（sitemap用）
 	homeTemplate     *template.Template
 	postsTemplate    *template.Template
 	postTemplate     *template.Template
@@ -166,7 +167,7 @@ func highlightQuery(text string, query string) template.HTML {
 }
 
 // NewPublicHandlers はテンプレートパスを指定してPublicHandlersを作成します
-func NewPublicHandlers(postService service.PostService, blogTitle string, templatePattern string) *PublicHandlers {
+func NewPublicHandlers(postService service.PostService, blogTitle, baseURL, templatePattern string) *PublicHandlers {
 	dir := filepath.Dir(templatePattern)
 	layoutPath := filepath.Join(dir, "layout.html")
 
@@ -192,6 +193,7 @@ func NewPublicHandlers(postService service.PostService, blogTitle string, templa
 	return &PublicHandlers{
 		postService:      postService,
 		blogTitle:        blogTitle,
+		baseURL:          baseURL,
 		homeTemplate:     homeTemplate,
 		postsTemplate:    postsTemplate,
 		postTemplate:     postTemplate,

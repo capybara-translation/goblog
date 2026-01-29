@@ -30,6 +30,7 @@ type Config struct {
 
 	// Site settings
 	BlogTitle string // ブログのタイトル
+	BaseURL   string // サイトのベースURL（例: https://example.com）
 
 	// Upload settings
 	UploadDir     string // アップロードファイルの保存先ディレクトリ
@@ -41,12 +42,21 @@ const DefaultMaxUploadSize int64 = 5 * 1024 * 1024
 
 // Load は環境変数から設定を読み込みます
 func Load() *Config {
+	port := getEnv("PORT", "8080")
+	baseURL := getEnv("BASE_URL", "")
+	if baseURL == "" {
+		baseURL = "http://localhost:" + port
+	}
+	// 末尾スラッシュを除去
+	baseURL = strings.TrimSuffix(baseURL, "/")
+
 	return &Config{
-		Port:           getEnv("PORT", "8080"),
+		Port:           port,
 		SecureCookie:   getEnvAsBool("SECURE_COOKIE", false), // デフォルト: false（開発環境用）
 		PasswordPolicy: getPasswordPolicy("PASSWORD_POLICY", PasswordPolicyNone),
 		DatabasePath:   getEnv("DATABASE_PATH", "data/goblog.db"),
 		BlogTitle:      getEnv("BLOG_TITLE", "goblog"),
+		BaseURL:        baseURL,
 		UploadDir:      getEnv("UPLOAD_DIR", "data/uploads"),
 		MaxUploadSize:  getEnvAsInt64("MAX_UPLOAD_SIZE", DefaultMaxUploadSize),
 	}

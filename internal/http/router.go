@@ -8,16 +8,16 @@ import (
 )
 
 // NewRouter はアプリケーション全体のルーターを作成します
-func NewRouter(postService service.PostService, authService service.AuthService, secureCookie bool, blogTitle string, uploadDir string, maxUploadSize int64) *mux.Router {
-	return NewRouterWithTemplates(postService, authService, secureCookie, blogTitle, "internal/view/templates/*.html", uploadDir, maxUploadSize)
+func NewRouter(postService service.PostService, authService service.AuthService, secureCookie bool, blogTitle, baseURL, uploadDir string, maxUploadSize int64) *mux.Router {
+	return NewRouterWithTemplates(postService, authService, secureCookie, blogTitle, baseURL, "internal/view/templates/*.html", uploadDir, maxUploadSize)
 }
 
 // NewRouterWithTemplates はテンプレートパスを指定してルーターを作成します（テスト用）
-func NewRouterWithTemplates(postService service.PostService, authService service.AuthService, secureCookie bool, blogTitle string, templatePattern string, uploadDir string, maxUploadSize int64) *mux.Router {
+func NewRouterWithTemplates(postService service.PostService, authService service.AuthService, secureCookie bool, blogTitle, baseURL, templatePattern string, uploadDir string, maxUploadSize int64) *mux.Router {
 	r := mux.NewRouter()
 
 	// 公開ページのハンドラーを初期化
-	publicHandlers := NewPublicHandlers(postService, blogTitle, templatePattern)
+	publicHandlers := NewPublicHandlers(postService, blogTitle, baseURL, templatePattern)
 
 	// 存在しないルートへのアクセス時にカスタム404ページを表示
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -43,6 +43,7 @@ func NewRouterWithTemplates(postService service.PostService, authService service
 
 	// 公開ページ（SSR）
 	r.HandleFunc("/", publicHandlers.HandleHome).Methods("GET")
+	r.HandleFunc("/sitemap.xml", publicHandlers.HandleSitemap).Methods("GET")
 	r.HandleFunc("/posts/{slug}", publicHandlers.HandlePostDetail).Methods("GET")
 	r.HandleFunc("/posts", publicHandlers.HandlePosts).Methods("GET")
 	r.HandleFunc("/tags", publicHandlers.HandleTags).Methods("GET")

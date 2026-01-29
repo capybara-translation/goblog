@@ -56,7 +56,7 @@ func main() {
 	}
 
 	// ルーターの初期化
-	r := gobloghttp.NewRouter(postService, authService, cfg.SecureCookie, cfg.BlogTitle, cfg.UploadDir, cfg.MaxUploadSize)
+	r := gobloghttp.NewRouter(postService, authService, cfg.SecureCookie, cfg.BlogTitle, cfg.BaseURL, cfg.UploadDir, cfg.MaxUploadSize)
 
 	// サーバー起動
 	port := ":" + cfg.Port
