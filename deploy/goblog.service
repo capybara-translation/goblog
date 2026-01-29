@@ -1,0 +1,41 @@
+[Unit]
+Description=goblog - Simple blog system written in Go
+After=network.target
+
+[Service]
+Type=simple
+User=goblog
+Group=goblog
+WorkingDirectory=/opt/goblog
+
+# Environment variables
+Environment="PORT=8080"
+Environment="SECURE_COOKIE=true"
+Environment="PASSWORD_POLICY=STRONG"
+Environment="DATABASE_PATH=/var/lib/goblog/goblog.db"
+Environment="BLOG_TITLE=My Blog"
+Environment="BASE_URL=https://example.com"
+Environment="UPLOAD_DIR=/var/lib/goblog/uploads"
+Environment="MAX_UPLOAD_SIZE=10485760"
+
+# Alternatively, use an environment file
+# EnvironmentFile=/etc/goblog/goblog.env
+
+ExecStart=/opt/goblog/bin/goblog
+Restart=always
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/goblog
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=goblog
+
+[Install]
+WantedBy=multi-user.target

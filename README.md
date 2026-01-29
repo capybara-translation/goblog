@@ -99,6 +99,9 @@ go run cmd/goblog/main.go
 | `PASSWORD_POLICY` | パスワードポリシー（`NONE` または `STRONG`） | `NONE` |
 | `DATABASE_PATH` | データベースファイルのパス | `data/goblog.db` |
 | `BLOG_TITLE` | ブログのタイトル（ヘッダーやページタイトルに表示） | `goblog` |
+| `BASE_URL` | サイトのベースURL（サイトマップ等で使用） | `http://localhost:{PORT}` |
+| `UPLOAD_DIR` | アップロードファイルの保存先ディレクトリ | `data/uploads` |
+| `MAX_UPLOAD_SIZE` | アップロードファイルの最大サイズ（バイト） | `5242880`（5MB） |
 | `TZ` | タイムゾーン（例: `Asia/Tokyo`, `UTC`, `America/New_York`）<br>日付表示に使用される | システムのタイムゾーン |
 
 **パスワードポリシーについて:**
@@ -146,6 +149,167 @@ make test-v
 make test-cover
 ```
 
+## 本番環境へのデプロイ
+
+本番環境ではsystemdでサービスを管理し、nginxでリバースプロキシを構成します。
+
+### 1. サーバーの準備
+
+```bash
+# 必要なパッケージをインストール
+sudo apt update
+sudo apt install -y nginx certbot python3-certbot-nginx
+
+# タイムゾーンを設定（日本の場合）
+sudo timedatectl set-timezone Asia/Tokyo
+
+# 設定を確認
+timedatectl
+
+# goblog用のユーザーとディレクトリを作成
+sudo useradd -r -s /bin/false goblog
+sudo mkdir -p /opt/goblog/bin
+sudo mkdir -p /var/lib/goblog/uploads
+sudo chown -R goblog:goblog /var/lib/goblog
+```
+
+**利用可能なタイムゾーン一覧を確認:**
+```bash
+timedatectl list-timezones | grep -i tokyo
+```
+
+### 2. バイナリのビルドとデプロイ
+
+```bash
+# ローカルでビルド（Linux向けクロスコンパイル）
+GOOS=linux GOARCH=amd64 go build -o bin/goblog cmd/goblog/main.go
+
+# サーバーに転送
+scp bin/goblog user@your-server:/opt/goblog/bin/
+
+# 実行権限を付与
+ssh user@your-server "sudo chmod +x /opt/goblog/bin/goblog"
+```
+
+### 3. systemdサービスの設定
+
+```bash
+# サービスファイルをコピー
+sudo cp deploy/goblog.service /etc/systemd/system/
+
+# 環境変数を編集（ドメイン名やタイトルを変更）
+sudo nano /etc/systemd/system/goblog.service
+
+# サービスを有効化して起動
+sudo systemctl daemon-reload
+sudo systemctl enable goblog
+sudo systemctl start goblog
+
+# ステータス確認
+sudo systemctl status goblog
+
+# ログ確認
+sudo journalctl -u goblog -f
+```
+
+**重要な環境変数:**
+
+| 環境変数 | 本番環境での設定例 |
+|---------|-------------------|
+| `SECURE_COOKIE` | `true`（必須） |
+| `PASSWORD_POLICY` | `STRONG`（推奨） |
+| `BASE_URL` | `https://your-domain.com` |
+| `DATABASE_PATH` | `/var/lib/goblog/goblog.db` |
+| `UPLOAD_DIR` | `/var/lib/goblog/uploads` |
+| `BLOG_TITLE` | 任意のブログタイトル |
+
+### 4. nginxの設定
+
+```bash
+# 設定ファイルをコピーしてドメイン名を変更
+sudo cp deploy/nginx.conf /etc/nginx/sites-available/goblog
+sudo nano /etc/nginx/sites-available/goblog  # example.com を実際のドメインに変更
+
+# サイトを有効化
+sudo ln -s /etc/nginx/sites-available/goblog /etc/nginx/sites-enabled/
+
+# デフォルトサイトを無効化（任意）
+sudo rm /etc/nginx/sites-enabled/default
+
+# 設定をテスト
+sudo nginx -t
+
+# nginxを再起動
+sudo systemctl reload nginx
+```
+
+### 5. SSL証明書の取得（Let's Encrypt）
+
+```bash
+# certbotでSSL証明書を取得
+sudo certbot --nginx -d your-domain.com -d www.your-domain.com
+
+# 自動更新の確認
+sudo certbot renew --dry-run
+```
+
+### 6. 管理者ユーザーの作成
+
+```bash
+# adduserコマンドをビルドしてサーバーに転送
+GOOS=linux GOARCH=amd64 go build -o bin/adduser cmd/adduser/main.go
+scp bin/adduser user@your-server:/opt/goblog/bin/
+
+# サーバーでユーザーを作成
+ssh user@your-server
+cd /opt/goblog
+sudo -u goblog PASSWORD_POLICY=STRONG DATABASE_PATH=/var/lib/goblog/goblog.db ./bin/adduser
+```
+
+### 7. 動作確認
+
+```bash
+# ヘルスチェック
+curl https://your-domain.com/api/v1/health
+
+# サイトマップ確認
+curl https://your-domain.com/sitemap.xml
+```
+
+### トラブルシューティング
+
+```bash
+# goblogのログを確認
+sudo journalctl -u goblog -n 100
+
+# goblogのログをリアルタイムで確認
+sudo journalctl -u goblog -f
+
+# nginxのエラーログを確認
+sudo tail -f /var/log/nginx/goblog_error.log
+```
+
+### サービスの再起動
+
+| 変更内容 | 必要なコマンド |
+|---------|---------------|
+| Unitファイル変更 | `sudo systemctl daemon-reload && sudo systemctl restart goblog` |
+| バイナリ更新 | `sudo systemctl restart goblog` |
+| 環境変数変更（Unit内） | `sudo systemctl daemon-reload && sudo systemctl restart goblog` |
+| nginx設定変更 | `sudo nginx -t && sudo systemctl reload nginx` |
+
+```bash
+# Unitファイルまたは環境変数を変更した場合
+sudo systemctl daemon-reload
+sudo systemctl restart goblog
+
+# バイナリのみ更新した場合
+sudo systemctl restart goblog
+
+# nginx設定を変更した場合（設定テスト後にリロード）
+sudo nginx -t && sudo systemctl reload nginx
+```
+
 ## 利用可能なMakeコマンド
 
 開発でよく使うコマンドをMakefileにまとめています：
@@ -159,176 +323,119 @@ make stop        # 起動中のサーバーを停止
 make test        # テストを実行
 make test-v      # テストを詳細出力で実行
 make test-cover  # テストカバレッジを表示
-make clean       # データベースとフロントエンドビルド成果物を削除
+make clean       # データベースと管理者用SPAビルド成果物を削除
 make seed        # テストデータを投入
-make reset       # データベースをリセットしてテストデータ投入
-make build       # フロントエンドとバックエンドをビルド
+make reset       # データベースをリセットしてテストデータ投入（管理者用SPAも再ビルド）
+make build       # 管理者用SPAとバックエンドをビルド
 make install     # バイナリをインストール
 make deps        # 依存関係をダウンロード
 ```
 
-### 管理画面（React SPA）関連コマンド 🚧
+### 管理者用SPA（React）関連コマンド
 
 ```bash
-make install-admin  # 管理画面のnpm依存関係をインストール
-make build-admin    # 管理画面をビルド
-make dev-admin      # 管理画面の開発サーバーを起動
-make clean-admin    # 管理画面のビルド成果物を削除
+make install-admin  # 管理者用SPAのnpm依存関係をインストール
+make build-admin    # 管理者用SPAをビルド
+make dev-admin      # 管理者用SPAの開発サーバーを起動
+make clean-admin    # 管理者用SPAのビルド成果物を削除
 ```
 
-**注意:** 管理画面は現在開発中です。
 
 ## ディレクトリ構成
 
 ```
 /cmd/
+  /adduser/main.go     # 管理者ユーザー追加コマンド
   /goblog/main.go      # アプリケーション本体
   /seed/main.go        # テストデータ投入コマンド
 
+/deploy/               # デプロイ設定
+  goblog.service       # systemd Unitファイル
+  nginx.conf           # nginx設定ファイル
+
 /internal/
+  /auth/               # 認証ユーティリティ
+    session.go         # セッション管理
+  /config/             # 設定管理
+    config.go          # 環境変数からの設定読み込み
+  /db/                 # データベース
+    db.go              # DB接続・マイグレーション
+  /domain/             # ドメインモデル
+    post.go            # 記事モデル
+    user.go            # ユーザーモデル
   /http/               # HTTPレイヤー
     router.go          # ルーティング設定
     middleware.go      # 認証・CSRFミドルウェア
-    handlers_public.go # 公開ページハンドラー
+    handlers_admin.go  # 管理者用SPA配信
     handlers_api.go    # API ハンドラー
     handlers_auth.go   # 認証ハンドラー
-    static.go          # SPA 配信（計画中）
-  /domain/             # ドメインモデル
-    post.go
-    user.go
+    handlers_image.go  # 画像アップロードハンドラー
+    handlers_public.go # 公開ページハンドラー
+    handlers_sitemap.go # サイトマップハンドラー
+  /markdown/           # Markdown処理
+    markdown.go        # Markdown→HTML変換
+    dataline_extension.go # 行番号付与拡張
   /repo/               # データアクセス層
-    post_repo.go
-    user_repo.go
+    post_repo.go       # 記事リポジトリ
+    user_repo.go       # ユーザーリポジトリ
   /service/            # ビジネスロジック層
-    post_service.go
-    user_service.go
-  /auth/               # 認証ユーティリティ
-    session.go
-  /config/             # 設定管理
-    config.go
+    auth_service.go    # 認証サービス
+    post_service.go    # 記事サービス
   /view/               # ビュー関連
-    templates/         # HTMLテンプレート（SSR）
-      layout.html
-      home.html
-      posts.html
-      post.html
-      tags.html
-      tag_posts.html
+    /static/           # 静的ファイル
+      markdown.css     # Markdownスタイル
+    /templates/        # HTMLテンプレート
+      layout.html      # 共通レイアウト
+      home.html        # トップページ
+      posts.html       # 記事一覧
+      post.html        # 記事詳細
+      tags.html        # タグ一覧
+      tag_posts.html   # タグ別記事一覧
+      notfound.html    # 404ページ
 
 /migrations/           # SQLマイグレーション
-  001_init.sql
-  002_add_tags.sql
+  001_create_posts.sql # 記事テーブル
+  002_create_users.sql # ユーザーテーブル
+  003_add_is_pinned.sql # ピン留め機能
 
-/web-admin/            # React SPA 管理画面（計画中、未実装）
-  src/...
+/web-admin/            # 管理者用SPA（React）
+  /src/
+    /api/              # APIクライアント
+    /components/       # 共通コンポーネント
+    /hooks/            # カスタムフック
+    /pages/            # ページコンポーネント
+    /mocks/            # テスト用モック（MSW）
+    /utils/            # ユーティリティ
+    App.tsx            # ルートコンポーネント
+    main.tsx           # エントリポイント
 ```
 
-## 基本的な開発方針
+## URL設計
 
-- これは自分のGo言語勉強用プロジェクトなので、あまり凝った構成にはしない。
-- ただしある程度のベストプラクティスには従って開発したい。例えば：
-    - handlerは極力薄く、DB直叩きしない。
-    - serviceに業務ロジックを寄せる。
-    - インターフェースをうまく活用して疎結合にしテストしやすくする。
-- Beyond the Twelve-Factor App (https://raw.githubusercontent.com/ffisk/books/master/beyond-the-twelve-factor-app.pdf) に従った開発 
-- 当然最終的には公開するつもりなのでセキュリティにも気をつけたい。
-- 公開ページはSSR（通常のページ遷移型のWebアプリケーション）として作成し、管理画面はVite + React + React RouterのSPAとする。
-    - `/inernal/`: 公開ページのソースコード 
-    - `/web-admin/`: 管理画面SPAのソースコード
-- 公開ページはHTML（html/template）
-- APIは必ずJSON（エラーもJSON）
-- DBはSQLiteを使う。
-- 認証はusername + passwordのシンプルな自前実装。CognitoやAuth0などの外部サービスは使わない。Cookieセッションで管理画面だけ守る。
-- CSSフレームワークはTailwindを使う（これも勉強目的）。
-- ホスト先はAWSのLightsailの予定。
-
-### セキュリティ機能
-
-このプロジェクトでは以下のセキュリティ対策を実装しています：
-
-#### 1. パスワード管理 ✅ 実装済み
-
-- **ハッシュ化**: bcryptによる安全なパスワードハッシュ化（平文保存なし）
-- **パスワードポリシー**: 環境変数 `PASSWORD_POLICY` で制御
-  - `NONE`: 制限なし（開発/テスト環境向け）
-  - `STRONG`: 厳格なポリシー（本番環境推奨）
-    - 最小15文字
-    - 大文字・小文字・数字・記号をそれぞれ1文字以上含む
-
-#### 2. セッション管理 ✅ 実装済み
-
-- **HttpOnly Cookie**: JavaScriptからアクセス不可
-- **Secure Cookie**: 本番環境では `SECURE_COOKIE=true` で有効化（HTTPS接続でのみ送信）
-- **SameSite=Lax**: CSRF攻撃の基本的な防御
-- **セッション有効期限**: 24時間
-- **ランダムセッションID**: 暗号学的に安全な乱数生成
-
-#### 3. CSRF対策 ✅ 実装済み
-
-- **Double Submit Cookie方式**: SPAと相性の良い実装
-- **対象メソッド**: POST、PUT、DELETE、PATCH（GETは除外）
-- **仕組み**:
-  - ログイン時にCSRFトークンをCookieに設定
-  - クライアントはリクエストヘッダー `X-CSRF-Token` にトークンを含める
-  - サーバーはCookieとヘッダーのトークンを照合
-
-#### 4. ブルートフォース対策 ✅ 実装済み
-
-- **IPアドレス別の失敗追跡**: 各IPアドレスごとに独立してログイン失敗回数を記録
-- **段階的な遅延**:
-  - 3回失敗後: 2秒の遅延
-  - 5回失敗後: 5秒の遅延
-  - 10回以上失敗: 30秒の遅延
-- **自動リセット**: ログイン成功時にカウンターをリセット
-- **自動クリーンアップ**: 30分以上前の失敗記録を定期的に削除（10分ごと）
-- **プロキシ対応**: `X-Forwarded-For` および `X-Real-IP` ヘッダーに対応
-
-#### 5. 認証ミドルウェア ✅ 実装済み
-
-- すべての管理画面API（記事作成・編集・削除など）は認証を必須化
-- 未認証の場合は 401 Unauthorized を返却
-- セッションの検証とユーザー情報の取得を自動実行
-
-**セキュリティのベストプラクティス:**
-- 本番環境では必ず `SECURE_COOKIE=true` と `PASSWORD_POLICY=STRONG` を設定してください
-- HTTPS環境で運用することを強く推奨します
-- 管理画面へのアクセスをBasic認証で二重保護することも検討してください（Nginxなどで設定可能）
-
-### 実装済み機能
-
-- ✅ **記事管理**: 作成、編集、削除、公開/非公開切替
-- ✅ **タグ機能**: タグ一覧、タグ別記事一覧、タグフィルタリング
-- ✅ **認証**: ユーザー名・パスワード認証、セッション管理
-- ✅ **セキュリティ**: CSRF対策、ブルートフォース対策、パスワードポリシー
-- ✅ **タイムゾーン対応**: ISO 8601 形式 + タイムゾーン略称での日付表示
-- 🚧 **管理画面SPA**: React SPA（計画中、未実装）
-- 🚧 **RSS/Sitemap**: フィード配信（計画中、未実装）
-
-### URL設計
-
-#### 公開ページ（SSR）✅ 実装済み
+### 公開ページ
 
 - `GET /` - トップページ
 - `GET /posts` - 記事一覧（ページネーション対応）
 - `GET /posts/{slug}` - 記事詳細
 - `GET /tags` - タグ一覧
 - `GET /tags/{tag}` - タグ別記事一覧（ページネーション対応）
+- `GET /sitemap.xml` - サイトマップ
 
-#### 公開ページ（SSR）🚧 未実装
+### 静的ファイル 
 
-- `GET /rss.xml` - RSS フィード（計画中）
-- `GET /sitemap.xml` - サイトマップ（計画中）
+- `GET /static/*` - CSS等の静的ファイル
+- `GET /uploads/*` - アップロードされた画像
 
-#### 管理画面（SPA）🚧 計画中
+### 管理者用SPA
 
-- `GET /admin` - SPA入口（計画中）
-- `GET /admin/*` - SPAフォールバック（計画中）
+- `GET /admin` - SPA入口
+- `GET /admin/*` - SPAフォールバック（クライアントサイドルーティング対応）
 
-#### API（/api/v1）✅ 実装済み
+### API（/api/v1）
 
 **公開エンドポイント:**
-- `POST /api/v1/auth/login` - ログイン
 - `GET /api/v1/health` - ヘルスチェック
+- `POST /api/v1/auth/login` - ログイン
 
 **保護エンドポイント（認証 + CSRF 必須）:**
 - `POST /api/v1/auth/logout` - ログアウト
@@ -340,8 +447,8 @@ make clean-admin    # 管理画面のビルド成果物を削除
 - `DELETE /api/v1/posts/{id}` - 記事削除
 - `POST /api/v1/posts/{id}/publish` - 記事公開
 - `POST /api/v1/posts/{id}/unpublish` - 記事非公開化
+- `POST /api/v1/posts/{id}/pin` - 記事をピン留め
+- `POST /api/v1/posts/{id}/unpin` - 記事のピン留め解除
 - `GET /api/v1/tags` - タグ一覧取得（`?status=draft|published`）
-
-#### API（/api/v1）🚧 未実装
-
-- `POST /api/v1/uploads` - 画像アップロード（計画中）
+- `POST /api/v1/markdown/preview` - Markdownプレビュー
+- `POST /api/v1/images` - 画像アップロード

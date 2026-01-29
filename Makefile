@@ -8,17 +8,17 @@ help:
 	@echo "  make test         - テストを実行"
 	@echo "  make test-v       - テストを詳細出力で実行"
 	@echo "  make test-cover   - テストカバレッジを表示"
-	@echo "  make clean        - データベースとフロントエンドビルド成果物を削除"
+	@echo "  make clean        - データベースと管理者用SPAビルド成果物を削除"
 	@echo "  make seed         - テストデータを投入"
-	@echo "  make reset        - データベースをリセットしてテストデータ投入"
-	@echo "  make build        - フロントエンドとバックエンドをビルド"
+	@echo "  make reset        - データベースをリセットしてテストデータ投入（管理者用SPAも再ビルド）"
+	@echo "  make build        - 管理者用SPAとバックエンドをビルド"
 	@echo "  make install      - バイナリをインストール"
 	@echo "  make deps         - 依存関係をダウンロード"
 	@echo "  make adduser      - 管理者ユーザーを追加"
-	@echo "  make install-admin - 管理画面のnpm依存関係をインストール"
-	@echo "  make build-admin   - 管理画面をビルド"
-	@echo "  make dev-admin     - 管理画面の開発サーバーを起動"
-	@echo "  make clean-admin   - 管理画面のビルド成果物を削除"
+	@echo "  make install-admin - 管理者用SPAのnpm依存関係をインストール"
+	@echo "  make build-admin   - 管理者用SPAをビルド"
+	@echo "  make dev-admin     - 管理者用SPAの開発サーバーを起動"
+	@echo "  make clean-admin   - 管理者用SPAのビルド成果物を削除"
 
 # サーバーを起動
 run:
@@ -48,7 +48,7 @@ test-cover:
 	@echo "テストカバレッジを計算中..."
 	go test ./... -cover
 
-# データベースとフロントエンドビルド成果物を削除
+# データベースと管理者用SPAビルド成果物を削除
 clean: clean-admin
 	@echo "データベースを削除中..."
 	@rm -f data/goblog.db
@@ -64,10 +64,10 @@ adduser:
 	@echo "管理者ユーザーを追加..."
 	go run cmd/adduser/main.go
 
-# データベースをリセットしてテストデータ投入（管理画面も再ビルド）
+# データベースをリセットしてテストデータ投入（管理者用SPAも再ビルド）
 reset: clean build-admin seed
 
-# フロントエンドとバックエンドをビルド
+# 管理者用SPAとバックエンドをビルド
 build: build-admin
 	@echo "バックエンドをビルド中..."
 	@mkdir -p bin
@@ -90,25 +90,25 @@ deps:
 	go mod download
 	@echo "ダウンロード完了"
 
-# 管理画面のnpm依存関係をインストール
+# 管理者用SPAのnpm依存関係をインストール
 install-admin:
-	@echo "管理画面の依存関係をインストール中..."
+	@echo "管理者用SPAの依存関係をインストール中..."
 	cd web-admin && npm install
 	@echo "インストール完了"
 
-# 管理画面をビルド
+# 管理者用SPAをビルド
 build-admin:
-	@echo "管理画面をビルド中..."
+	@echo "管理者用SPAをビルド中..."
 	cd web-admin && npm run build
-	@echo "管理画面のビルド完了: web-admin/dist/"
+	@echo "管理者用SPAのビルド完了: web-admin/dist/"
 
-# 管理画面の開発サーバーを起動
+# 管理者用SPAの開発サーバーを起動
 dev-admin:
-	@echo "管理画面の開発サーバーを起動中..."
+	@echo "管理者用SPAの開発サーバーを起動中..."
 	cd web-admin && npm run dev
 
-# 管理画面のビルド成果物を削除
+# 管理者用SPAのビルド成果物を削除
 clean-admin:
-	@echo "管理画面のビルド成果物を削除中..."
+	@echo "管理者用SPAのビルド成果物を削除中..."
 	@rm -rf web-admin/dist
 	@echo "削除完了"
