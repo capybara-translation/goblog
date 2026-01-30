@@ -1683,6 +1683,47 @@ func TestHandlePosts_Search(t *testing.T) {
 	}
 }
 
+func TestHandlePosts_SearchQueryLimit(t *testing.T) {
+	t.Run("検索クエリが長すぎる場合はエラー", func(t *testing.T) {
+		mockService := &mockPostService{}
+		router := NewRouterWithTemplates(mockService, nil, testSecureCookie, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+
+		// 201文字のクエリ（制限は200文字）
+		longQuery := strings.Repeat("a", 201)
+		req := httptest.NewRequest(http.MethodGet, "/posts?q="+longQuery, nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+		}
+	})
+
+	t.Run("検索クエリが200文字ちょうどは許可", func(t *testing.T) {
+		mockService := &mockPostService{
+			searchPublishedPostsFunc: func(query string, limit, offset int) ([]*domain.Post, error) {
+				return []*domain.Post{}, nil
+			},
+			countSearchPublishedFunc: func(query string) (int, error) {
+				return 0, nil
+			},
+		}
+		router := NewRouterWithTemplates(mockService, nil, testSecureCookie, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+
+		// 200文字のクエリ（制限ちょうど）
+		exactQuery := strings.Repeat("a", 200)
+		req := httptest.NewRequest(http.MethodGet, "/posts?q="+exactQuery, nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+	})
+}
+
 func TestHandlePosts_SearchForm(t *testing.T) {
 	// 検索フォームが常に表示されていることを確認
 	mockService := &mockPostService{

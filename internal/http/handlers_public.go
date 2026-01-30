@@ -263,6 +263,13 @@ func (h *PublicHandlers) HandlePosts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// 検索クエリの長さ制限
+	const maxQueryLength = 200
+	if len(queryStr) > maxQueryLength {
+		http.Error(w, "Search query too long", http.StatusBadRequest)
+		return
+	}
+
 	// 1ページあたりの記事数
 	const perPage = 20
 	offset := (page - 1) * perPage

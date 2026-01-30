@@ -1588,6 +1588,56 @@ func TestHandleGetPosts_WithSearchQuery(t *testing.T) {
 			t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
 		}
 	})
+
+	t.Run("検索クエリが長すぎる場合はエラー", func(t *testing.T) {
+		mockPostService := &mockPostServiceForAPI{}
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+
+		// 201文字のクエリ（制限は200文字）
+		longQuery := strings.Repeat("a", 201)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?q="+longQuery, nil)
+		addSessionCookie(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+		}
+
+		var response ErrorResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatalf("failed to parse JSON: %v", err)
+		}
+
+		if !strings.Contains(response.Error, "search query too long") {
+			t.Errorf("expected error to contain 'search query too long', got '%s'", response.Error)
+		}
+	})
+
+	t.Run("検索クエリが200文字ちょうどは許可", func(t *testing.T) {
+		mockPostService := &mockPostServiceForAPI{
+			searchPostsFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
+				return []*domain.Post{}, nil
+			},
+			countSearchPostsFunc: func(query string, status *domain.PostStatus) (int, error) {
+				return 0, nil
+			},
+		}
+		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+
+		// 200文字のクエリ（制限ちょうど）
+		exactQuery := strings.Repeat("a", 200)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?q="+exactQuery, nil)
+		addSessionCookie(req)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+	})
 }
 
 func TestHandlePreview(t *testing.T) {

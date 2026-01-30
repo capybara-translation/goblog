@@ -117,6 +117,13 @@ func (h *APIHandlers) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
 	limitStr := r.URL.Query().Get("limit")
 	offsetStr := r.URL.Query().Get("offset")
 
+	// 検索クエリの長さ制限
+	const maxQueryLength = 200
+	if len(queryStr) > maxQueryLength {
+		writeError(w, http.StatusBadRequest, "search query too long (max 200 characters)")
+		return
+	}
+
 	// デフォルト値
 	const maxLimit = 200
 	limit := 20
