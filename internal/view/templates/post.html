@@ -5,33 +5,31 @@
 {{define "title"}}{{.Post.Title}} - {{.SiteTitle}}{{end}}
 
 {{define "content"}}
-<article class="space-y-8">
-    <header class="space-y-4">
-        <h1 class="text-4xl md:text-5xl font-sans font-bold text-primary-900 tracking-tight leading-tight">{{.Post.Title}}</h1>
-        <div class="flex items-center gap-3 text-sm text-primary-500 font-sans pb-6 border-b border-stone-200">
-            <time datetime="{{.Post.PublishedAt.Format "2006-01-02"}}" title="{{formatDateDetailWithTZ .Post.PublishedAt}}">{{formatDateWithTZ .Post.PublishedAt}}</time>
-            {{if .Post.Tags}}
-                <span class="text-primary-400">•</span>
-                <div class="flex flex-wrap gap-2">
-                {{range splitTags .Post.Tags}}
-                    <a href="/tags/{{.}}" class="px-2 py-1 text-xs font-medium text-primary-700 bg-primary-100 rounded hover:bg-primary-200 transition-colors duration-200">{{.}}</a>
-                {{end}}
-                </div>
-            {{end}}
+<div class="space-y-6">
+    <article class="bg-primary-100 rounded-lg shadow-sm p-5">
+        {{if .Post.Title}}
+        <h1 class="text-xl font-sans font-semibold mb-3 text-primary-800">{{.Post.Title}}</h1>
+        {{end}}
+        <div class="markdown-content text-primary-700 leading-relaxed">
+            {{renderMarkdown .Post.Content}}
         </div>
-    </header>
+        <footer class="mt-4 pt-4 border-t border-primary-200">
+            <div class="flex flex-wrap items-center gap-2 text-sm font-sans">
+                <time class="text-primary-400" title="{{formatDateDetailWithTZ .Post.PublishedAt}}">{{formatDateWithTZ .Post.PublishedAt}}</time>
+                {{range splitTags .Post.Tags}}
+                <a href="/tags/{{.}}" class="text-primary-500 hover:text-primary-700 transition-colors">#{{.}}</a>
+                {{end}}
+            </div>
+        </footer>
+    </article>
 
-    <div class="article-content markdown-content">
-        {{renderMarkdown .Post.Content}}
-    </div>
-</article>
-
-<nav class="mt-12 pt-8 border-t border-stone-200">
-    <a href="/posts" class="inline-flex items-center text-primary-700 hover:text-primary-900 font-sans text-sm font-medium transition-colors duration-200">
-        <svg class="mr-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
-        </svg>
-        記事一覧に戻る
-    </a>
-</nav>
+    <nav class="flex justify-center">
+        <a href="/posts" class="inline-flex items-center text-primary-600 hover:text-primary-800 font-sans text-sm font-medium transition-colors">
+            <svg class="mr-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+            </svg>
+            記事一覧に戻る
+        </a>
+    </nav>
+</div>
 {{end}}

@@ -3,16 +3,23 @@
 
 /* 記事コンテナ（背景、フォント、余白） */
 .article-content {
-    background-color: #fafaf9; /* bg-stone-50 */
-    font-family: "Noto Serif JP", Georgia, serif;
-    color: #495057; /* text-primary-700 */
-    font-size: 1.125rem; /* text-lg */
-    line-height: 1.625; /* leading-relaxed */
+    background-color: #27272a; /* bg-primary-100 dark */
+    font-family: "Noto Sans JP", -apple-system, BlinkMacSystemFont, sans-serif;
+    color: #d4d4d8; /* text-primary-600 dark */
+    font-size: 0.9375rem; /* 15px */
+    line-height: 1.7;
     padding: 1.5rem;
     border-radius: 0.375rem;
 }
 
 /* Markdown コンテンツ用スタイル */
+.markdown-content {
+    font-family: "Noto Sans JP", -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 0.9375rem; /* 15px */
+    line-height: 1.7;
+    color: #d4d4d8; /* text-primary-600 dark */
+}
+
 .markdown-content h1,
 .markdown-content h2,
 .markdown-content h3,
@@ -25,10 +32,10 @@
     margin-bottom: 0.5em;
     line-height: 1.3;
 }
-.markdown-content h1 { font-size: 1.875rem; }
-.markdown-content h2 { font-size: 1.5rem; border-bottom: 1px solid #dee2e6; padding-bottom: 0.3em; }
-.markdown-content h3 { font-size: 1.25rem; }
-.markdown-content h4 { font-size: 1.125rem; }
+.markdown-content h1 { font-size: 1.5rem; }
+.markdown-content h2 { font-size: 1.25rem; border-bottom: 1px solid #dee2e6; padding-bottom: 0.3em; }
+.markdown-content h3 { font-size: 1.125rem; }
+.markdown-content h4 { font-size: 1rem; }
 
 .markdown-content p {
     margin-bottom: 1em;
@@ -37,21 +44,22 @@
 
 /* コードブロック（シンタックスハイライト対応） */
 .markdown-content pre {
-    background-color: #272822;
+    background-color: #18181b;
     padding: 1rem;
     border-radius: 0.5rem;
     overflow-x: auto;
     margin: 1rem 0;
+    border: 1px solid #3f3f46;
 }
 .markdown-content code {
     font-family: 'Fira Code', 'SF Mono', 'Consolas', 'Monaco', monospace;
-    font-size: 0.9em;
+    font-size: 0.8125rem; /* 13px */
 }
 .markdown-content :not(pre) > code {
-    background-color: #f1f3f5;
+    background-color: #3f3f46;
     padding: 0.2em 0.4em;
     border-radius: 0.25rem;
-    color: #495057;
+    color: #e4e4e7;
 }
 
 /* テーブル */
@@ -62,25 +70,26 @@
 }
 .markdown-content th,
 .markdown-content td {
-    border: 1px solid #dee2e6;
+    border: 1px solid #3f3f46;
     padding: 0.5rem 0.75rem;
     text-align: left;
 }
 .markdown-content th {
-    background-color: #f8f9fa;
+    background-color: #3f3f46;
     font-weight: 600;
 }
 .markdown-content tr:nth-child(even) {
-    background-color: #f8f9fa;
+    background-color: #27272a;
 }
 
 /* 引用 */
 .markdown-content blockquote {
-    border-left: 4px solid #ced4da;
+    border-left: 4px solid #52525b;
     padding-left: 1rem;
     margin: 1rem 0;
-    color: #6c757d;
+    color: #a1a1aa;
     font-style: italic;
+    font-size: 0.875rem; /* text-sm */
 }
 
 /* リスト */
@@ -138,24 +147,24 @@
     margin-right: 0.5em;
     width: 1em;
     height: 1em;
-    accent-color: #495057;
+    accent-color: #a1a1aa;
     vertical-align: middle;
 }
 
 /* リンク */
 .markdown-content a {
-    color: #495057;
+    color: #e4e4e7;
     text-decoration: underline;
     text-underline-offset: 2px;
 }
 .markdown-content a:hover {
-    color: #212529;
+    color: #fafafa;
 }
 
 /* 水平線 */
 .markdown-content hr {
     border: none;
-    border-top: 1px solid #dee2e6;
+    border-top: 1px solid #3f3f46;
     margin: 2rem 0;
 }
 
@@ -169,5 +178,5 @@
 
 /* 取り消し線 */
 .markdown-content del {
-    color: #868e96;
+    color: #71717a;
 }

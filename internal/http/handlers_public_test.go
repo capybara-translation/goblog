@@ -177,7 +177,6 @@ func TestHandleHome(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			containsText: []string{
 				"<!DOCTYPE html>",
-				"ようこそgoblogへ",
 				"まだ記事がありません",
 			},
 		},
@@ -208,13 +207,12 @@ func TestHandleHome(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			containsText: []string{
 				"<!DOCTYPE html>",
-				"ようこそgoblogへ",
 				"テスト記事1",
 				"テスト記事2",
 				"/posts/test-post-1",
 				"/posts/test-post-2",
-				">Go</a>",
-				">テスト</a>",
+				"#Go",
+				"#テスト",
 			},
 			notContains: []string{
 				"まだ記事がありません",
@@ -274,11 +272,10 @@ func TestHandleHome_BlogTitle(t *testing.T) {
 				return []*domain.Post{}, nil
 			},
 			containsText: []string{
-				"<title>goblog - ホーム</title>",
+				"<title>goblog</title>",
 				"<a href=\"/\"",
 				">goblog</a>",
-				"ようこそgoblogへ",
-				"&copy; 2025 goblog. All rights reserved.",
+				"&copy; 2025 goblog</p>",
 			},
 		},
 		{
@@ -288,11 +285,10 @@ func TestHandleHome_BlogTitle(t *testing.T) {
 				return []*domain.Post{}, nil
 			},
 			containsText: []string{
-				"<title>My Awesome Blog - ホーム</title>",
+				"<title>My Awesome Blog</title>",
 				"<a href=\"/\"",
 				">My Awesome Blog</a>",
-				"ようこそMy Awesome Blogへ",
-				"&copy; 2025 My Awesome Blog. All rights reserved.",
+				"&copy; 2025 My Awesome Blog</p>",
 			},
 		},
 		{
@@ -312,11 +308,10 @@ func TestHandleHome_BlogTitle(t *testing.T) {
 				}, nil
 			},
 			containsText: []string{
-				"<title>テストブログ - ホーム</title>",
+				"<title>テストブログ</title>",
 				"<a href=\"/\"",
 				">テストブログ</a>",
-				"ようこそテストブログへ",
-				"&copy; 2025 テストブログ. All rights reserved.",
+				"&copy; 2025 テストブログ</p>",
 			},
 		},
 	}
@@ -399,9 +394,8 @@ func TestHandlePosts(t *testing.T) {
 				"公開記事2",
 				"/posts/published-post-1",
 				"/posts/published-post-2",
-				">タグ1</a>",
-				">タグ2</a>",
-				"続きを読む",
+				"#タグ1",
+				"#タグ2",
 			},
 			notContains: []string{
 				"まだ記事がありません",
@@ -457,13 +451,13 @@ func TestHandlePosts_Pagination(t *testing.T) {
 		notContains    []string
 	}{
 		{
-			name: "1ページ目（次のページあり）",
+			name: "1ページ目（>次あり）",
 			url:  "/posts?page=1",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				if limit != 21 || offset != 0 {
 					t.Errorf("expected limit=21, offset=0, got limit=%d, offset=%d", limit, offset)
 				}
-				// 21件返して次のページがあることを示す
+				// 21件返して>次があることを示す
 				posts := make([]*domain.Post, 21)
 				publishedAt := time.Now()
 				for i := 0; i < 21; i++ {
@@ -481,8 +475,7 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			containsText: []string{
 				"ページ",
-				">1</span>",
-				"次のページ",
+				"ページ 1",
 				"/posts?page=2",
 			},
 			notContains: []string{
@@ -496,7 +489,7 @@ func TestHandlePosts_Pagination(t *testing.T) {
 				if limit != 21 || offset != 20 {
 					t.Errorf("expected limit=21, offset=20, got limit=%d, offset=%d", limit, offset)
 				}
-				// 21件返して次のページがあることを示す
+				// 21件返して>次があることを示す
 				posts := make([]*domain.Post, 21)
 				publishedAt := time.Now()
 				for i := 0; i < 21; i++ {
@@ -514,21 +507,19 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			containsText: []string{
 				"ページ",
-				">2</span>",
-				"前のページ",
+				"ページ 2",
 				"/posts?page=1",
-				"次のページ",
 				"/posts?page=3",
 			},
 		},
 		{
-			name: "最後のページ（次のページなし）",
+			name: "最後のページ（>次なし）",
 			url:  "/posts?page=3",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				if limit != 21 || offset != 40 {
 					t.Errorf("expected limit=21, offset=40, got limit=%d, offset=%d", limit, offset)
 				}
-				// 10件だけ返して次のページがないことを示す
+				// 10件だけ返して>次がないことを示す
 				posts := make([]*domain.Post, 10)
 				publishedAt := time.Now()
 				for i := 0; i < 10; i++ {
@@ -546,8 +537,7 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			containsText: []string{
 				"ページ",
-				">3</span>",
-				"前のページ",
+				"ページ 3",
 				"/posts?page=2",
 			},
 			notContains: []string{
@@ -578,7 +568,7 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			containsText: []string{
 				"ページ",
-				">1</span>",
+				"ページ 1",
 			},
 		},
 		{
@@ -605,7 +595,7 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			containsText: []string{
 				"ページ",
-				">1</span>",
+				"ページ 1",
 			},
 		},
 		{
@@ -632,7 +622,7 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			containsText: []string{
 				"ページ",
-				">1</span>",
+				"ページ 1",
 			},
 		},
 		{
@@ -659,8 +649,7 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			containsText: []string{
 				"ページ",
-				">1</span>",
-				"次のページ",
+				"ページ 1",
 			},
 		},
 	}
@@ -737,7 +726,7 @@ func TestHandlePosts_BlogTitle(t *testing.T) {
 				"<title>記事一覧 - goblog</title>",
 				"<a href=\"/\"",
 				">goblog</a>",
-				"&copy; 2025 goblog. All rights reserved.",
+				"&copy; 2025 goblog</p>",
 			},
 		},
 		{
@@ -760,7 +749,7 @@ func TestHandlePosts_BlogTitle(t *testing.T) {
 				"<title>記事一覧 - My Tech Blog</title>",
 				"<a href=\"/\"",
 				">My Tech Blog</a>",
-				"&copy; 2025 My Tech Blog. All rights reserved.",
+				"&copy; 2025 My Tech Blog</p>",
 			},
 		},
 	}
@@ -823,9 +812,9 @@ func TestHandlePostDetail(t *testing.T) {
 				"テスト記事のタイトル",
 				"これはテスト記事の本文です",
 				`href="/tags/Go"`,
-				`>Go</a>`,
-				`>テスト</a>`,
-				`>ブログ</a>`,
+				"#Go",
+				"#テスト",
+				"#ブログ",
 				"記事一覧に戻る",
 			},
 		},
@@ -926,7 +915,7 @@ func TestHandlePostDetail_BlogTitle(t *testing.T) {
 				"<title>テスト記事 - goblog</title>",
 				"<a href=\"/\"",
 				">goblog</a>",
-				"&copy; 2025 goblog. All rights reserved.",
+				"&copy; 2025 goblog</p>",
 			},
 		},
 		{
@@ -952,7 +941,7 @@ func TestHandlePostDetail_BlogTitle(t *testing.T) {
 				"<title>Go言語のTips - 開発ブログ</title>",
 				"<a href=\"/\"",
 				">開発ブログ</a>",
-				"&copy; 2025 開発ブログ. All rights reserved.",
+				"&copy; 2025 開発ブログ</p>",
 			},
 		},
 		{
@@ -977,7 +966,7 @@ func TestHandlePostDetail_BlogTitle(t *testing.T) {
 				"<title>My First Post - Tech Insights</title>",
 				"<a href=\"/\"",
 				">Tech Insights</a>",
-				"&copy; 2025 Tech Insights. All rights reserved.",
+				"&copy; 2025 Tech Insights</p>",
 			},
 		},
 	}
@@ -1109,12 +1098,12 @@ func TestHandleTags(t *testing.T) {
 				"<!DOCTYPE html>",
 				"タグ一覧",
 				`href="/tags/Go"`,
-				">Go</h3>",
-				"10件",
-				">React</h3>",
-				"8件",
-				">Docker</h3>",
-				"5件",
+				`>#</span>Go`,
+				"(10)",
+				`>#</span>React`,
+				"(8)",
+				`>#</span>Docker`,
+				"(5)",
 			},
 		},
 		{
@@ -1213,7 +1202,7 @@ func TestHandleTagPosts(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			containsText: []string{
 				"<!DOCTYPE html>",
-				"inline-flex items-center",
+				`>#</span>Go`,
 				"Go入門",
 				"Goの並行処理",
 				"/posts/go-introduction",
@@ -1228,7 +1217,7 @@ func TestHandleTagPosts(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"inline-flex items-center",
+				`>#</span>Python`,
 				"このタグの記事はまだありません",
 			},
 		},
@@ -1288,7 +1277,7 @@ func TestHandleTagPosts_Pagination(t *testing.T) {
 		notContains    []string
 	}{
 		{
-			name: "1ページ目（次のページあり）",
+			name: "1ページ目（>次あり）",
 			tag:  "Go",
 			url:  "/tags/Go?page=1",
 			mockFunc: func(tag string, limit, offset int) ([]*domain.Post, error) {
@@ -1312,10 +1301,8 @@ func TestHandleTagPosts_Pagination(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"inline-flex items-center",
 				"ページ",
-				">1</span>",
-				"次のページ",
+				"ページ 1",
 				"/tags/Go?page=2",
 			},
 			notContains: []string{
@@ -1347,10 +1334,8 @@ func TestHandleTagPosts_Pagination(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"inline-flex items-center",
 				"ページ",
-				">2</span>",
-				"前のページ",
+				"ページ 2",
 				"/tags/React?page=1",
 			},
 			notContains: []string{
@@ -1596,7 +1581,6 @@ func TestHandlePosts_Search(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"次のページ",
 				"/posts?page=2&q=Go", // 検索クエリがページネーションに含まれる
 			},
 		},
@@ -1627,11 +1611,10 @@ func TestHandlePosts_Search(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"前のページ",
 				"/posts?page=1&q=Go",
 			},
 			notContains: []string{
-				"/posts?page=3", // 次のページはない
+				"/posts?page=3", // 次ページはない
 			},
 		},
 		{
@@ -1941,8 +1924,8 @@ func TestHandlePosts_SearchHighlight(t *testing.T) {
 				}, nil
 			},
 			containsText: []string{
-				"<mark>Go</mark>言語入門",           // タイトルにハイライト
-				"<mark>Go</mark>の基本的な使い方を解説します", // 本文にもハイライト
+				"<mark>Go</mark>言語入門", // タイトルにハイライト
+				"Goの基本的な使い方を解説します", // 本文は全文表示（Markdownレンダリング、ハイライトなし）
 			},
 		},
 		{
@@ -1962,8 +1945,8 @@ func TestHandlePosts_SearchHighlight(t *testing.T) {
 				}, nil
 			},
 			containsText: []string{
-				"<mark>プログラミング</mark>入門",
-				"<mark>プログラミング</mark>を始めよう",
+				"<mark>プログラミング</mark>入門", // タイトルにハイライト
+				"プログラミングを始めよう", // 本文は全文表示（Markdownレンダリング、ハイライトなし）
 			},
 		},
 		{
@@ -1990,7 +1973,7 @@ func TestHandlePosts_SearchHighlight(t *testing.T) {
 			},
 		},
 		{
-			name: "長い本文は切り詰め後にハイライト",
+			name: "長い本文も全文表示",
 			url:  "/posts?q=Go",
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				publishedAt := time.Now()
@@ -2008,8 +1991,8 @@ func TestHandlePosts_SearchHighlight(t *testing.T) {
 				}, nil
 			},
 			containsText: []string{
-				"<mark>Go</mark>は効率的な", // 切り詰め前の部分にハイライト
-				"...",                      // 切り詰めを示す省略記号
+				"<mark>Go</mark>言語の紹介", // タイトルにハイライト
+				"Goは効率的なプログラミング言語です", // 本文は全文表示
 			},
 		},
 	}
@@ -2104,7 +2087,7 @@ func TestCustom404Page(t *testing.T) {
 				"ホームに戻る",
 				`href="/posts"`,
 				"記事一覧へ",
-				"&copy; 2025 goblog. All rights reserved.",
+				"&copy; 2025 goblog</p>",
 			},
 		},
 		{
@@ -2121,7 +2104,7 @@ func TestCustom404Page(t *testing.T) {
 				"404",
 				"ページが見つかりません",
 				">My Tech Blog</a>",
-				"&copy; 2025 My Tech Blog. All rights reserved.",
+				"&copy; 2025 My Tech Blog</p>",
 			},
 		},
 		{
@@ -2136,7 +2119,7 @@ func TestCustom404Page(t *testing.T) {
 			containsText: []string{
 				"<title>ページが見つかりません - テストブログ</title>",
 				">テストブログ</a>",
-				"&copy; 2025 テストブログ. All rights reserved.",
+				"&copy; 2025 テストブログ</p>",
 			},
 		},
 	}

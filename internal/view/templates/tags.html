@@ -5,27 +5,23 @@
 {{define "title"}}タグ一覧 - {{.SiteTitle}}{{end}}
 
 {{define "content"}}
-<div class="space-y-12">
-    <header>
-        <h2 class="text-4xl font-sans font-bold text-primary-900 tracking-tight">タグ一覧</h2>
-        <p class="mt-4 text-lg text-primary-600">記事をタグで探す</p>
-    </header>
-
+<div class="space-y-6">
     {{if .Tags}}
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {{range .Tags}}
-            <a href="/tags/{{.Name}}" class="block p-6 bg-white border border-stone-200 rounded-lg hover:border-primary-700 hover:shadow-md transition-all duration-200">
-                <h3 class="text-xl font-sans font-bold text-primary-900 tracking-tight">{{.Name}}</h3>
-                <div class="mt-2 text-right">
-                    <span class="inline-flex items-center justify-center px-3 py-1 text-sm font-sans font-medium text-primary-700 bg-primary-100 rounded-full">
-                        {{.Count}}件
-                    </span>
-                </div>
-            </a>
-        {{end}}
+        <div class="bg-primary-100 rounded-lg shadow-sm p-5">
+            <h2 class="text-base font-sans font-semibold text-primary-800 mb-3">タグ一覧</h2>
+            <div class="flex flex-wrap gap-3">
+            {{range .Tags}}
+                <a href="/tags/{{.Name}}" class="inline-flex items-center gap-1 px-3 py-2 text-sm font-sans text-primary-600 hover:text-primary-800 bg-primary-200 hover:bg-primary-300 rounded-full transition-colors">
+                    <span class="text-primary-500">#</span>{{.Name}}
+                    <span class="text-xs text-primary-400">({{.Count}})</span>
+                </a>
+            {{end}}
+            </div>
         </div>
     {{else}}
-        <p class="text-primary-500 font-sans">まだタグがありません。</p>
+        <div class="bg-primary-100 rounded-lg shadow-sm p-8 text-center">
+            <p class="text-primary-500 font-sans">まだタグがありません。</p>
+        </div>
     {{end}}
 </div>
 {{end}}
