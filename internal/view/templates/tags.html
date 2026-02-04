@@ -2,13 +2,13 @@
 {{template "layout" .}}
 {{- end -}}
 
-{{define "title"}}タグ一覧 - {{.SiteTitle}}{{end}}
+{{define "title"}}Tags - {{.SiteTitle}}{{end}}
 
 {{define "content"}}
 <div class="space-y-6">
     {{if .Tags}}
         <div class="bg-primary-100 rounded-lg shadow-sm p-5">
-            <h2 class="text-base font-sans font-semibold text-primary-800 mb-3">タグ一覧</h2>
+            <h2 class="text-base font-sans font-semibold text-primary-800 mb-3">Tags</h2>
             <div class="flex flex-wrap gap-3">
             {{range .Tags}}
                 <a href="/tags/{{.Name}}" class="inline-flex items-center gap-1 px-3 py-2 text-sm font-sans text-primary-600 hover:text-primary-800 bg-primary-200 hover:bg-primary-300 rounded-full transition-colors">
@@ -20,7 +20,7 @@
         </div>
     {{else}}
         <div class="bg-primary-100 rounded-lg shadow-sm p-8 text-center">
-            <p class="text-primary-500 font-sans">まだタグがありません。</p>
+            <p class="text-primary-500 font-sans">No tags yet.</p>
         </div>
     {{end}}
 </div>

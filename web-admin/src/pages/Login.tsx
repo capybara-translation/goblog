@@ -23,7 +23,7 @@ export function Login() {
       navigate('/posts');
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'ログインに失敗しました'
+        err instanceof Error ? err.message : 'Login failed'
       );
     } finally {
       setIsSubmitting(false);
@@ -34,9 +34,9 @@ export function Login() {
     <div className="min-h-screen flex items-center justify-center bg-stone-50">
       <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
         <h1 className="text-3xl font-sans font-bold text-primary-900 mb-2">
-          {BLOG_TITLE} 管理画面
+          {BLOG_TITLE} Admin
         </h1>
-        <p className="text-primary-600 mb-6">ログインしてください</p>
+        <p className="text-primary-600 mb-6">Please sign in</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
@@ -50,7 +50,7 @@ export function Login() {
               htmlFor="username"
               className="block text-sm font-medium text-primary-700 mb-1"
             >
-              ユーザー名
+              Username
             </label>
             <input
               id="username"
@@ -68,7 +68,7 @@ export function Login() {
               htmlFor="password"
               className="block text-sm font-medium text-primary-700 mb-1"
             >
-              パスワード
+              Password
             </label>
             <input
               id="password"
@@ -86,7 +86,7 @@ export function Login() {
             disabled={isSubmitting}
             className="w-full bg-primary-900 text-white py-2 px-4 rounded-md hover:bg-primary-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {isSubmitting ? 'ログイン中...' : 'ログイン'}
+            {isSubmitting ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
       </div>

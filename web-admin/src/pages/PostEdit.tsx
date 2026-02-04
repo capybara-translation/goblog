@@ -46,7 +46,7 @@ export function PostEdit() {
     setError('');
 
     if (!title.trim() || !slug.trim()) {
-      setError('タイトルとスラッグは必須です');
+      setError('Title and slug are required');
       return;
     }
 
@@ -62,7 +62,7 @@ export function PostEdit() {
           is_pinned: isPinned,
         });
         setPost(updated);
-        await showAlert('記事を更新しました');
+        await showAlert('Post updated');
       } else {
         const created = await apiClient.createPost({
           title,
@@ -71,11 +71,11 @@ export function PostEdit() {
           tags,
           is_pinned: isPinned,
         });
-        await showAlert('記事を作成しました');
+        await showAlert('Post created');
         navigate(`/posts/${created.id}/edit`);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '保存に失敗しました');
+      setError(err instanceof Error ? err.message : 'Failed to save');
     } finally {
       setIsSaving(false);
     }
@@ -93,7 +93,7 @@ export function PostEdit() {
       setTags(data.tags);
       setIsPinned(data.is_pinned);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '記事の取得に失敗しました');
+      setError(err instanceof Error ? err.message : 'Failed to load post');
     } finally {
       setIsLoading(false);
     }
@@ -111,9 +111,9 @@ export function PostEdit() {
       setError('');
       const updated = await apiClient.publishPost(Number(id));
       setPost(updated);
-      await showAlert('記事を公開しました');
+      await showAlert('Post published');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '公開に失敗しました');
+      setError(err instanceof Error ? err.message : 'Failed to publish');
     }
   };
 
@@ -124,19 +124,19 @@ export function PostEdit() {
       setError('');
       const updated = await apiClient.unpublishPost(Number(id));
       setPost(updated);
-      await showAlert('記事を非公開にしました');
+      await showAlert('Post unpublished');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '非公開化に失敗しました');
+      setError(err instanceof Error ? err.message : 'Failed to unpublish');
     }
   };
 
   const handleDelete = async () => {
     if (!post || !id) return;
 
-    const confirmed = await confirm('本当に削除しますか？この操作は取り消せません。', {
-      title: '記事の削除',
-      confirmText: '削除',
-      cancelText: 'キャンセル',
+    const confirmed = await confirm('Are you sure you want to delete this post? This action cannot be undone.', {
+      title: 'Delete Post',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
       danger: true,
     });
 
@@ -145,17 +145,17 @@ export function PostEdit() {
     try {
       setError('');
       await apiClient.deletePost(Number(id));
-      await showAlert('記事を削除しました');
+      await showAlert('Post deleted');
       navigate('/posts');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '削除に失敗しました');
+      setError(err instanceof Error ? err.message : 'Failed to delete');
     }
   };
 
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-64">
-        <div className="text-primary-600">読み込み中...</div>
+        <div className="text-primary-600">Loading...</div>
       </div>
     );
   }
@@ -169,10 +169,10 @@ export function PostEdit() {
             to="/posts"
             className="text-sm text-primary-600 hover:text-primary-800 mb-2 inline-block"
           >
-            ← 記事一覧に戻る
+            ← Back to posts
           </Link>
           <h1 className="text-2xl font-sans font-bold text-primary-900">
-            {isEditMode ? '記事編集' : '新規作成'}
+            {isEditMode ? 'Edit Post' : 'New Post'}
           </h1>
         </div>
         {post && (
@@ -183,21 +183,21 @@ export function PostEdit() {
                 onClick={handlePublish}
                 className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors text-sm font-medium"
               >
-                公開する
+                Publish
               </button>
             ) : (
               <button
                 onClick={handleUnpublish}
                 className="bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 transition-colors text-sm font-medium"
               >
-                非公開にする
+                Unpublish
               </button>
             )}
             <button
               onClick={handleDelete}
               className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors text-sm font-medium"
             >
-              削除
+              Delete
             </button>
           </div>
         )}
@@ -208,16 +208,16 @@ export function PostEdit() {
         <div className="bg-primary-50 border border-primary-200 rounded-lg px-4 py-3">
           <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-primary-600">
             <div>
-              <span className="font-medium">作成日:</span>{' '}
+              <span className="font-medium">Created:</span>{' '}
               {formatDateTime(post.created_at)}
             </div>
             <div>
-              <span className="font-medium">更新日:</span>{' '}
+              <span className="font-medium">Updated:</span>{' '}
               {formatDateTime(post.updated_at)}
             </div>
             {post.published_at && (
               <div>
-                <span className="font-medium">公開日:</span>{' '}
+                <span className="font-medium">Published:</span>{' '}
                 {formatDateTime(post.published_at)}
               </div>
             )}
@@ -239,7 +239,7 @@ export function PostEdit() {
             htmlFor="title"
             className="block text-sm font-medium text-primary-700 mb-1"
           >
-            タイトル <span className="text-red-600">*</span>
+            Title <span className="text-red-600">*</span>
           </label>
           <input
             id="title"
@@ -257,7 +257,7 @@ export function PostEdit() {
             htmlFor="slug"
             className="block text-sm font-medium text-primary-700 mb-1"
           >
-            スラッグ <span className="text-red-600">*</span>
+            Slug <span className="text-red-600">*</span>
           </label>
           <input
             id="slug"
@@ -270,19 +270,19 @@ export function PostEdit() {
             placeholder="my-first-post"
           />
           <p className="mt-1 text-sm text-primary-500">
-            URLに使用されます（例: /posts/my-first-post）
+            Used in URL (e.g., /posts/my-first-post)
           </p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-primary-700 mb-1">
-            タグ
+            Tags
           </label>
           <TagInput
             value={tags}
             onChange={setTags}
             disabled={isSaving}
-            placeholder="タグを入力..."
+            placeholder="Enter tags..."
           />
         </div>
 
@@ -298,9 +298,9 @@ export function PostEdit() {
           <label
             htmlFor="is_pinned"
             className="text-sm text-primary-700"
-            title="ピン留めすると記事がヘッダーに表示されます"
+            title="Pinned posts appear in the header"
           >
-            ピン留め
+            Pinned
           </label>
         </div>
 
@@ -309,7 +309,7 @@ export function PostEdit() {
             htmlFor="content"
             className="block text-sm font-medium text-primary-700 mb-1"
           >
-            本文（Markdown）
+            Content (Markdown)
           </label>
           <MarkdownEditor
             value={content}
@@ -325,7 +325,7 @@ export function PostEdit() {
             disabled={isSaving}
             className="bg-primary-900 text-white px-6 py-2 rounded-md hover:bg-primary-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {isSaving ? '保存中...' : '保存'}
+            {isSaving ? 'Saving...' : 'Save'}
           </button>
         </div>
       </form>

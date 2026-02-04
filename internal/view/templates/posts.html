@@ -2,7 +2,7 @@
 {{template "layout" .}}
 {{- end -}}
 
-{{define "title"}}記事一覧 - {{.SiteTitle}}{{end}}
+{{define "title"}}Posts - {{.SiteTitle}}{{end}}
 
 {{define "content"}}
 <div class="space-y-6">
@@ -13,21 +13,21 @@
                 type="text"
                 name="q"
                 value="{{.Query}}"
-                placeholder="記事を検索..."
+                placeholder="Search posts..."
                 class="flex-1 px-3 py-2 text-sm bg-primary-200 border border-primary-300 rounded text-primary-700 placeholder-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
             />
             <button
                 type="submit"
                 class="px-4 py-2 text-sm bg-primary-600 text-primary-100 font-medium rounded hover:bg-primary-500 transition-colors"
             >
-                検索
+                Search
             </button>
             {{if .Query}}
             <a
                 href="/posts"
                 class="px-3 py-2 text-sm text-primary-600 border border-primary-300 rounded hover:border-primary-400 hover:text-primary-700 transition-colors"
             >
-                クリア
+                Clear
             </a>
             {{end}}
         </form>
@@ -35,7 +35,7 @@
 
     {{if .Query}}
     <p class="text-sm text-primary-600 font-sans px-1">
-        「<span class="font-medium">{{.Query}}</span>」の検索結果
+        Search results for "<span class="font-medium">{{.Query}}</span>"
     </p>
     {{end}}
 
@@ -63,24 +63,24 @@
         {{end}}
 
         <!-- ページネーション -->
-        <nav class="flex items-center justify-between pt-4 font-sans" aria-label="ページネーション">
+        <nav class="flex items-center justify-between pt-4 font-sans" aria-label="Pagination">
             <div>
                 {{if .HasPrev}}
                     <a href="/posts?page={{.PrevPage}}{{if .Query}}&q={{.Query}}{{end}}" class="inline-flex items-center px-3 py-2 text-sm font-medium text-primary-600 hover:text-primary-800 bg-primary-100 rounded shadow-sm transition-colors">
                         <svg class="mr-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                         </svg>
-                        前
+                        Prev
                     </a>
                 {{end}}
             </div>
             <div class="text-sm text-primary-500">
-                ページ {{.CurrentPage}}
+                Page {{.CurrentPage}}
             </div>
             <div>
                 {{if .HasNext}}
                     <a href="/posts?page={{.NextPage}}{{if .Query}}&q={{.Query}}{{end}}" class="inline-flex items-center px-3 py-2 text-sm font-medium text-primary-600 hover:text-primary-800 bg-primary-100 rounded shadow-sm transition-colors">
-                        次
+                        Next
                         <svg class="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                         </svg>
@@ -91,9 +91,9 @@
     {{else}}
         <div class="bg-primary-100 rounded-lg shadow-sm p-8 text-center">
             {{if .Query}}
-            <p class="text-primary-500 font-sans">「{{.Query}}」に一致する記事が見つかりませんでした。</p>
+            <p class="text-primary-500 font-sans">No posts found matching "{{.Query}}".</p>
             {{else}}
-            <p class="text-primary-500 font-sans">まだ記事がありません。</p>
+            <p class="text-primary-500 font-sans">No posts yet.</p>
             {{end}}
         </div>
     {{end}}

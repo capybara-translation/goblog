@@ -177,7 +177,7 @@ func TestHandleHome(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			containsText: []string{
 				"<!DOCTYPE html>",
-				"まだ記事がありません",
+				"No posts yet.",
 			},
 		},
 		{
@@ -215,7 +215,7 @@ func TestHandleHome(t *testing.T) {
 				"#テスト",
 			},
 			notContains: []string{
-				"まだ記事がありません",
+				"No posts yet.",
 			},
 		},
 	}
@@ -358,8 +358,8 @@ func TestHandlePosts(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			containsText: []string{
 				"<!DOCTYPE html>",
-				"記事一覧",
-				"まだ記事がありません",
+				"Posts",
+				"No posts yet.",
 			},
 		},
 		{
@@ -389,7 +389,7 @@ func TestHandlePosts(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			containsText: []string{
 				"<!DOCTYPE html>",
-				"記事一覧",
+				"Posts",
 				"公開記事1",
 				"公開記事2",
 				"/posts/published-post-1",
@@ -398,7 +398,7 @@ func TestHandlePosts(t *testing.T) {
 				"#タグ2",
 			},
 			notContains: []string{
-				"まだ記事がありません",
+				"No posts yet.",
 			},
 		},
 	}
@@ -474,8 +474,8 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"ページ",
-				"ページ 1",
+				"Page",
+				"Page 1",
 				"/posts?page=2",
 			},
 			notContains: []string{
@@ -506,8 +506,8 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"ページ",
-				"ページ 2",
+				"Page",
+				"Page 2",
 				"/posts?page=1",
 				"/posts?page=3",
 			},
@@ -536,8 +536,8 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"ページ",
-				"ページ 3",
+				"Page",
+				"Page 3",
 				"/posts?page=2",
 			},
 			notContains: []string{
@@ -567,8 +567,8 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"ページ",
-				"ページ 1",
+				"Page",
+				"Page 1",
 			},
 		},
 		{
@@ -594,8 +594,8 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"ページ",
-				"ページ 1",
+				"Page",
+				"Page 1",
 			},
 		},
 		{
@@ -621,8 +621,8 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"ページ",
-				"ページ 1",
+				"Page",
+				"Page 1",
 			},
 		},
 		{
@@ -648,8 +648,8 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"ページ",
-				"ページ 1",
+				"Page",
+				"Page 1",
 			},
 		},
 	}
@@ -723,7 +723,7 @@ func TestHandlePosts_BlogTitle(t *testing.T) {
 				return []*domain.Post{}, nil
 			},
 			containsText: []string{
-				"<title>記事一覧 - goblog</title>",
+				"<title>Posts - goblog</title>",
 				"<a href=\"/\"",
 				">goblog</a>",
 				"&copy; 2025 goblog</p>",
@@ -746,7 +746,7 @@ func TestHandlePosts_BlogTitle(t *testing.T) {
 				}, nil
 			},
 			containsText: []string{
-				"<title>記事一覧 - My Tech Blog</title>",
+				"<title>Posts - My Tech Blog</title>",
 				"<a href=\"/\"",
 				">My Tech Blog</a>",
 				"&copy; 2025 My Tech Blog</p>",
@@ -815,7 +815,7 @@ func TestHandlePostDetail(t *testing.T) {
 				"#Go",
 				"#テスト",
 				"#ブログ",
-				"記事一覧に戻る",
+				"Back to posts",
 			},
 		},
 		{
@@ -828,10 +828,10 @@ func TestHandlePostDetail(t *testing.T) {
 			containsText: []string{
 				"<!DOCTYPE html>",
 				"404",
-				"ページが見つかりません",
-				"お探しのページは存在しないか、移動された可能性があります",
-				"ホームに戻る",
-				"記事一覧へ",
+				"Page Not Found",
+				"The page you're looking for doesn't exist or has been moved.",
+				"Go Home",
+				"View Posts",
 			},
 		},
 		{
@@ -1096,7 +1096,7 @@ func TestHandleTags(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			containsText: []string{
 				"<!DOCTYPE html>",
-				"タグ一覧",
+				"Tags",
 				`href="/tags/Go"`,
 				`>#</span>Go`,
 				"(10)",
@@ -1113,8 +1113,8 @@ func TestHandleTags(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"タグ一覧",
-				"まだタグがありません",
+				"Tags",
+				"No tags yet.",
 			},
 		},
 		{
@@ -1218,7 +1218,7 @@ func TestHandleTagPosts(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			containsText: []string{
 				`>#</span>Python`,
-				"このタグの記事はまだありません",
+				"No posts with this tag yet.",
 			},
 		},
 		{
@@ -1301,8 +1301,8 @@ func TestHandleTagPosts_Pagination(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"ページ",
-				"ページ 1",
+				"Page",
+				"Page 1",
 				"/tags/Go?page=2",
 			},
 			notContains: []string{
@@ -1334,8 +1334,8 @@ func TestHandleTagPosts_Pagination(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"ページ",
-				"ページ 2",
+				"Page",
+				"Page 2",
 				"/tags/React?page=1",
 			},
 			notContains: []string{
@@ -1495,17 +1495,17 @@ func TestHandlePosts_Search(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"「<span class=\"font-medium\">Go</span>」の検索結果",
+				"Search results for \"<span class=\"font-medium\">Go</span>\"",
 				"<mark>Go</mark>入門",           // ハイライトされたタイトル
 				"<mark>Go</mark>応用テクニック", // ハイライトされたタイトル
 				"/posts/go-introduction",
 				"/posts/go-advanced",
 				`value="Go"`,      // 検索ボックスに値が残っている
 				`href="/posts"`,   // クリアリンク
-				"クリア",          // クリアボタン
+				"Clear",           // クリアボタン
 			},
 			notContains: []string{
-				"まだ記事がありません",
+				"No posts yet.",
 			},
 		},
 		{
@@ -1532,7 +1532,7 @@ func TestHandlePosts_Search(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"「<span class=\"font-medium\">プログラミング</span>」の検索結果",
+				"Search results for \"<span class=\"font-medium\">プログラミング</span>\"",
 				"<mark>プログラミング</mark>入門", // ハイライトされたタイトル
 			},
 		},
@@ -1547,11 +1547,11 @@ func TestHandlePosts_Search(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"「notfound」に一致する記事が見つかりませんでした",
+				"No posts found matching \"notfound\"",
 				`value="notfound"`, // 検索ボックスに値が残っている
 			},
 			notContains: []string{
-				"まだ記事がありません", // 通常の空メッセージではない
+				"No posts yet.", // 通常の空メッセージではない
 			},
 		},
 		{
@@ -1729,9 +1729,9 @@ func TestHandlePosts_SearchForm(t *testing.T) {
 	expectedElements := []string{
 		`<form action="/posts" method="GET"`,
 		`name="q"`,
-		`placeholder="記事を検索..."`,
+		`placeholder="Search posts..."`,
 		`type="submit"`,
-		"検索",
+		"Search",
 	}
 
 	for _, elem := range expectedElements {
@@ -2048,14 +2048,14 @@ func TestCustom404Page(t *testing.T) {
 			setup:     func(m *mockPostService) {},
 			containsText: []string{
 				"<!DOCTYPE html>",
-				"<title>ページが見つかりません - goblog</title>",
+				"<title>Page Not Found - goblog</title>",
 				"404",
-				"ページが見つかりません",
-				"お探しのページは存在しないか、移動された可能性があります",
+				"Page Not Found",
+				"The page you're looking for doesn't exist or has been moved.",
 				`href="/"`,
-				"ホームに戻る",
+				"Go Home",
 				`href="/posts"`,
-				"記事一覧へ",
+				"View Posts",
 			},
 		},
 		{
@@ -2065,7 +2065,7 @@ func TestCustom404Page(t *testing.T) {
 			setup:     func(m *mockPostService) {},
 			containsText: []string{
 				"404",
-				"ページが見つかりません",
+				"Page Not Found",
 			},
 		},
 		{
@@ -2079,14 +2079,14 @@ func TestCustom404Page(t *testing.T) {
 			},
 			containsText: []string{
 				"<!DOCTYPE html>",
-				"<title>ページが見つかりません - goblog</title>",
+				"<title>Page Not Found - goblog</title>",
 				"404",
-				"ページが見つかりません",
-				"お探しのページは存在しないか、移動された可能性があります",
+				"Page Not Found",
+				"The page you're looking for doesn't exist or has been moved.",
 				`href="/"`,
-				"ホームに戻る",
+				"Go Home",
 				`href="/posts"`,
-				"記事一覧へ",
+				"View Posts",
 				"&copy; 2025 goblog</p>",
 			},
 		},
@@ -2100,9 +2100,9 @@ func TestCustom404Page(t *testing.T) {
 				}
 			},
 			containsText: []string{
-				"<title>ページが見つかりません - My Tech Blog</title>",
+				"<title>Page Not Found - My Tech Blog</title>",
 				"404",
-				"ページが見つかりません",
+				"Page Not Found",
 				">My Tech Blog</a>",
 				"&copy; 2025 My Tech Blog</p>",
 			},
@@ -2117,7 +2117,7 @@ func TestCustom404Page(t *testing.T) {
 				}
 			},
 			containsText: []string{
-				"<title>ページが見つかりません - テストブログ</title>",
+				"<title>Page Not Found - テストブログ</title>",
 				">テストブログ</a>",
 				"&copy; 2025 テストブログ</p>",
 			},

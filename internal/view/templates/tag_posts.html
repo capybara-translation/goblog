@@ -2,7 +2,7 @@
 {{template "layout" .}}
 {{- end -}}
 
-{{define "title"}}{{.Tag}} - タグ - {{.SiteTitle}}{{end}}
+{{define "title"}}{{.Tag}} - Tag - {{.SiteTitle}}{{end}}
 
 {{define "content"}}
 <div class="space-y-6">
@@ -13,7 +13,7 @@
                 <span class="text-primary-500">#</span>{{.Tag}}
             </h2>
             <a href="/tags" class="text-sm text-primary-500 hover:text-primary-700 font-sans transition-colors">
-                タグ一覧
+                All tags
             </a>
         </div>
     </div>
@@ -41,25 +41,25 @@
         </article>
         {{end}}
 
-        <!-- ページネーション -->
-        <nav class="flex items-center justify-between pt-4 font-sans" aria-label="ページネーション">
+        <!-- Pagination -->
+        <nav class="flex items-center justify-between pt-4 font-sans" aria-label="Pagination">
             <div>
                 {{if .HasPrev}}
                     <a href="/tags/{{.Tag}}?page={{.PrevPage}}" class="inline-flex items-center px-3 py-2 text-sm font-medium text-primary-600 hover:text-primary-800 bg-primary-100 rounded shadow-sm transition-colors">
                         <svg class="mr-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                         </svg>
-                        前
+                        Prev
                     </a>
                 {{end}}
             </div>
             <div class="text-sm text-primary-500">
-                ページ {{.CurrentPage}}
+                Page {{.CurrentPage}}
             </div>
             <div>
                 {{if .HasNext}}
                     <a href="/tags/{{.Tag}}?page={{.NextPage}}" class="inline-flex items-center px-3 py-2 text-sm font-medium text-primary-600 hover:text-primary-800 bg-primary-100 rounded shadow-sm transition-colors">
-                        次
+                        Next
                         <svg class="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                         </svg>
@@ -69,7 +69,7 @@
         </nav>
     {{else}}
         <div class="bg-primary-100 rounded-lg shadow-sm p-8 text-center">
-            <p class="text-primary-500 font-sans">このタグの記事はまだありません。</p>
+            <p class="text-primary-500 font-sans">No posts with this tag yet.</p>
         </div>
     {{end}}
 </div>

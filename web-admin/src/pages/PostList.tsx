@@ -48,7 +48,7 @@ export function PostList() {
       setPosts(data.posts);
       setTotalCount(data.total);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '記事の取得に失敗しました');
+      setError(err instanceof Error ? err.message : 'Failed to load posts');
     } finally {
       setIsLoading(false);
       // フォーカスを復元
@@ -101,7 +101,7 @@ export function PostList() {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-64">
-        <div className="text-primary-600">読み込み中...</div>
+        <div className="text-primary-600">Loading...</div>
       </div>
     );
   }
@@ -119,13 +119,13 @@ export function PostList() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-sans font-bold text-primary-900">
-          記事一覧
+          Posts
         </h1>
         <Link
           to="/posts/new"
           className="bg-primary-900 text-white px-4 py-2 rounded-md hover:bg-primary-800 transition-colors text-sm font-medium"
         >
-          新規作成
+          New Post
         </Link>
       </div>
 
@@ -138,7 +138,7 @@ export function PostList() {
               htmlFor="search-input"
               className="block text-sm font-medium text-primary-700 mb-1"
             >
-              検索
+              Search
             </label>
             <div className="flex gap-2">
               <input
@@ -149,16 +149,16 @@ export function PostList() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onCompositionStart={handleCompositionStart}
                 onCompositionEnd={handleCompositionEnd}
-                placeholder="タイトル・本文を検索..."
+                placeholder="Search by title or content..."
                 className="flex-1 px-3 py-2 border border-primary-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               />
               {searchQuery && (
                 <button
                   onClick={handleClearSearch}
                   className="px-3 py-2 text-primary-600 border border-primary-300 rounded-md hover:bg-primary-50 transition-colors"
-                  title="検索をクリア"
+                  title="Clear search"
                 >
-                  クリア
+                  Clear
                 </button>
               )}
             </div>
@@ -170,7 +170,7 @@ export function PostList() {
               htmlFor="status-filter"
               className="block text-sm font-medium text-primary-700 mb-1"
             >
-              ステータス
+              Status
             </label>
             <select
               id="status-filter"
@@ -180,18 +180,18 @@ export function PostList() {
               }
               className="w-full px-3 py-2 border border-primary-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             >
-              <option value="all">全て</option>
-              <option value="draft">下書き</option>
-              <option value="published">公開済み</option>
+              <option value="all">All</option>
+              <option value="draft">Draft</option>
+              <option value="published">Published</option>
             </select>
           </div>
         </div>
 
         <div className="text-sm text-primary-600">
           {debouncedQuery ? (
-            <>「{debouncedQuery}」の検索結果: {totalCount}件</>
+            <>Search results for "{debouncedQuery}": {totalCount}</>
           ) : (
-            <>{totalCount}件の記事</>
+            <>{totalCount} posts</>
           )}
         </div>
       </div>
@@ -200,8 +200,8 @@ export function PostList() {
       {posts.length === 0 ? (
         <div className="bg-white rounded-lg shadow-sm p-8 text-center text-primary-500">
           {debouncedQuery
-            ? `「${debouncedQuery}」に一致する記事が見つかりませんでした`
-            : '記事が見つかりませんでした'}
+            ? `No posts found matching "${debouncedQuery}"`
+            : 'No posts found'}
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
@@ -209,22 +209,22 @@ export function PostList() {
             <thead className="bg-primary-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-primary-700 uppercase tracking-wider">
-                  タイトル
+                  Title
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-primary-700 uppercase tracking-wider">
-                  ステータス
+                  Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-primary-700 uppercase tracking-wider">
-                  ピン留め
+                  Pinned
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-primary-700 uppercase tracking-wider">
-                  タグ
+                  Tags
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-primary-700 uppercase tracking-wider">
-                  更新日
+                  Updated
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-primary-700 uppercase tracking-wider">
-                  公開日
+                  Published
                 </th>
               </tr>
             </thead>
@@ -247,7 +247,7 @@ export function PostList() {
                   </td>
                   <td className="px-6 py-4 text-center">
                     {post.is_pinned && (
-                      <span title="ピン留めすると記事がヘッダーに表示されます">
+                      <span title="Pinned posts appear in the header">
                         📌
                       </span>
                     )}
@@ -282,7 +282,7 @@ export function PostList() {
             disabled={currentPage === 1}
             className="px-4 py-2 border border-primary-300 rounded-md text-sm font-medium text-primary-700 hover:bg-primary-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            前へ
+            Prev
           </button>
           <span className="px-4 py-2 text-sm text-primary-600">
             {currentPage} / {totalPages}
@@ -292,7 +292,7 @@ export function PostList() {
             disabled={currentPage === totalPages}
             className="px-4 py-2 border border-primary-300 rounded-md text-sm font-medium text-primary-700 hover:bg-primary-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            次へ
+            Next
           </button>
         </div>
       )}

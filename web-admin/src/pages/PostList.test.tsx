@@ -74,7 +74,7 @@ describe('PostList', () => {
     it('should show loading message initially', () => {
       vi.mocked(apiClient.getPosts).mockReturnValue(new Promise(() => {}))
       renderPostList()
-      expect(screen.getByText('読み込み中...')).toBeInTheDocument()
+      expect(screen.getByText('Loading...')).toBeInTheDocument()
     })
 
     it('should hide loading message after posts are loaded', async () => {
@@ -82,7 +82,7 @@ describe('PostList', () => {
       renderPostList()
 
       await waitFor(() => {
-        expect(screen.queryByText('読み込み中...')).not.toBeInTheDocument()
+        expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
       })
     })
   })
@@ -90,12 +90,12 @@ describe('PostList', () => {
   describe('Error state', () => {
     it('should show error message when posts fail to load', async () => {
       vi.mocked(apiClient.getPosts).mockRejectedValue(
-        new Error('ネットワークエラー')
+        new Error('Network error')
       )
       renderPostList()
 
       await waitFor(() => {
-        expect(screen.getByText('ネットワークエラー')).toBeInTheDocument()
+        expect(screen.getByText('Network error')).toBeInTheDocument()
       })
     })
 
@@ -104,7 +104,7 @@ describe('PostList', () => {
       renderPostList()
 
       await waitFor(() => {
-        expect(screen.getByText('記事の取得に失敗しました')).toBeInTheDocument()
+        expect(screen.getByText('Failed to load posts')).toBeInTheDocument()
       })
     })
 
@@ -116,7 +116,7 @@ describe('PostList', () => {
         expect(screen.getByText('Error')).toBeInTheDocument()
       })
 
-      expect(screen.queryByText('記事一覧')).not.toBeInTheDocument()
+      expect(screen.queryByText('Posts')).not.toBeInTheDocument()
     })
   })
 
@@ -126,7 +126,7 @@ describe('PostList', () => {
       renderPostList()
 
       await waitFor(() => {
-        expect(screen.getByText('記事一覧')).toBeInTheDocument()
+        expect(screen.getByText('Posts')).toBeInTheDocument()
       })
     })
 
@@ -135,10 +135,10 @@ describe('PostList', () => {
       renderPostList()
 
       await waitFor(() => {
-        expect(screen.getByText('新規作成')).toBeInTheDocument()
+        expect(screen.getByText('New Post')).toBeInTheDocument()
       })
 
-      expect(screen.getByText('新規作成').closest('a')).toHaveAttribute(
+      expect(screen.getByText('New Post').closest('a')).toHaveAttribute(
         'href',
         '/posts/new'
       )
@@ -161,7 +161,7 @@ describe('PostList', () => {
       renderPostList()
 
       await waitFor(() => {
-        expect(screen.getByText('3件の記事')).toBeInTheDocument()
+        expect(screen.getByText('3 posts')).toBeInTheDocument()
       })
     })
 
@@ -171,8 +171,9 @@ describe('PostList', () => {
 
       await waitFor(() => {
         const table = screen.getByRole('table')
-        expect(within(table).getAllByText('公開済み')).toHaveLength(2)
-        expect(within(table).getByText('下書き')).toBeInTheDocument()
+        // 2 status badges + 1 column header "Published" = 3 total
+        expect(within(table).getAllByText('Published')).toHaveLength(3)
+        expect(within(table).getByText('Draft')).toBeInTheDocument()
       })
     })
 
@@ -283,7 +284,7 @@ describe('PostList', () => {
 
       await waitFor(() => {
         const table = screen.getByRole('table')
-        // ピン留めされた記事の行には📌が表示される
+        // Pinnedされた記事の行には📌が表示される
         expect(within(table).getByText('📌')).toBeInTheDocument()
       })
     })
@@ -333,7 +334,7 @@ describe('PostList', () => {
 
       await waitFor(() => {
         const table = screen.getByRole('table')
-        expect(within(table).getByText('ピン留め')).toBeInTheDocument()
+        expect(within(table).getByText('Pinned')).toBeInTheDocument()
       })
     })
   })
@@ -344,10 +345,10 @@ describe('PostList', () => {
       renderPostList()
 
       await waitFor(() => {
-        expect(screen.getByText('記事が見つかりませんでした')).toBeInTheDocument()
+        expect(screen.getByText('No posts found')).toBeInTheDocument()
       })
 
-      expect(screen.getByText('0件の記事')).toBeInTheDocument()
+      expect(screen.getByText('0 posts')).toBeInTheDocument()
     })
 
     it('should not show table when no posts exist', async () => {
@@ -355,7 +356,7 @@ describe('PostList', () => {
       renderPostList()
 
       await waitFor(() => {
-        expect(screen.getByText('記事が見つかりませんでした')).toBeInTheDocument()
+        expect(screen.getByText('No posts found')).toBeInTheDocument()
       })
 
       expect(screen.queryByRole('table')).not.toBeInTheDocument()
@@ -368,7 +369,7 @@ describe('PostList', () => {
       renderPostList()
 
       await waitFor(() => {
-        expect(screen.getByLabelText('ステータス')).toBeInTheDocument()
+        expect(screen.getByLabelText('Status')).toBeInTheDocument()
       })
     })
 
@@ -377,7 +378,7 @@ describe('PostList', () => {
       renderPostList()
 
       await waitFor(() => {
-        expect(screen.getByLabelText('ステータス')).toHaveValue('all')
+        expect(screen.getByLabelText('Status')).toHaveValue('all')
       })
     })
 
@@ -394,7 +395,7 @@ describe('PostList', () => {
         expect(screen.getByText('First Published Post')).toBeInTheDocument()
       })
 
-      await user.selectOptions(screen.getByLabelText('ステータス'), 'draft')
+      await user.selectOptions(screen.getByLabelText('Status'), 'draft')
 
       await waitFor(() => {
         expect(apiClient.getPosts).toHaveBeenLastCalledWith({
@@ -418,7 +419,7 @@ describe('PostList', () => {
         expect(screen.getByText('First Published Post')).toBeInTheDocument()
       })
 
-      await user.selectOptions(screen.getByLabelText('ステータス'), 'published')
+      await user.selectOptions(screen.getByLabelText('Status'), 'published')
 
       await waitFor(() => {
         expect(apiClient.getPosts).toHaveBeenLastCalledWith({
@@ -443,12 +444,12 @@ describe('PostList', () => {
         expect(screen.getByText('First Published Post')).toBeInTheDocument()
       })
 
-      await user.selectOptions(screen.getByLabelText('ステータス'), 'draft')
+      await user.selectOptions(screen.getByLabelText('Status'), 'draft')
       await waitFor(() => {
-        expect(screen.getByText('1件の記事')).toBeInTheDocument()
+        expect(screen.getByText('1 posts')).toBeInTheDocument()
       })
 
-      await user.selectOptions(screen.getByLabelText('ステータス'), 'all')
+      await user.selectOptions(screen.getByLabelText('Status'), 'all')
 
       await waitFor(() => {
         expect(apiClient.getPosts).toHaveBeenLastCalledWith({
@@ -483,11 +484,11 @@ describe('PostList', () => {
       renderPostList()
 
       await waitFor(() => {
-        expect(screen.getByText('20件の記事')).toBeInTheDocument()
+        expect(screen.getByText('20 posts')).toBeInTheDocument()
       })
 
-      expect(screen.queryByRole('button', { name: '前へ' })).not.toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: '次へ' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Prev' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument()
     })
 
     it('should show pagination when total is more than 20', async () => {
@@ -495,10 +496,10 @@ describe('PostList', () => {
       renderPostList()
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: '前へ' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Prev' })).toBeInTheDocument()
       })
 
-      expect(screen.getByRole('button', { name: '次へ' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
       expect(screen.getByText('1 / 2')).toBeInTheDocument()
     })
 
@@ -514,25 +515,25 @@ describe('PostList', () => {
       expect(screen.queryByText('Post 21')).not.toBeInTheDocument()
     })
 
-    it('should disable "前へ" button on first page', async () => {
+    it('should disable "Prev" button on first page', async () => {
       vi.mocked(apiClient.getPosts).mockResolvedValue(createManyPostsResponse(25, 1))
       renderPostList()
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: '前へ' })).toBeDisabled()
+        expect(screen.getByRole('button', { name: 'Prev' })).toBeDisabled()
       })
     })
 
-    it('should enable "次へ" button on first page when there are more pages', async () => {
+    it('should enable "Next" button on first page when there are more pages', async () => {
       vi.mocked(apiClient.getPosts).mockResolvedValue(createManyPostsResponse(25, 1))
       renderPostList()
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: '次へ' })).not.toBeDisabled()
+        expect(screen.getByRole('button', { name: 'Next' })).not.toBeDisabled()
       })
     })
 
-    it('should call API with offset when "次へ" is clicked', async () => {
+    it('should call API with offset when "Next" is clicked', async () => {
       const user = userEvent.setup()
       vi.mocked(apiClient.getPosts)
         .mockResolvedValueOnce(createManyPostsResponse(25, 1)) // 初回ロード (page 1)
@@ -541,10 +542,10 @@ describe('PostList', () => {
       renderPostList()
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: '次へ' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
       })
 
-      await user.click(screen.getByRole('button', { name: '次へ' }))
+      await user.click(screen.getByRole('button', { name: 'Next' }))
 
       await waitFor(() => {
         expect(apiClient.getPosts).toHaveBeenLastCalledWith({
@@ -557,7 +558,7 @@ describe('PostList', () => {
       expect(screen.getByText('2 / 2')).toBeInTheDocument()
     })
 
-    it('should call API with previous offset when "前へ" is clicked', async () => {
+    it('should call API with previous offset when "Prev" is clicked', async () => {
       const user = userEvent.setup()
       vi.mocked(apiClient.getPosts)
         .mockResolvedValueOnce(createManyPostsResponse(25, 1)) // 初回ロード (page 1)
@@ -567,15 +568,15 @@ describe('PostList', () => {
       renderPostList()
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: '次へ' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
       })
 
-      await user.click(screen.getByRole('button', { name: '次へ' }))
+      await user.click(screen.getByRole('button', { name: 'Next' }))
       await waitFor(() => {
         expect(screen.getByText('2 / 2')).toBeInTheDocument()
       })
 
-      await user.click(screen.getByRole('button', { name: '前へ' }))
+      await user.click(screen.getByRole('button', { name: 'Prev' }))
 
       await waitFor(() => {
         expect(apiClient.getPosts).toHaveBeenLastCalledWith({
@@ -588,7 +589,7 @@ describe('PostList', () => {
       expect(screen.getByText('1 / 2')).toBeInTheDocument()
     })
 
-    it('should disable "次へ" button on last page', async () => {
+    it('should disable "Next" button on last page', async () => {
       const user = userEvent.setup()
       vi.mocked(apiClient.getPosts)
         .mockResolvedValueOnce(createManyPostsResponse(25, 1)) // 初回ロード (page 1)
@@ -597,14 +598,14 @@ describe('PostList', () => {
       renderPostList()
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: '次へ' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
       })
 
-      await user.click(screen.getByRole('button', { name: '次へ' }))
+      await user.click(screen.getByRole('button', { name: 'Next' }))
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: '次へ' })).toBeDisabled()
-        expect(screen.getByRole('button', { name: '前へ' })).not.toBeDisabled()
+        expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+        expect(screen.getByRole('button', { name: 'Prev' })).not.toBeDisabled()
       })
     })
 
@@ -618,17 +619,17 @@ describe('PostList', () => {
       renderPostList()
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: '次へ' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
       })
 
-      await user.click(screen.getByRole('button', { name: '次へ' }))
+      await user.click(screen.getByRole('button', { name: 'Next' }))
       await waitFor(() => {
         expect(screen.getByText('2 / 2')).toBeInTheDocument()
       })
 
-      await user.selectOptions(screen.getByLabelText('ステータス'), 'draft')
+      await user.selectOptions(screen.getByLabelText('Status'), 'draft')
 
-      // ステータス変更時にoffset: 0でAPIが呼ばれることを確認
+      // Status変更時にoffset: 0でAPIが呼ばれることを確認
       await waitFor(() => {
         expect(apiClient.getPosts).toHaveBeenLastCalledWith({
           status: 'draft',
@@ -654,10 +655,10 @@ describe('PostList', () => {
       renderPostList()
 
       await waitFor(() => {
-        expect(screen.getByLabelText('検索')).toBeInTheDocument()
+        expect(screen.getByLabelText('Search')).toBeInTheDocument()
       })
 
-      expect(screen.getByPlaceholderText('タイトル・本文を検索...')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('Search by title or content...')).toBeInTheDocument()
     })
 
     it('should call API with search query after debounce', async () => {
@@ -670,7 +671,7 @@ describe('PostList', () => {
 
       vi.mocked(apiClient.getPosts)
         .mockResolvedValueOnce(mockResponse) // 初回ロード
-        .mockResolvedValue(searchResults) // 検索後
+        .mockResolvedValue(searchResults) // Search後
 
       renderPostList()
 
@@ -678,7 +679,7 @@ describe('PostList', () => {
         expect(screen.getByText('First Published Post')).toBeInTheDocument()
       })
 
-      const searchInput = screen.getByLabelText('検索')
+      const searchInput = screen.getByLabelText('Search')
       await user.type(searchInput, 'First')
 
       // デバウンス後にAPIが呼ばれる（300ms + α 待つ）
@@ -707,14 +708,14 @@ describe('PostList', () => {
       renderPostList()
 
       await waitFor(() => {
-        expect(screen.getByText('3件の記事')).toBeInTheDocument()
+        expect(screen.getByText('3 posts')).toBeInTheDocument()
       })
 
-      const searchInput = screen.getByLabelText('検索')
+      const searchInput = screen.getByLabelText('Search')
       await user.type(searchInput, 'First')
 
       await waitFor(() => {
-        expect(screen.getByText(/「First」の検索結果: 1件/)).toBeInTheDocument()
+        expect(screen.getByText(/Search results for "First": 1/)).toBeInTheDocument()
       }, { timeout: 2000 })
     })
 
@@ -729,13 +730,13 @@ describe('PostList', () => {
       })
 
       // クリアボタンは最初は表示されない
-      expect(screen.queryByTitle('検索をクリア')).not.toBeInTheDocument()
+      expect(screen.queryByTitle('Clear search')).not.toBeInTheDocument()
 
-      const searchInput = screen.getByLabelText('検索')
+      const searchInput = screen.getByLabelText('Search')
       await user.type(searchInput, 'test')
 
       // クリアボタンが表示される
-      expect(screen.getByTitle('検索をクリア')).toBeInTheDocument()
+      expect(screen.getByTitle('Clear search')).toBeInTheDocument()
     })
 
     it('should clear search when clear button is clicked', async () => {
@@ -748,7 +749,7 @@ describe('PostList', () => {
 
       vi.mocked(apiClient.getPosts)
         .mockResolvedValueOnce(mockResponse) // 初回ロード
-        .mockResolvedValueOnce(searchResults) // 検索後
+        .mockResolvedValueOnce(searchResults) // Search後
         .mockResolvedValue(mockResponse) // クリア後
 
       renderPostList()
@@ -757,14 +758,14 @@ describe('PostList', () => {
         expect(screen.getByText('First Published Post')).toBeInTheDocument()
       })
 
-      const searchInput = screen.getByLabelText('検索')
+      const searchInput = screen.getByLabelText('Search')
       await user.type(searchInput, 'First')
 
       await waitFor(() => {
-        expect(screen.getByText(/「First」の検索結果/)).toBeInTheDocument()
+        expect(screen.getByText(/Search results for "First"/)).toBeInTheDocument()
       }, { timeout: 2000 })
 
-      await user.click(screen.getByTitle('検索をクリア'))
+      await user.click(screen.getByTitle('Clear search'))
 
       await waitFor(() => {
         expect(apiClient.getPosts).toHaveBeenLastCalledWith({
@@ -775,7 +776,7 @@ describe('PostList', () => {
         })
       }, { timeout: 2000 })
 
-      // 検索入力がクリアされていることを確認
+      // Search入力がクリアされていることを確認
       expect(searchInput).toHaveValue('')
     })
 
@@ -801,22 +802,22 @@ describe('PostList', () => {
       vi.mocked(apiClient.getPosts)
         .mockResolvedValueOnce(createManyPostsResponse(25)) // 初回ロード
         .mockResolvedValueOnce(createManyPostsResponse(25)) // page 2
-        .mockResolvedValue({ posts: [mockPosts[0]!], total: 1 }) // 検索後
+        .mockResolvedValue({ posts: [mockPosts[0]!], total: 1 }) // Search後
 
       renderPostList()
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: '次へ' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
       })
 
       // 2ページ目に移動
-      await user.click(screen.getByRole('button', { name: '次へ' }))
+      await user.click(screen.getByRole('button', { name: 'Next' }))
       await waitFor(() => {
         expect(screen.getByText('2 / 2')).toBeInTheDocument()
       })
 
-      // 検索を実行
-      const searchInput = screen.getByLabelText('検索')
+      // Searchを実行
+      const searchInput = screen.getByLabelText('Search')
       await user.type(searchInput, 'First')
 
       // offset: 0 でAPIが呼ばれることを確認（1ページ目にリセット）
@@ -840,8 +841,8 @@ describe('PostList', () => {
 
       vi.mocked(apiClient.getPosts)
         .mockResolvedValueOnce(mockResponse) // 初回ロード
-        .mockResolvedValueOnce(searchResults) // ステータス変更後
-        .mockResolvedValue(searchResults) // 検索後
+        .mockResolvedValueOnce(searchResults) // Status変更後
+        .mockResolvedValue(searchResults) // Search後
 
       renderPostList()
 
@@ -849,8 +850,8 @@ describe('PostList', () => {
         expect(screen.getByText('First Published Post')).toBeInTheDocument()
       })
 
-      // ステータスフィルタを変更
-      await user.selectOptions(screen.getByLabelText('ステータス'), 'published')
+      // Statusフィルタを変更
+      await user.selectOptions(screen.getByLabelText('Status'), 'published')
       await waitFor(() => {
         expect(apiClient.getPosts).toHaveBeenCalledWith({
           status: 'published',
@@ -859,8 +860,8 @@ describe('PostList', () => {
         })
       })
 
-      // 検索を実行
-      const searchInput = screen.getByLabelText('検索')
+      // Searchを実行
+      const searchInput = screen.getByLabelText('Search')
       await user.type(searchInput, 'First')
 
       await waitFor(() => {
@@ -878,7 +879,7 @@ describe('PostList', () => {
 
       vi.mocked(apiClient.getPosts)
         .mockResolvedValueOnce(mockResponse) // 初回ロード
-        .mockResolvedValue({ posts: [], total: 0 }) // 検索後（0件）
+        .mockResolvedValue({ posts: [], total: 0 }) // Search後（0件）
 
       renderPostList()
 
@@ -886,11 +887,11 @@ describe('PostList', () => {
         expect(screen.getByText('First Published Post')).toBeInTheDocument()
       })
 
-      const searchInput = screen.getByLabelText('検索')
+      const searchInput = screen.getByLabelText('Search')
       await user.type(searchInput, 'nonexistent')
 
       await waitFor(() => {
-        expect(screen.getByText(/「nonexistent」に一致する記事が見つかりませんでした/)).toBeInTheDocument()
+        expect(screen.getByText(/No posts found matching "nonexistent"/)).toBeInTheDocument()
       }, { timeout: 2000 })
     })
 

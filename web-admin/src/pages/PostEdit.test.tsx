@@ -104,42 +104,42 @@ describe('PostEdit', () => {
   }
 
   describe('Create mode rendering', () => {
-    it('should render page title as "新規作成"', async () => {
+    it('should render page title as "New Post"', async () => {
       await renderCreateMode()
-      expect(screen.getByText('新規作成')).toBeInTheDocument()
+      expect(screen.getByText('New Post')).toBeInTheDocument()
     })
 
     it('should render empty form fields', async () => {
       await renderCreateMode()
-      expect(screen.getByLabelText(/タイトル/)).toHaveValue('')
-      expect(screen.getByLabelText(/スラッグ/)).toHaveValue('')
+      expect(screen.getByLabelText(/Title/)).toHaveValue('')
+      expect(screen.getByLabelText(/Slug/)).toHaveValue('')
       // TagInputコンポーネントはlabel関連付けが異なるため、ラベル表示のみ確認
-      expect(screen.getByText('タグ')).toBeInTheDocument()
+      expect(screen.getByText('Tags')).toBeInTheDocument()
       // MarkdownEditor コンポーネントはlabel関連付けが異なるため、ラベル表示のみ確認
-      expect(screen.getByText('本文（Markdown）')).toBeInTheDocument()
+      expect(screen.getByText('Content (Markdown)')).toBeInTheDocument()
     })
 
     it('should render save button', async () => {
       await renderCreateMode()
-      expect(screen.getByRole('button', { name: '保存' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
     })
 
     it('should not render publish/unpublish/delete buttons', async () => {
       await renderCreateMode()
-      expect(screen.queryByRole('button', { name: '公開する' })).not.toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: '非公開にする' })).not.toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: '削除' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Publish' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Unpublish' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
     })
 
     it('should render back link', async () => {
       await renderCreateMode()
-      expect(screen.getByText('← 記事一覧に戻る')).toBeInTheDocument()
+      expect(screen.getByText('← Back to posts')).toBeInTheDocument()
     })
 
     it('should have required attributes on title and slug fields', async () => {
       await renderCreateMode()
-      expect(screen.getByLabelText(/タイトル/)).toBeRequired()
-      expect(screen.getByLabelText(/スラッグ/)).toBeRequired()
+      expect(screen.getByLabelText(/Title/)).toBeRequired()
+      expect(screen.getByLabelText(/Slug/)).toBeRequired()
     })
   })
 
@@ -147,15 +147,15 @@ describe('PostEdit', () => {
     it('should show loading state initially', async () => {
       vi.mocked(apiClient.getPost).mockReturnValue(new Promise(() => {}))
       await renderEditMode(1)
-      expect(screen.getByText('読み込み中...')).toBeInTheDocument()
+      expect(screen.getByText('Loading...')).toBeInTheDocument()
     })
 
-    it('should render page title as "記事編集"', async () => {
+    it('should render page title as "Edit Post"', async () => {
       vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
       await renderEditMode(1)
 
       await waitFor(() => {
-        expect(screen.getByText('記事編集')).toBeInTheDocument()
+        expect(screen.getByText('Edit Post')).toBeInTheDocument()
       })
     })
 
@@ -164,11 +164,11 @@ describe('PostEdit', () => {
       await renderEditMode(1)
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/タイトル/)).toHaveValue('Draft Post')
+        expect(screen.getByLabelText(/Title/)).toHaveValue('Draft Post')
       })
 
-      expect(screen.getByLabelText(/スラッグ/)).toHaveValue('draft-post')
-      // TagInputコンポーネントはタグをチップで表示
+      expect(screen.getByLabelText(/Slug/)).toHaveValue('draft-post')
+      // TagInputコンポーネントはTagsをチップで表示
       expect(screen.getByText('Go')).toBeInTheDocument()
       expect(screen.getByText('Testing')).toBeInTheDocument()
       // MarkdownEditorのtextareaは直接取得できないため、APIコールを確認
@@ -176,11 +176,11 @@ describe('PostEdit', () => {
     })
 
     it('should show error message when post load fails', async () => {
-      vi.mocked(apiClient.getPost).mockRejectedValue(new Error('記事が見つかりません'))
+      vi.mocked(apiClient.getPost).mockRejectedValue(new Error('Post not found'))
       await renderEditMode(1)
 
       await waitFor(() => {
-        expect(screen.getByText('記事が見つかりません')).toBeInTheDocument()
+        expect(screen.getByText('Post not found')).toBeInTheDocument()
       })
     })
 
@@ -189,10 +189,10 @@ describe('PostEdit', () => {
       await renderEditMode(1)
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: '公開する' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Publish' })).toBeInTheDocument()
       })
 
-      expect(screen.queryByRole('button', { name: '非公開にする' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Unpublish' })).not.toBeInTheDocument()
     })
 
     it('should render unpublish button for published post', async () => {
@@ -200,10 +200,10 @@ describe('PostEdit', () => {
       await renderEditMode(2)
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: '非公開にする' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Unpublish' })).toBeInTheDocument()
       })
 
-      expect(screen.queryByRole('button', { name: '公開する' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Publish' })).not.toBeInTheDocument()
     })
 
     it('should render delete button', async () => {
@@ -211,7 +211,7 @@ describe('PostEdit', () => {
       await renderEditMode(1)
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
       })
     })
 
@@ -220,7 +220,7 @@ describe('PostEdit', () => {
       await renderEditMode(1)
 
       await waitFor(() => {
-        expect(screen.getByText('下書き')).toBeInTheDocument()
+        expect(screen.getByText('Draft')).toBeInTheDocument()
       })
     })
   })
@@ -231,12 +231,12 @@ describe('PostEdit', () => {
       await renderEditMode(1)
 
       await waitFor(() => {
-        expect(screen.getByText('作成日:')).toBeInTheDocument()
+        expect(screen.getByText('Created:')).toBeInTheDocument()
       })
 
-      expect(screen.getByText('更新日:')).toBeInTheDocument()
+      expect(screen.getByText('Updated:')).toBeInTheDocument()
       // published_at が null の場合は公開日を表示しない
-      expect(screen.queryByText('公開日:')).not.toBeInTheDocument()
+      expect(screen.queryByText('Published:')).not.toBeInTheDocument()
     })
 
     it('should display published_at for published post', async () => {
@@ -244,7 +244,7 @@ describe('PostEdit', () => {
       await renderEditMode(2)
 
       await waitFor(() => {
-        expect(screen.getByText('公開日:')).toBeInTheDocument()
+        expect(screen.getByText('Published:')).toBeInTheDocument()
       })
     })
 
@@ -259,21 +259,21 @@ describe('PostEdit', () => {
       await renderEditMode(2)
 
       await waitFor(() => {
-        expect(screen.getByText('作成日:')).toBeInTheDocument()
+        expect(screen.getByText('Created:')).toBeInTheDocument()
       })
 
       // ISO 8601形式（yyyy-MM-dd HH:mm:ss）で表示されることを確認
       const datePattern = /\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/
-      const metadataSection = screen.getByText('作成日:').closest('div')?.parentElement
+      const metadataSection = screen.getByText('Created:').closest('div')?.parentElement
       expect(metadataSection?.textContent).toMatch(datePattern)
     })
 
     it('should not display metadata in create mode', async () => {
       await renderCreateMode()
 
-      expect(screen.queryByText('作成日:')).not.toBeInTheDocument()
-      expect(screen.queryByText('更新日:')).not.toBeInTheDocument()
-      expect(screen.queryByText('公開日:')).not.toBeInTheDocument()
+      expect(screen.queryByText('Created:')).not.toBeInTheDocument()
+      expect(screen.queryByText('Updated:')).not.toBeInTheDocument()
+      expect(screen.queryByText('Published:')).not.toBeInTheDocument()
     })
   })
 
@@ -282,7 +282,7 @@ describe('PostEdit', () => {
       const user = userEvent.setup()
       await renderCreateMode()
 
-      const titleInput = screen.getByLabelText(/タイトル/)
+      const titleInput = screen.getByLabelText(/Title/)
       await user.type(titleInput, 'New Post Title')
 
       expect(titleInput).toHaveValue('New Post Title')
@@ -292,7 +292,7 @@ describe('PostEdit', () => {
       const user = userEvent.setup()
       await renderCreateMode()
 
-      const slugInput = screen.getByLabelText(/スラッグ/)
+      const slugInput = screen.getByLabelText(/Slug/)
       await user.type(slugInput, 'new-post-slug')
 
       expect(slugInput).toHaveValue('new-post-slug')
@@ -303,11 +303,11 @@ describe('PostEdit', () => {
       await renderCreateMode()
 
       // TagInputコンポーネントのinputを取得
-      const tagsInput = screen.getByLabelText('タグ入力')
-      // タグを入力してカンマで区切ると追加される
+      const tagsInput = screen.getByLabelText('Tag input')
+      // Tagsを入力してカンマで区切ると追加される
       await user.type(tagsInput, 'NewTag,')
 
-      // 追加されたタグがチップとして表示される
+      // 追加されたTagsがチップとして表示される
       await waitFor(() => {
         expect(screen.getByText('NewTag')).toBeInTheDocument()
       })
@@ -316,7 +316,7 @@ describe('PostEdit', () => {
     it('should render markdown editor', async () => {
       await renderCreateMode()
       // MarkdownEditorコンポーネントがレンダリングされていることを確認
-      expect(screen.getByText('本文（Markdown）')).toBeInTheDocument()
+      expect(screen.getByText('Content (Markdown)')).toBeInTheDocument()
       // MDEditorはツールバーを表示する
       expect(screen.getByRole('button', { name: /bold/i })).toBeInTheDocument()
     })
@@ -327,12 +327,12 @@ describe('PostEdit', () => {
       const user = userEvent.setup()
       await renderCreateMode()
 
-      await user.type(screen.getByLabelText(/タイトル/), '   ')
-      await user.type(screen.getByLabelText(/スラッグ/), '   ')
-      await user.click(screen.getByRole('button', { name: '保存' }))
+      await user.type(screen.getByLabelText(/Title/), '   ')
+      await user.type(screen.getByLabelText(/Slug/), '   ')
+      await user.click(screen.getByRole('button', { name: 'Save' }))
 
       await waitFor(() => {
-        expect(screen.getByText('タイトルとスラッグは必須です')).toBeInTheDocument()
+        expect(screen.getByText('Title and slug are required')).toBeInTheDocument()
       })
 
       expect(apiClient.createPost).not.toHaveBeenCalled()
@@ -353,12 +353,12 @@ describe('PostEdit', () => {
 
       await renderCreateMode()
 
-      await user.type(screen.getByLabelText(/タイトル/), 'New Post')
-      await user.type(screen.getByLabelText(/スラッグ/), 'new-post')
-      // TagInputでタグを追加（カンマで区切って追加）
-      await user.type(screen.getByLabelText('タグ入力'), 'React,')
+      await user.type(screen.getByLabelText(/Title/), 'New Post')
+      await user.type(screen.getByLabelText(/Slug/), 'new-post')
+      // TagInputでTagsを追加（カンマで区切って追加）
+      await user.type(screen.getByLabelText('Tag input'), 'React,')
       // MarkdownEditorはlabel関連付けが異なるため、content入力はスキップ
-      await user.click(screen.getByRole('button', { name: '保存' }))
+      await user.click(screen.getByRole('button', { name: 'Save' }))
 
       await waitFor(() => {
         expect(apiClient.createPost).toHaveBeenCalledWith({
@@ -372,7 +372,7 @@ describe('PostEdit', () => {
 
       // モーダルが表示されることを確認
       await waitFor(() => {
-        expect(screen.getByText('記事を作成しました')).toBeInTheDocument()
+        expect(screen.getByText('Post created')).toBeInTheDocument()
       })
       // OKをクリックしてモーダルを閉じる
       await user.click(screen.getByRole('button', { name: 'OK' }))
@@ -385,17 +385,17 @@ describe('PostEdit', () => {
     it('should show error message when create fails', async () => {
       const user = userEvent.setup()
       vi.mocked(apiClient.createPost).mockRejectedValue(
-        new Error('スラッグが既に存在します')
+        new Error('Slug already exists')
       )
 
       await renderCreateMode()
 
-      await user.type(screen.getByLabelText(/タイトル/), 'New Post')
-      await user.type(screen.getByLabelText(/スラッグ/), 'duplicate-slug')
-      await user.click(screen.getByRole('button', { name: '保存' }))
+      await user.type(screen.getByLabelText(/Title/), 'New Post')
+      await user.type(screen.getByLabelText(/Slug/), 'duplicate-slug')
+      await user.click(screen.getByRole('button', { name: 'Save' }))
 
       await waitFor(() => {
-        expect(screen.getByText('スラッグが既に存在します')).toBeInTheDocument()
+        expect(screen.getByText('Slug already exists')).toBeInTheDocument()
       })
 
       // エラー時はモーダルが表示されない
@@ -414,10 +414,10 @@ describe('PostEdit', () => {
 
       await renderCreateMode()
 
-      const titleInput = screen.getByLabelText(/タイトル/)
-      const slugInput = screen.getByLabelText(/スラッグ/)
-      const tagsInput = screen.getByLabelText('タグ入力')
-      const saveButton = screen.getByRole('button', { name: '保存' })
+      const titleInput = screen.getByLabelText(/Title/)
+      const slugInput = screen.getByLabelText(/Slug/)
+      const tagsInput = screen.getByLabelText('Tag input')
+      const saveButton = screen.getByRole('button', { name: 'Save' })
 
       await user.type(titleInput, 'Test')
       await user.type(slugInput, 'test')
@@ -430,14 +430,14 @@ describe('PostEdit', () => {
         // MarkdownEditorのdisabled状態はコンポーネント内部で管理されるため、
         // ボタンのdisabled状態のみ確認
         expect(saveButton).toBeDisabled()
-        expect(screen.getByRole('button', { name: '保存中...' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Saving...' })).toBeInTheDocument()
       })
 
       resolveCreate!(mockDraftPost)
 
       // モーダルが表示されることを確認
       await waitFor(() => {
-        expect(screen.getByText('記事を作成しました')).toBeInTheDocument()
+        expect(screen.getByText('Post created')).toBeInTheDocument()
       })
 
       // OKをクリックしてモーダルを閉じる
@@ -461,13 +461,13 @@ describe('PostEdit', () => {
       await renderEditMode(1)
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/タイトル/)).toHaveValue('Draft Post')
+        expect(screen.getByLabelText(/Title/)).toHaveValue('Draft Post')
       })
 
-      const titleInput = screen.getByLabelText(/タイトル/)
+      const titleInput = screen.getByLabelText(/Title/)
       await user.clear(titleInput)
       await user.type(titleInput, 'Updated Title')
-      await user.click(screen.getByRole('button', { name: '保存' }))
+      await user.click(screen.getByRole('button', { name: 'Save' }))
 
       await waitFor(() => {
         expect(apiClient.updatePost).toHaveBeenCalledWith(1, {
@@ -481,7 +481,7 @@ describe('PostEdit', () => {
 
       // モーダルが表示されることを確認
       await waitFor(() => {
-        expect(screen.getByText('記事を更新しました')).toBeInTheDocument()
+        expect(screen.getByText('Post updated')).toBeInTheDocument()
       })
       // OKをクリックしてモーダルを閉じる
       await user.click(screen.getByRole('button', { name: 'OK' }))
@@ -493,19 +493,19 @@ describe('PostEdit', () => {
       const user = userEvent.setup()
       vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
       vi.mocked(apiClient.updatePost).mockRejectedValue(
-        new Error('更新に失敗しました')
+        new Error('Failed to update')
       )
 
       await renderEditMode(1)
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/タイトル/)).toHaveValue('Draft Post')
+        expect(screen.getByLabelText(/Title/)).toHaveValue('Draft Post')
       })
 
-      await user.click(screen.getByRole('button', { name: '保存' }))
+      await user.click(screen.getByRole('button', { name: 'Save' }))
 
       await waitFor(() => {
-        expect(screen.getByText('更新に失敗しました')).toBeInTheDocument()
+        expect(screen.getByText('Failed to update')).toBeInTheDocument()
       })
 
       // エラー時はモーダルが表示されない
@@ -525,10 +525,10 @@ describe('PostEdit', () => {
       await renderEditMode(1)
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: '公開する' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Publish' })).toBeInTheDocument()
       })
 
-      await user.click(screen.getByRole('button', { name: '公開する' }))
+      await user.click(screen.getByRole('button', { name: 'Publish' }))
 
       await waitFor(() => {
         expect(apiClient.publishPost).toHaveBeenCalledWith(1)
@@ -536,7 +536,7 @@ describe('PostEdit', () => {
 
       // モーダルが表示されることを確認
       await waitFor(() => {
-        expect(screen.getByText('記事を公開しました')).toBeInTheDocument()
+        expect(screen.getByText('Post published')).toBeInTheDocument()
       })
       // OKをクリックしてモーダルを閉じる
       await user.click(screen.getByRole('button', { name: 'OK' }))
@@ -546,19 +546,19 @@ describe('PostEdit', () => {
       const user = userEvent.setup()
       vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
       vi.mocked(apiClient.publishPost).mockRejectedValue(
-        new Error('公開に失敗しました')
+        new Error('Failed to publish')
       )
 
       await renderEditMode(1)
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: '公開する' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Publish' })).toBeInTheDocument()
       })
 
-      await user.click(screen.getByRole('button', { name: '公開する' }))
+      await user.click(screen.getByRole('button', { name: 'Publish' }))
 
       await waitFor(() => {
-        expect(screen.getByText('公開に失敗しました')).toBeInTheDocument()
+        expect(screen.getByText('Failed to publish')).toBeInTheDocument()
       })
 
       // エラー時はモーダルが表示されない
@@ -576,16 +576,16 @@ describe('PostEdit', () => {
       await renderEditMode(1)
 
       await waitFor(() => {
-        expect(screen.getByText('下書き')).toBeInTheDocument()
+        expect(screen.getByText('Draft')).toBeInTheDocument()
       })
 
-      await user.click(screen.getByRole('button', { name: '公開する' }))
+      await user.click(screen.getByRole('button', { name: 'Publish' }))
 
       await waitFor(() => {
-        expect(screen.getByText('公開済み')).toBeInTheDocument()
+        expect(screen.getByText('Published')).toBeInTheDocument()
       })
 
-      expect(screen.queryByText('下書き')).not.toBeInTheDocument()
+      expect(screen.queryByText('Draft')).not.toBeInTheDocument()
     })
   })
 
@@ -601,10 +601,10 @@ describe('PostEdit', () => {
       await renderEditMode(2)
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: '非公開にする' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Unpublish' })).toBeInTheDocument()
       })
 
-      await user.click(screen.getByRole('button', { name: '非公開にする' }))
+      await user.click(screen.getByRole('button', { name: 'Unpublish' }))
 
       await waitFor(() => {
         expect(apiClient.unpublishPost).toHaveBeenCalledWith(2)
@@ -612,7 +612,7 @@ describe('PostEdit', () => {
 
       // モーダルが表示されることを確認
       await waitFor(() => {
-        expect(screen.getByText('記事を非公開にしました')).toBeInTheDocument()
+        expect(screen.getByText('Post unpublished')).toBeInTheDocument()
       })
       // OKをクリックしてモーダルを閉じる
       await user.click(screen.getByRole('button', { name: 'OK' }))
@@ -622,19 +622,19 @@ describe('PostEdit', () => {
       const user = userEvent.setup()
       vi.mocked(apiClient.getPost).mockResolvedValue(mockPublishedPost)
       vi.mocked(apiClient.unpublishPost).mockRejectedValue(
-        new Error('非公開化に失敗しました')
+        new Error('Failed to unpublish')
       )
 
       await renderEditMode(2)
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: '非公開にする' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Unpublish' })).toBeInTheDocument()
       })
 
-      await user.click(screen.getByRole('button', { name: '非公開にする' }))
+      await user.click(screen.getByRole('button', { name: 'Unpublish' }))
 
       await waitFor(() => {
-        expect(screen.getByText('非公開化に失敗しました')).toBeInTheDocument()
+        expect(screen.getByText('Failed to unpublish')).toBeInTheDocument()
       })
 
       // エラー時はモーダルが表示されない
@@ -650,19 +650,19 @@ describe('PostEdit', () => {
       await renderEditMode(1)
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
       })
 
-      await user.click(screen.getByRole('button', { name: '削除' }))
+      await user.click(screen.getByRole('button', { name: 'Delete' }))
 
       // 確認ダイアログが表示されることを確認
       await waitFor(() => {
-        expect(screen.getByText('本当に削除しますか？この操作は取り消せません。')).toBeInTheDocument()
-        expect(screen.getByText('記事の削除')).toBeInTheDocument()
+        expect(screen.getByText('Are you sure you want to delete this post? This action cannot be undone.')).toBeInTheDocument()
+        expect(screen.getByText('Delete Post')).toBeInTheDocument()
       })
 
-      // キャンセルをクリック
-      await user.click(screen.getByRole('button', { name: 'キャンセル' }))
+      // Cancelをクリック
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
 
       expect(apiClient.deletePost).not.toHaveBeenCalled()
     })
@@ -675,17 +675,17 @@ describe('PostEdit', () => {
       await renderEditMode(1)
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
       })
 
-      await user.click(screen.getByRole('button', { name: '削除' }))
+      await user.click(screen.getByRole('button', { name: 'Delete' }))
 
       // 確認ダイアログが表示されることを確認
       await waitFor(() => {
-        expect(screen.getByText('本当に削除しますか？この操作は取り消せません。')).toBeInTheDocument()
+        expect(screen.getByText('Are you sure you want to delete this post? This action cannot be undone.')).toBeInTheDocument()
       })
 
-      // 削除ボタン（確認ダイアログ内）をクリック
+      // Deleteボタン（確認ダイアログ内）をクリック
       const dialogDeleteButton = screen.getByRole('dialog').querySelector('button.bg-red-600')
       await user.click(dialogDeleteButton!)
 
@@ -693,9 +693,9 @@ describe('PostEdit', () => {
         expect(apiClient.deletePost).toHaveBeenCalledWith(1)
       })
 
-      // 削除完了モーダルが表示される
+      // Delete完了モーダルが表示される
       await waitFor(() => {
-        expect(screen.getByText('記事を削除しました')).toBeInTheDocument()
+        expect(screen.getByText('Post deleted')).toBeInTheDocument()
       })
       // OKをクリックしてモーダルを閉じる
       await user.click(screen.getByRole('button', { name: 'OK' }))
@@ -709,28 +709,28 @@ describe('PostEdit', () => {
       const user = userEvent.setup()
       vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
       vi.mocked(apiClient.deletePost).mockRejectedValue(
-        new Error('削除に失敗しました')
+        new Error('Failed to delete')
       )
 
       await renderEditMode(1)
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
       })
 
-      await user.click(screen.getByRole('button', { name: '削除' }))
+      await user.click(screen.getByRole('button', { name: 'Delete' }))
 
       // 確認ダイアログが表示されることを確認
       await waitFor(() => {
-        expect(screen.getByText('本当に削除しますか？この操作は取り消せません。')).toBeInTheDocument()
+        expect(screen.getByText('Are you sure you want to delete this post? This action cannot be undone.')).toBeInTheDocument()
       })
 
-      // 削除ボタン（確認ダイアログ内）をクリック
+      // Deleteボタン（確認ダイアログ内）をクリック
       const dialogDeleteButton = screen.getByRole('dialog').querySelector('button.bg-red-600')
       await user.click(dialogDeleteButton!)
 
       await waitFor(() => {
-        expect(screen.getByText('削除に失敗しました')).toBeInTheDocument()
+        expect(screen.getByText('Failed to delete')).toBeInTheDocument()
       })
 
       expect(mockNavigate).not.toHaveBeenCalled()
@@ -746,15 +746,15 @@ describe('PostEdit', () => {
 
       await renderCreateMode()
 
-      await user.type(screen.getByLabelText(/タイトル/), 'Test')
-      await user.type(screen.getByLabelText(/スラッグ/), 'test')
-      await user.click(screen.getByRole('button', { name: '保存' }))
+      await user.type(screen.getByLabelText(/Title/), 'Test')
+      await user.type(screen.getByLabelText(/Slug/), 'test')
+      await user.click(screen.getByRole('button', { name: 'Save' }))
 
       await waitFor(() => {
         expect(screen.getByText('First error')).toBeInTheDocument()
       })
 
-      await user.click(screen.getByRole('button', { name: '保存' }))
+      await user.click(screen.getByRole('button', { name: 'Save' }))
 
       await waitFor(() => {
         expect(screen.queryByText('First error')).not.toBeInTheDocument()
@@ -767,12 +767,12 @@ describe('PostEdit', () => {
 
       await renderCreateMode()
 
-      await user.type(screen.getByLabelText(/タイトル/), 'Test')
-      await user.type(screen.getByLabelText(/スラッグ/), 'test')
-      await user.click(screen.getByRole('button', { name: '保存' }))
+      await user.type(screen.getByLabelText(/Title/), 'Test')
+      await user.type(screen.getByLabelText(/Slug/), 'test')
+      await user.click(screen.getByRole('button', { name: 'Save' }))
 
       await waitFor(() => {
-        expect(screen.getByText('保存に失敗しました')).toBeInTheDocument()
+        expect(screen.getByText('Failed to save')).toBeInTheDocument()
       })
     })
   })

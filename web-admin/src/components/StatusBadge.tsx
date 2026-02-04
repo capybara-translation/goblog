@@ -13,7 +13,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
           : 'bg-green-100 text-green-800'
       }`}
     >
-      {isDraft ? '下書き' : '公開済み'}
+      {isDraft ? 'Draft' : 'Published'}
     </span>
   );
 }

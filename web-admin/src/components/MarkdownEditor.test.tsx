@@ -35,11 +35,11 @@ describe('MarkdownEditor', () => {
   });
 
   describe('レンダリング', () => {
-    it('編集とプレビューのラベルが表示される', () => {
+    it('EditとPreviewのラベルが表示される', () => {
       render(<MarkdownEditor value="" onChange={() => {}} />);
 
-      expect(screen.getByText('編集')).toBeInTheDocument();
-      expect(screen.getByText('プレビュー')).toBeInTheDocument();
+      expect(screen.getByText('Edit')).toBeInTheDocument();
+      expect(screen.getByText('Preview')).toBeInTheDocument();
     });
 
     it('MDEditorが表示される', () => {
@@ -49,15 +49,15 @@ describe('MarkdownEditor', () => {
       expect(document.querySelector('.w-md-editor')).toBeInTheDocument();
     });
 
-    it('プレビューエリアが表示される', () => {
+    it('Previewエリアが表示される', () => {
       render(<MarkdownEditor value="" onChange={() => {}} />);
 
       expect(document.querySelector('.article-content')).toBeInTheDocument();
     });
   });
 
-  describe('プレビュー機能', () => {
-    it('値が変更されると300ms後にプレビューAPIが呼ばれる', async () => {
+  describe('Preview機能', () => {
+    it('値が変更されると300ms後にPreviewAPIが呼ばれる', async () => {
       mockPreviewMarkdown.mockResolvedValue('<h1>Test</h1>');
 
       render(<MarkdownEditor value="# Test" onChange={() => {}} />);
@@ -72,7 +72,7 @@ describe('MarkdownEditor', () => {
       expect(mockPreviewMarkdown).toHaveBeenCalledWith(expect.stringContaining('# Test'));
     });
 
-    it('プレビュー結果がHTMLとして表示される', async () => {
+    it('Preview結果がHTMLとして表示される', async () => {
       mockPreviewMarkdown.mockResolvedValue('<h1>Hello World</h1>');
 
       render(<MarkdownEditor value="# Hello World" onChange={() => {}} />);
@@ -84,7 +84,7 @@ describe('MarkdownEditor', () => {
       expect(previewArea?.innerHTML).toBe('<h1>Hello World</h1>');
     });
 
-    it('空の値ではプレビューAPIが呼ばれない', async () => {
+    it('空の値ではPreviewAPIが呼ばれない', async () => {
       render(<MarkdownEditor value="" onChange={() => {}} />);
 
       await advanceTimersAndFlush(300);
@@ -92,7 +92,7 @@ describe('MarkdownEditor', () => {
       expect(mockPreviewMarkdown).not.toHaveBeenCalled();
     });
 
-    it('空白のみの値ではプレビューAPIが呼ばれない', async () => {
+    it('空白のみの値ではPreviewAPIが呼ばれない', async () => {
       render(<MarkdownEditor value="   " onChange={() => {}} />);
 
       await advanceTimersAndFlush(300);
@@ -130,7 +130,7 @@ describe('MarkdownEditor', () => {
   });
 
   describe('ローディング状態', () => {
-    it('プレビュー取得中はローディング表示される', async () => {
+    it('Preview取得中はローディング表示される', async () => {
       // Promiseを保留状態にする
       let resolvePromise: (value: string) => void;
       mockPreviewMarkdown.mockImplementation(
@@ -145,7 +145,7 @@ describe('MarkdownEditor', () => {
       });
 
       // ローディング表示を確認
-      expect(screen.getByText('(読み込み中...)')).toBeInTheDocument();
+      expect(screen.getByText('(Loading...)')).toBeInTheDocument();
 
       // Promiseを解決して状態を更新
       await act(async () => {
@@ -153,7 +153,7 @@ describe('MarkdownEditor', () => {
       });
 
       // ローディング表示が消える
-      expect(screen.queryByText('(読み込み中...)')).not.toBeInTheDocument();
+      expect(screen.queryByText('(Loading...)')).not.toBeInTheDocument();
     });
   });
 
@@ -168,7 +168,7 @@ describe('MarkdownEditor', () => {
       await advanceTimersAndFlush(300);
 
       const previewArea = document.querySelector('.article-content');
-      expect(previewArea?.innerHTML).toContain('プレビューの取得に失敗しました');
+      expect(previewArea?.innerHTML).toContain('Failed to load preview');
 
       consoleError.mockRestore();
     });
@@ -336,7 +336,7 @@ describe('MarkdownEditor', () => {
 
       // エラーメッセージが表示される
       await waitFor(() => {
-        expect(screen.getByText('対応している形式は JPEG, PNG, GIF, WebP のみです')).toBeInTheDocument();
+        expect(screen.getByText('Supported formats: JPEG, PNG, GIF, WebP only')).toBeInTheDocument();
       });
     });
 
@@ -358,7 +358,7 @@ describe('MarkdownEditor', () => {
 
       // エラーメッセージが表示される
       await waitFor(() => {
-        expect(screen.getByText('ファイルサイズは 5MB 以下にしてください')).toBeInTheDocument();
+        expect(screen.getByText('File size must be less than 5MB')).toBeInTheDocument();
       });
     });
 
@@ -378,7 +378,7 @@ describe('MarkdownEditor', () => {
 
       // ローディング表示を確認
       await waitFor(() => {
-        expect(screen.getByText('(アップロード中...)')).toBeInTheDocument();
+        expect(screen.getByText('(Uploading...)')).toBeInTheDocument();
       });
 
       // アップロードを完了
@@ -388,7 +388,7 @@ describe('MarkdownEditor', () => {
 
       // ローディング表示が消える
       await waitFor(() => {
-        expect(screen.queryByText('(アップロード中...)')).not.toBeInTheDocument();
+        expect(screen.queryByText('(Uploading...)')).not.toBeInTheDocument();
       });
     });
 
@@ -455,7 +455,7 @@ describe('MarkdownEditor', () => {
       Element.prototype.scrollTo = scrollToMock;
     });
 
-    it('プレビューAPIにコンテンツがそのまま送信される（マーカーなし）', async () => {
+    it('PreviewAPIにコンテンツがそのまま送信される（マーカーなし）', async () => {
       mockPreviewMarkdown.mockResolvedValue('<p data-line="0">Test</p>');
 
       render(<MarkdownEditor value="Test content" onChange={() => {}} />);
@@ -469,7 +469,7 @@ describe('MarkdownEditor', () => {
       expect(calledWith).toBe('Test content');
     });
 
-    it('プレビュー更新後にdata-line要素にスクロールされる', async () => {
+    it('Preview更新後にdata-line要素にスクロールされる', async () => {
       const htmlWithDataLine = '<h1 data-line="0">Title</h1><p data-line="2">Content</p>';
       mockPreviewMarkdown.mockResolvedValue(htmlWithDataLine);
 
@@ -477,7 +477,7 @@ describe('MarkdownEditor', () => {
 
       await advanceTimersAndFlush(300);
 
-      // プレビューエリアにdata-line属性が含まれることを確認
+      // Previewエリアにdata-line属性が含まれることを確認
       const previewArea = document.querySelector('.article-content');
       expect(previewArea?.innerHTML).toContain('data-line=');
 
@@ -485,7 +485,7 @@ describe('MarkdownEditor', () => {
       expect(scrollToMock).toHaveBeenCalled();
     });
 
-    it('コンテンツ変更時のみプレビューが再取得される（カーソル移動では再取得しない）', async () => {
+    it('コンテンツ変更時のみPreviewが再取得される（カーソル移動では再取得しない）', async () => {
       const htmlWithDataLine = '<h1 data-line="0">Title</h1><p data-line="2">Content</p>';
       mockPreviewMarkdown.mockResolvedValue(htmlWithDataLine);
 
@@ -501,7 +501,7 @@ describe('MarkdownEditor', () => {
       // 追加のデバウンスを待つ
       await advanceTimersAndFlush(300);
 
-      // コンテンツが変わっていないので、プレビューは再取得されない
+      // コンテンツが変わっていないので、Previewは再取得されない
       expect(mockPreviewMarkdown).toHaveBeenCalledTimes(1);
 
       // コンテンツを変更
@@ -510,7 +510,7 @@ describe('MarkdownEditor', () => {
       // デバウンスを待つ
       await advanceTimersAndFlush(300);
 
-      // コンテンツが変わったので、プレビューが再取得される
+      // コンテンツが変わったので、Previewが再取得される
       expect(mockPreviewMarkdown).toHaveBeenCalledTimes(2);
     });
   });
@@ -518,12 +518,12 @@ describe('MarkdownEditor', () => {
   describe('スクロール同期', () => {
     // MDEditorの内部実装により、テスト環境でのスクロールイベント発火が困難なためスキップ
     // 手動テストで動作確認済み
-    it.skip('エディターのスクロールに合わせてプレビューがスクロールする', async () => {
+    it.skip('エディターのスクロールに合わせてPreviewがスクロールする', async () => {
       mockPreviewMarkdown.mockResolvedValue('<p>Preview content</p>');
 
       render(<MarkdownEditor value="# Test" onChange={() => {}} />);
 
-      // タイマーを進めてプレビューを表示
+      // タイマーを進めてPreviewを表示
       await advanceTimersAndFlush(300);
 
       const textarea = document.querySelector('textarea');
@@ -542,7 +542,7 @@ describe('MarkdownEditor', () => {
       // textareaのスクロールイベントを発火
       fireEvent.scroll(textarea!);
 
-      // プレビューのscrollTopが更新されることを確認
+      // PreviewのscrollTopが更新されることを確認
       // ratio = 250 / (1000 - 500) = 0.5
       // expected scrollTop = 0.5 * (800 - 500) = 150
       expect(previewArea!.scrollTop).toBe(150);
@@ -565,7 +565,7 @@ describe('MarkdownEditor', () => {
       // textareaのスクロールイベントを発火
       fireEvent.scroll(textarea!);
 
-      // プレビューのscrollTopは変更されない
+      // PreviewのscrollTopは変更されない
       expect(previewArea!.scrollTop).toBe(0);
     });
   });

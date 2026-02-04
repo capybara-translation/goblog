@@ -1,6 +1,6 @@
 {{- define "layout" -}}
 <!DOCTYPE html>
-<html lang="ja" class="scroll-smooth">
+<html lang="en" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -52,8 +52,8 @@
                 <a href="/" class="text-primary-800 hover:text-primary-900 transition-colors duration-200">{{.SiteTitle}}</a>
             </h1>
             <nav class="font-sans text-sm mt-2 text-primary-500 flex flex-wrap gap-4">
-                <a href="/posts" class="hover:text-primary-700 transition-colors duration-200">記事一覧</a>
-                <a href="/tags" class="hover:text-primary-700 transition-colors duration-200">タグ</a>
+                <a href="/posts" class="hover:text-primary-700 transition-colors duration-200">Posts</a>
+                <a href="/tags" class="hover:text-primary-700 transition-colors duration-200">Tags</a>
                 {{range .PinnedPosts}}<a href="/posts/{{.Slug}}" class="hover:text-primary-700 transition-colors duration-200">{{.Title}}</a>{{end}}
             </nav>
         </div>

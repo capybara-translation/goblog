@@ -52,13 +52,17 @@ describe('Header', () => {
   describe('Rendering', () => {
     it('should render the app title', () => {
       renderHeader()
-      expect(screen.getByText(/管理画面$/)).toBeInTheDocument()
+      // Title link opens public site in new tab (text comes from VITE_BLOG_TITLE env var)
+      const titleLink = screen.getAllByRole('link')[0]
+      expect(titleLink).toHaveAttribute('href', '/')
+      expect(titleLink).toHaveAttribute('target', '_blank')
+      expect(titleLink).toHaveClass('text-xl', 'font-bold')
     })
 
     it('should render navigation links', () => {
       renderHeader()
-      expect(screen.getByText('記事一覧')).toBeInTheDocument()
-      expect(screen.getByText('新規作成')).toBeInTheDocument()
+      expect(screen.getByText('Posts')).toBeInTheDocument()
+      expect(screen.getByText('New Post')).toBeInTheDocument()
     })
 
     it('should render user information', () => {
@@ -68,19 +72,20 @@ describe('Header', () => {
 
     it('should render logout button', () => {
       renderHeader()
-      expect(screen.getByRole('button', { name: 'ログアウト' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Logout' })).toBeInTheDocument()
     })
 
     it('should have correct links', () => {
       renderHeader()
 
-      const titleLink = screen.getByText(/管理画面$/).closest('a')
-      expect(titleLink).toHaveAttribute('href', '/posts')
+      const links = screen.getAllByRole('link')
+      // First link is the title (opens public site)
+      expect(links[0]).toHaveAttribute('href', '/')
 
-      const postsLink = screen.getByText('記事一覧').closest('a')
+      const postsLink = screen.getByText('Posts').closest('a')
       expect(postsLink).toHaveAttribute('href', '/posts')
 
-      const newPostLink = screen.getByText('新規作成').closest('a')
+      const newPostLink = screen.getByText('New Post').closest('a')
       expect(newPostLink).toHaveAttribute('href', '/posts/new')
     })
   })
@@ -92,7 +97,7 @@ describe('Header', () => {
 
       renderHeader()
 
-      const logoutButton = screen.getByRole('button', { name: 'ログアウト' })
+      const logoutButton = screen.getByRole('button', { name: 'Logout' })
       await user.click(logoutButton)
 
       await waitFor(() => {
@@ -110,7 +115,7 @@ describe('Header', () => {
 
       renderHeader()
 
-      const logoutButton = screen.getByRole('button', { name: 'ログアウト' })
+      const logoutButton = screen.getByRole('button', { name: 'Logout' })
       await user.click(logoutButton)
 
       await waitFor(() => {

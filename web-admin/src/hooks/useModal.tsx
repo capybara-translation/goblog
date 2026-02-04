@@ -106,7 +106,7 @@ export function ModalProvider({ children }: ModalProviderProps) {
         <Modal
           isOpen={true}
           onClose={handleConfirmCancel}
-          title={modalState.options.title || '確認'}
+          title={modalState.options.title || 'Confirm'}
           closeOnOverlayClick={false}
           closeOnEscape={true}
         >
@@ -118,7 +118,7 @@ export function ModalProvider({ children }: ModalProviderProps) {
                 onClick={handleConfirmCancel}
                 className="px-4 py-2 bg-white border border-primary-300 text-primary-700 rounded-md hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
-                {modalState.options.cancelText || 'キャンセル'}
+                {modalState.options.cancelText || 'Cancel'}
               </button>
               <button
                 type="button"

@@ -4,26 +4,26 @@ import { StatusBadge } from './StatusBadge'
 
 describe('StatusBadge', () => {
   describe('Draft status', () => {
-    it('should display "下書き" when status is draft', () => {
+    it('should display "Draft" when status is draft', () => {
       render(<StatusBadge status="draft" />)
-      expect(screen.getByText('下書き')).toBeInTheDocument()
+      expect(screen.getByText('Draft')).toBeInTheDocument()
     })
 
-    it('should not display "公開済み" when status is draft', () => {
+    it('should not display "Published" when status is draft', () => {
       render(<StatusBadge status="draft" />)
-      expect(screen.queryByText('公開済み')).not.toBeInTheDocument()
+      expect(screen.queryByText('Published')).not.toBeInTheDocument()
     })
   })
 
   describe('Published status', () => {
-    it('should display "公開済み" when status is published', () => {
+    it('should display "Published" when status is published', () => {
       render(<StatusBadge status="published" />)
-      expect(screen.getByText('公開済み')).toBeInTheDocument()
+      expect(screen.getByText('Published')).toBeInTheDocument()
     })
 
-    it('should not display "下書き" when status is published', () => {
+    it('should not display "Draft" when status is published', () => {
       render(<StatusBadge status="published" />)
-      expect(screen.queryByText('下書き')).not.toBeInTheDocument()
+      expect(screen.queryByText('Draft')).not.toBeInTheDocument()
     })
   })
 

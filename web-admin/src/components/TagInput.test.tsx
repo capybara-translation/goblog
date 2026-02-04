@@ -34,7 +34,7 @@ describe('TagInput', () => {
       });
 
       expect(screen.getByRole('textbox')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('タグを入力...')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Enter tags...')).toBeInTheDocument();
     });
 
     it('should render existing tags as chips', async () => {
@@ -52,19 +52,19 @@ describe('TagInput', () => {
       render(<TagInput value="Go" onChange={onChange} />);
 
       await waitFor(() => {
-        expect(screen.getByRole('textbox')).not.toHaveAttribute('placeholder', 'タグを入力...');
+        expect(screen.getByRole('textbox')).not.toHaveAttribute('placeholder', 'Enter tags...');
       });
     });
 
     it('should render custom placeholder', async () => {
       const onChange = vi.fn();
-      render(<TagInput value="" onChange={onChange} placeholder="カスタムプレースホルダー" />);
+      render(<TagInput value="" onChange={onChange} placeholder="Custom placeholder" />);
 
       await waitFor(() => {
         expect(apiClient.getTags).toHaveBeenCalled();
       });
 
-      expect(screen.getByPlaceholderText('カスタムプレースホルダー')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Custom placeholder')).toBeInTheDocument();
     });
 
     it('should render disabled state', async () => {
@@ -77,7 +77,7 @@ describe('TagInput', () => {
 
       expect(screen.getByRole('textbox')).toBeDisabled();
       // 削除ボタンが表示されないことを確認
-      expect(screen.queryByLabelText('Goを削除')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Remove Go')).not.toBeInTheDocument();
     });
   });
 
@@ -91,7 +91,7 @@ describe('TagInput', () => {
         expect(screen.getByText('Go')).toBeInTheDocument();
       });
 
-      const removeButton = screen.getByLabelText('Goを削除');
+      const removeButton = screen.getByLabelText('Remove Go');
       await user.click(removeButton);
 
       expect(onChange).toHaveBeenCalledWith('React');
@@ -138,7 +138,7 @@ describe('TagInput', () => {
 
       await waitFor(() => {
         expect(screen.getByRole('listbox')).toBeInTheDocument();
-        expect(screen.getByText('5件')).toBeInTheDocument(); // Go の件数
+        expect(screen.getByText('(5)')).toBeInTheDocument(); // Go の件数
       });
     });
 
@@ -411,7 +411,7 @@ describe('TagInput', () => {
       });
 
       // タグチップがないことを確認
-      expect(screen.queryByLabelText(/を削除/)).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/Remove/)).not.toBeInTheDocument();
     });
 
     it('should handle whitespace-only tags', async () => {

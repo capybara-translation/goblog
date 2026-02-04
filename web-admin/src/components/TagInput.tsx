@@ -15,7 +15,7 @@ interface TagInputProps {
  * - キーボード操作対応（↑↓Enter/Tab/Esc/Backspace）
  * - IME対応（日本語入力中は補完を発動しない）
  */
-export function TagInput({ value, onChange, disabled = false, placeholder = 'タグを入力...' }: TagInputProps) {
+export function TagInput({ value, onChange, disabled = false, placeholder = 'Enter tags...' }: TagInputProps) {
   // 内部状態
   const [inputValue, setInputValue] = useState('');
   const [allTags, setAllTags] = useState<Tag[]>([]);
@@ -239,7 +239,7 @@ export function TagInput({ value, onChange, disabled = false, placeholder = 'タ
                   removeTag(tag);
                 }}
                 className="hover:text-blue-900 focus:outline-none"
-                aria-label={`${tag}を削除`}
+                aria-label={`Remove ${tag}`}
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -263,7 +263,7 @@ export function TagInput({ value, onChange, disabled = false, placeholder = 'タ
           disabled={disabled}
           placeholder={selectedTags.length === 0 ? placeholder : ''}
           className="flex-1 min-w-[120px] outline-none bg-transparent text-sm disabled:cursor-not-allowed"
-          aria-label="タグ入力"
+          aria-label="Tag input"
           aria-expanded={isOpen}
           aria-haspopup="listbox"
         />
@@ -290,7 +290,7 @@ export function TagInput({ value, onChange, disabled = false, placeholder = 'タ
               onMouseEnter={() => setSelectedIndex(index)}
             >
               <span>{tag.name}</span>
-              <span className="text-xs text-primary-400 font-sans">{tag.count}件</span>
+              <span className="text-xs text-primary-400 font-sans">({tag.count})</span>
             </li>
           ))}
         </ul>

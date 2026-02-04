@@ -45,28 +45,28 @@ describe('Login', () => {
   describe('Rendering', () => {
     it('should render login form with title', () => {
       renderLogin()
-      expect(screen.getByText(/管理画面$/)).toBeInTheDocument()
-      expect(screen.getByText('ログインしてください')).toBeInTheDocument()
+      expect(screen.getByText(/Admin$/)).toBeInTheDocument()
+      expect(screen.getByText('Please sign in')).toBeInTheDocument()
     })
 
     it('should render username field', () => {
       renderLogin()
-      expect(screen.getByLabelText('ユーザー名')).toBeInTheDocument()
+      expect(screen.getByLabelText('Username')).toBeInTheDocument()
     })
 
     it('should render password field', () => {
       renderLogin()
-      expect(screen.getByLabelText('パスワード')).toBeInTheDocument()
+      expect(screen.getByLabelText('Password')).toBeInTheDocument()
     })
 
     it('should render login button', () => {
       renderLogin()
-      expect(screen.getByRole('button', { name: 'ログイン' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument()
     })
 
     it('should not show error message initially', () => {
       renderLogin()
-      expect(screen.queryByText(/ログインに失敗しました/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/Login failed/)).not.toBeInTheDocument()
     })
   })
 
@@ -75,7 +75,7 @@ describe('Login', () => {
       const user = userEvent.setup()
       renderLogin()
 
-      const usernameInput = screen.getByLabelText('ユーザー名')
+      const usernameInput = screen.getByLabelText('Username')
       await user.type(usernameInput, 'testuser')
 
       expect(usernameInput).toHaveValue('testuser')
@@ -85,7 +85,7 @@ describe('Login', () => {
       const user = userEvent.setup()
       renderLogin()
 
-      const passwordInput = screen.getByLabelText('パスワード')
+      const passwordInput = screen.getByLabelText('Password')
       await user.type(passwordInput, 'password123')
 
       expect(passwordInput).toHaveValue('password123')
@@ -95,11 +95,11 @@ describe('Login', () => {
       const user = userEvent.setup()
       renderLogin()
 
-      await user.type(screen.getByLabelText('ユーザー名'), 'admin')
-      await user.type(screen.getByLabelText('パスワード'), 'secret')
+      await user.type(screen.getByLabelText('Username'), 'admin')
+      await user.type(screen.getByLabelText('Password'), 'secret')
 
-      expect(screen.getByLabelText('ユーザー名')).toHaveValue('admin')
-      expect(screen.getByLabelText('パスワード')).toHaveValue('secret')
+      expect(screen.getByLabelText('Username')).toHaveValue('admin')
+      expect(screen.getByLabelText('Password')).toHaveValue('secret')
     })
   })
 
@@ -110,9 +110,9 @@ describe('Login', () => {
 
       renderLogin()
 
-      await user.type(screen.getByLabelText('ユーザー名'), 'admin')
-      await user.type(screen.getByLabelText('パスワード'), 'password')
-      await user.click(screen.getByRole('button', { name: 'ログイン' }))
+      await user.type(screen.getByLabelText('Username'), 'admin')
+      await user.type(screen.getByLabelText('Password'), 'password')
+      await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
       await waitFor(() => {
         expect(mockLogin).toHaveBeenCalledWith({
@@ -130,31 +130,31 @@ describe('Login', () => {
 
       renderLogin()
 
-      await user.type(screen.getByLabelText('ユーザー名'), 'admin')
-      await user.type(screen.getByLabelText('パスワード'), 'password')
-      await user.click(screen.getByRole('button', { name: 'ログイン' }))
+      await user.type(screen.getByLabelText('Username'), 'admin')
+      await user.type(screen.getByLabelText('Password'), 'password')
+      await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
       await waitFor(() => {
         expect(mockNavigate).toHaveBeenCalled()
       })
 
-      expect(screen.queryByText(/ログインに失敗しました/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/Login failed/)).not.toBeInTheDocument()
     })
   })
 
   describe('Login error', () => {
     it('should show error message when login fails with Error', async () => {
       const user = userEvent.setup()
-      mockLogin.mockRejectedValue(new Error('認証に失敗しました'))
+      mockLogin.mockRejectedValue(new Error('Authentication failed'))
 
       renderLogin()
 
-      await user.type(screen.getByLabelText('ユーザー名'), 'wronguser')
-      await user.type(screen.getByLabelText('パスワード'), 'wrongpass')
-      await user.click(screen.getByRole('button', { name: 'ログイン' }))
+      await user.type(screen.getByLabelText('Username'), 'wronguser')
+      await user.type(screen.getByLabelText('Password'), 'wrongpass')
+      await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
       await waitFor(() => {
-        expect(screen.getByText('認証に失敗しました')).toBeInTheDocument()
+        expect(screen.getByText('Authentication failed')).toBeInTheDocument()
       })
 
       expect(mockNavigate).not.toHaveBeenCalled()
@@ -166,12 +166,12 @@ describe('Login', () => {
 
       renderLogin()
 
-      await user.type(screen.getByLabelText('ユーザー名'), 'admin')
-      await user.type(screen.getByLabelText('パスワード'), 'password')
-      await user.click(screen.getByRole('button', { name: 'ログイン' }))
+      await user.type(screen.getByLabelText('Username'), 'admin')
+      await user.type(screen.getByLabelText('Password'), 'password')
+      await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
       await waitFor(() => {
-        expect(screen.getByText('ログインに失敗しました')).toBeInTheDocument()
+        expect(screen.getByText('Login failed')).toBeInTheDocument()
       })
     })
 
@@ -182,9 +182,9 @@ describe('Login', () => {
       renderLogin()
 
       // 最初の失敗
-      await user.type(screen.getByLabelText('ユーザー名'), 'user1')
-      await user.type(screen.getByLabelText('パスワード'), 'pass1')
-      await user.click(screen.getByRole('button', { name: 'ログイン' }))
+      await user.type(screen.getByLabelText('Username'), 'user1')
+      await user.type(screen.getByLabelText('Password'), 'pass1')
+      await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
       await waitFor(() => {
         expect(screen.getByText('First error')).toBeInTheDocument()
@@ -192,11 +192,11 @@ describe('Login', () => {
 
       // 2回目の試行（成功）
       mockLogin.mockResolvedValue(undefined)
-      await user.clear(screen.getByLabelText('ユーザー名'))
-      await user.clear(screen.getByLabelText('パスワード'))
-      await user.type(screen.getByLabelText('ユーザー名'), 'user2')
-      await user.type(screen.getByLabelText('パスワード'), 'pass2')
-      await user.click(screen.getByRole('button', { name: 'ログイン' }))
+      await user.clear(screen.getByLabelText('Username'))
+      await user.clear(screen.getByLabelText('Password'))
+      await user.type(screen.getByLabelText('Username'), 'user2')
+      await user.type(screen.getByLabelText('Password'), 'pass2')
+      await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
       await waitFor(() => {
         expect(screen.queryByText('First error')).not.toBeInTheDocument()
@@ -205,7 +205,7 @@ describe('Login', () => {
   })
 
   describe('Submitting state', () => {
-    it('should show "ログイン中..." during submission', async () => {
+    it('should show "Signing in..." during submission', async () => {
       const user = userEvent.setup()
       let resolveLogin: () => void
       mockLogin.mockReturnValue(
@@ -216,21 +216,21 @@ describe('Login', () => {
 
       renderLogin()
 
-      await user.type(screen.getByLabelText('ユーザー名'), 'admin')
-      await user.type(screen.getByLabelText('パスワード'), 'password')
-      await user.click(screen.getByRole('button', { name: 'ログイン' }))
+      await user.type(screen.getByLabelText('Username'), 'admin')
+      await user.type(screen.getByLabelText('Password'), 'password')
+      await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
       // 送信中の表示を確認
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'ログイン中...' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Signing in...' })).toBeInTheDocument()
       })
 
-      // ログインを完了
+      // Sign inを完了
       resolveLogin!()
 
       // 元に戻ることを確認
       await waitFor(() => {
-        expect(screen.queryByRole('button', { name: 'ログイン中...' })).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Signing in...' })).not.toBeInTheDocument()
       })
     })
 
@@ -245,9 +245,9 @@ describe('Login', () => {
 
       renderLogin()
 
-      const usernameInput = screen.getByLabelText('ユーザー名')
-      const passwordInput = screen.getByLabelText('パスワード')
-      const submitButton = screen.getByRole('button', { name: 'ログイン' })
+      const usernameInput = screen.getByLabelText('Username')
+      const passwordInput = screen.getByLabelText('Password')
+      const submitButton = screen.getByRole('button', { name: 'Sign in' })
 
       await user.type(usernameInput, 'admin')
       await user.type(passwordInput, 'password')
@@ -260,7 +260,7 @@ describe('Login', () => {
         expect(submitButton).toBeDisabled()
       })
 
-      // ログインを完了
+      // Sign inを完了
       resolveLogin!()
 
       // 有効に戻る
@@ -283,9 +283,9 @@ describe('Login', () => {
 
       renderLogin()
 
-      const usernameInput = screen.getByLabelText('ユーザー名')
-      const passwordInput = screen.getByLabelText('パスワード')
-      const submitButton = screen.getByRole('button', { name: 'ログイン' })
+      const usernameInput = screen.getByLabelText('Username')
+      const passwordInput = screen.getByLabelText('Password')
+      const submitButton = screen.getByRole('button', { name: 'Sign in' })
 
       await user.type(usernameInput, 'admin')
       await user.type(passwordInput, 'password')
@@ -298,7 +298,7 @@ describe('Login', () => {
         expect(submitButton).toBeDisabled()
       })
 
-      // ログイン失敗
+      // Sign in失敗
       rejectLogin!(new Error('Login failed'))
 
       // エラー後にフィールドが再度有効になる
@@ -313,17 +313,17 @@ describe('Login', () => {
   describe('Form validation', () => {
     it('should have required attribute on username field', () => {
       renderLogin()
-      expect(screen.getByLabelText('ユーザー名')).toBeRequired()
+      expect(screen.getByLabelText('Username')).toBeRequired()
     })
 
     it('should have required attribute on password field', () => {
       renderLogin()
-      expect(screen.getByLabelText('パスワード')).toBeRequired()
+      expect(screen.getByLabelText('Password')).toBeRequired()
     })
 
     it('should have password type on password field', () => {
       renderLogin()
-      expect(screen.getByLabelText('パスワード')).toHaveAttribute('type', 'password')
+      expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password')
     })
   })
 })

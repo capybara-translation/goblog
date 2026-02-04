@@ -2,21 +2,21 @@
 {{template "layout" .}}
 {{- end -}}
 
-{{define "title"}}ページが見つかりません - {{.SiteTitle}}{{end}}
+{{define "title"}}Page Not Found - {{.SiteTitle}}{{end}}
 
 {{define "content"}}
 <div class="flex flex-col items-center justify-center py-16 text-center">
     <div class="text-8xl font-sans font-bold text-primary-300 mb-4">404</div>
-    <h2 class="text-2xl font-sans font-bold text-primary-800 mb-4">ページが見つかりません</h2>
+    <h2 class="text-2xl font-sans font-bold text-primary-800 mb-4">Page Not Found</h2>
     <p class="text-primary-500 mb-8 max-w-md">
-        お探しのページは存在しないか、移動された可能性があります。
+        The page you're looking for doesn't exist or has been moved.
     </p>
     <div class="flex gap-4">
         <a href="/" class="inline-flex items-center px-6 py-3 bg-primary-700 text-primary-50 font-sans font-medium rounded-lg hover:bg-primary-600 transition-colors duration-200">
-            ホームに戻る
+            Go Home
         </a>
         <a href="/posts" class="inline-flex items-center px-6 py-3 bg-primary-100 border border-primary-300 text-primary-600 font-sans font-medium rounded-lg hover:bg-primary-200 transition-colors duration-200">
-            記事一覧へ
+            View Posts
         </a>
     </div>
 </div>

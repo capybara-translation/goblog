@@ -164,8 +164,8 @@ describe('useModal', () => {
       await user.click(screen.getByText('Show Confirm'));
 
       expect(screen.getByText('Confirm message')).toBeInTheDocument();
-      expect(screen.getByText('確認')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'キャンセル' })).toBeInTheDocument();
+      expect(screen.getByText('Confirm')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'OK' })).toBeInTheDocument();
     });
 
@@ -210,7 +210,7 @@ describe('useModal', () => {
       );
 
       await user.click(screen.getByText('Show Confirm'));
-      await user.click(screen.getByRole('button', { name: 'キャンセル' }));
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
       await waitFor(() => {
         expect(document.body.getAttribute('data-confirm-result')).toBe('false');

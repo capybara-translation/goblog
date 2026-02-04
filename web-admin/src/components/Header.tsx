@@ -22,24 +22,26 @@ export function Header() {
         <div className="flex justify-between items-center h-16">
           {/* Left side - App title and navigation */}
           <div className="flex items-center gap-8">
-            <Link
-              to="/posts"
+            <a
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-xl font-sans font-bold text-primary-900 hover:text-primary-700 transition-colors"
             >
-              {BLOG_TITLE} 管理画面
-            </Link>
+              {BLOG_TITLE}
+            </a>
             <nav className="flex gap-4">
               <Link
                 to="/posts"
                 className="text-sm font-medium text-primary-700 hover:text-primary-900 transition-colors"
               >
-                記事一覧
+                Posts
               </Link>
               <Link
                 to="/posts/new"
                 className="text-sm font-medium text-primary-700 hover:text-primary-900 transition-colors"
               >
-                新規作成
+                New Post
               </Link>
             </nav>
           </div>
@@ -51,7 +53,7 @@ export function Header() {
               onClick={handleLogout}
               className="text-sm font-medium text-primary-700 hover:text-primary-900 transition-colors px-3 py-1.5 rounded hover:bg-primary-50"
             >
-              ログアウト
+              Logout
             </button>
           </div>
         </div>

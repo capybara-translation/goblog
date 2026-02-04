@@ -79,7 +79,7 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
       setPreviewHtml(html);
     } catch (error) {
       console.error('Failed to preview markdown:', error);
-      setPreviewHtml('<p class="text-red-500">プレビューの取得に失敗しました</p>');
+      setPreviewHtml('<p class="text-red-500">Failed to load preview</p>');
     } finally {
       setIsLoading(false);
     }
@@ -132,12 +132,12 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
 
     // クライアント側バリデーション
     if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-      setUploadError('対応している形式は JPEG, PNG, GIF, WebP のみです');
+      setUploadError('Supported formats: JPEG, PNG, GIF, WebP only');
       return;
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      setUploadError(`ファイルサイズは ${MAX_FILE_SIZE / 1024 / 1024}MB 以下にしてください`);
+      setUploadError(`File size must be less than ${MAX_FILE_SIZE / 1024 / 1024}MB`);
       return;
     }
 
@@ -158,7 +158,7 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
       }
     } catch (error) {
       console.error('Failed to upload image:', error);
-      setUploadError(error instanceof Error ? error.message : '画像のアップロードに失敗しました');
+      setUploadError(error instanceof Error ? error.message : 'Failed to upload image');
     } finally {
       setIsUploading(false);
     }
@@ -168,7 +168,7 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
   const imageUploadCommand: ICommand = {
     name: 'image-upload',
     keyCommand: 'image-upload',
-    buttonProps: { 'aria-label': '画像をアップロード', title: '画像をアップロード' },
+    buttonProps: { 'aria-label': 'Upload image', title: 'Upload image' },
     icon: (
       <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
         <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
@@ -195,8 +195,8 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
       {/* エディタ部分 */}
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium text-primary-600 mb-2">
-          編集
-          {isUploading && <span className="ml-2 text-primary-400">(アップロード中...)</span>}
+          Edit
+          {isUploading && <span className="ml-2 text-primary-400">(Uploading...)</span>}
         </div>
         {uploadError && (
           <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
@@ -226,18 +226,18 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
           ]}
           textareaProps={{
             disabled: disabled || isUploading,
-            placeholder: `# 見出し
+            placeholder: `# Heading
 
-本文をここに書きます...
+Write your content here...
 
-## Markdownの書き方
+## Markdown syntax
 
-- **太字**: **テキスト**
-- *斜体*: *テキスト*
-- [リンク](URL)
-- コードブロック: \`\`\`言語名
-- 引用: > 引用テキスト
-- タスクリスト: - [x] 完了`,
+- **Bold**: **text**
+- *Italic*: *text*
+- [Link](URL)
+- Code block: \`\`\`language
+- Blockquote: > quoted text
+- Task list: - [x] completed`,
             onSelect: (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
               handleCursorChange(e.currentTarget);
             },
@@ -260,8 +260,8 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
       {/* プレビュー部分 */}
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium text-primary-600 mb-2">
-          プレビュー
-          {isLoading && <span className="ml-2 text-primary-400">(読み込み中...)</span>}
+          Preview
+          {isLoading && <span className="ml-2 text-primary-400">(Loading...)</span>}
         </div>
         <div
           ref={previewRef}

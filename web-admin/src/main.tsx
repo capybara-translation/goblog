@@ -6,7 +6,7 @@ import App from './App'
 const BLOG_TITLE = import.meta.env.VITE_BLOG_TITLE || 'goblog'
 
 // Set document title
-document.title = `${BLOG_TITLE} 管理画面`
+document.title = `${BLOG_TITLE}`
 
 const rootElement = document.getElementById('root')
 if (!rootElement) {
