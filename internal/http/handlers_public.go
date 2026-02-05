@@ -168,6 +168,74 @@ func highlightQuery(text string, query string) template.HTML {
 	return template.HTML(highlighted)
 }
 
+// highlightHTMLContent はHTML内のテキスト部分のみをハイライトします
+// HTMLタグ内のテキストは変更しません
+func highlightHTMLContent(htmlContent string, query string) string {
+	if query == "" {
+		return htmlContent
+	}
+
+	// クエリをHTMLエスケープ（HTML内のテキストはエスケープ済みのため）
+	escapedQuery := html.EscapeString(query)
+	quotedQuery := regexp.QuoteMeta(escapedQuery)
+	searchPattern := regexp.MustCompile("(?i)(" + quotedQuery + ")")
+
+	// HTMLをパースしてテキスト部分のみをハイライト
+	// タグの外側にあるテキストを見つけてハイライトする
+	var result strings.Builder
+	remaining := htmlContent
+
+	for len(remaining) > 0 {
+		// 次のタグを探す
+		tagStart := strings.Index(remaining, "<")
+
+		if tagStart == -1 {
+			// タグがない場合、残りすべてがテキスト
+			highlighted := searchPattern.ReplaceAllString(remaining, "<mark>$1</mark>")
+			result.WriteString(highlighted)
+			break
+		}
+
+		if tagStart > 0 {
+			// タグの前のテキストをハイライト
+			textPart := remaining[:tagStart]
+			highlighted := searchPattern.ReplaceAllString(textPart, "<mark>$1</mark>")
+			result.WriteString(highlighted)
+		}
+
+		// タグの終わりを探す
+		tagEnd := strings.Index(remaining[tagStart:], ">")
+		if tagEnd == -1 {
+			// 閉じタグがない場合、残りをそのまま追加
+			result.WriteString(remaining[tagStart:])
+			break
+		}
+
+		// タグをそのまま追加（ハイライトしない）
+		tagEnd += tagStart + 1
+		result.WriteString(remaining[tagStart:tagEnd])
+		remaining = remaining[tagEnd:]
+	}
+
+	return result.String()
+}
+
+// renderMarkdownWithHighlight はMarkdownをHTMLに変換し、検索クエリをハイライトします
+func renderMarkdownWithHighlight(content string, query string) template.HTML {
+	htmlContent, err := mdConverter.Convert(content)
+	if err != nil {
+		// エラー時はHTMLエスケープしたテキストを返す
+		return template.HTML(template.HTMLEscapeString(content))
+	}
+
+	if query == "" {
+		return template.HTML(htmlContent)
+	}
+
+	highlighted := highlightHTMLContent(htmlContent, query)
+	return template.HTML(highlighted)
+}
+
 // NewPublicHandlers は埋め込まれたテンプレートからPublicHandlersを作成します
 func NewPublicHandlers(postService service.PostService, blogTitle, baseURL string, templatesFS embed.FS) *PublicHandlers {
 	// カスタムテンプレート関数を定義
@@ -177,8 +245,9 @@ func NewPublicHandlers(postService service.PostService, blogTitle, baseURL strin
 		"formatDateWithTZ":       formatDateWithTZ,
 		"formatDateDetailWithTZ": formatDateDetailWithTZ,
 		"highlightQuery":         highlightQuery,
-		"renderMarkdown":         renderMarkdown,
-		"markdownExcerpt":        markdownExcerpt,
+		"renderMarkdown":              renderMarkdown,
+		"renderMarkdownWithHighlight": renderMarkdownWithHighlight,
+		"markdownExcerpt":             markdownExcerpt,
 	}
 
 	// 埋め込まれたテンプレートからサブFSを作成
@@ -236,8 +305,9 @@ func NewPublicHandlersFromPath(postService service.PostService, blogTitle, baseU
 		"formatDateWithTZ":       formatDateWithTZ,
 		"formatDateDetailWithTZ": formatDateDetailWithTZ,
 		"highlightQuery":         highlightQuery,
-		"renderMarkdown":         renderMarkdown,
-		"markdownExcerpt":        markdownExcerpt,
+		"renderMarkdown":              renderMarkdown,
+		"renderMarkdownWithHighlight": renderMarkdownWithHighlight,
+		"markdownExcerpt":             markdownExcerpt,
 	}
 
 	// 各ページごとに独立したテンプレートセットを作成

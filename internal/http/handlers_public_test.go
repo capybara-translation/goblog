@@ -1908,7 +1908,7 @@ func TestHandlePosts_SearchHighlight(t *testing.T) {
 		notContains    []string
 	}{
 		{
-			name: "タイトルにハイライトが適用される",
+			name: "タイトルと本文にハイライトが適用される",
 			url:  "/posts?q=Go",
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				publishedAt := time.Now()
@@ -1924,8 +1924,8 @@ func TestHandlePosts_SearchHighlight(t *testing.T) {
 				}, nil
 			},
 			containsText: []string{
-				"<mark>Go</mark>言語入門", // タイトルにハイライト
-				"Goの基本的な使い方を解説します", // 本文は全文表示（Markdownレンダリング、ハイライトなし）
+				"<mark>Go</mark>言語入門",            // タイトルにハイライト
+				"<mark>Go</mark>の基本的な使い方を解説します", // 本文にもハイライト
 			},
 		},
 		{
@@ -1945,8 +1945,8 @@ func TestHandlePosts_SearchHighlight(t *testing.T) {
 				}, nil
 			},
 			containsText: []string{
-				"<mark>プログラミング</mark>入門", // タイトルにハイライト
-				"プログラミングを始めよう", // 本文は全文表示（Markdownレンダリング、ハイライトなし）
+				"<mark>プログラミング</mark>入門",   // タイトルにハイライト
+				"<mark>プログラミング</mark>を始めよう", // 本文にもハイライト
 			},
 		},
 		{
@@ -1973,7 +1973,7 @@ func TestHandlePosts_SearchHighlight(t *testing.T) {
 			},
 		},
 		{
-			name: "長い本文も全文表示",
+			name: "長い本文も全文表示でハイライト",
 			url:  "/posts?q=Go",
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				publishedAt := time.Now()
@@ -1991,8 +1991,8 @@ func TestHandlePosts_SearchHighlight(t *testing.T) {
 				}, nil
 			},
 			containsText: []string{
-				"<mark>Go</mark>言語の紹介", // タイトルにハイライト
-				"Goは効率的なプログラミング言語です", // 本文は全文表示
+				"<mark>Go</mark>言語の紹介",        // タイトルにハイライト
+				"<mark>Go</mark>は効率的なプログラミング言語です", // 本文にもハイライト
 			},
 		},
 	}
