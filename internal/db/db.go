@@ -1,6 +1,7 @@
 package db
 
 import (
+	"embed"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -32,11 +33,11 @@ func Open(dbPath string) (*sqlx.DB, error) {
 	return db, nil
 }
 
-// RunMigrations はマイグレーションを実行します
-func RunMigrations(db *sqlx.DB, migrationPaths ...string) error {
+// RunMigrations は埋め込まれたマイグレーションを実行します
+func RunMigrations(db *sqlx.DB, migrationsFS embed.FS, migrationPaths ...string) error {
 	for _, migrationPath := range migrationPaths {
-		// マイグレーションファイルを読み込む
-		content, err := os.ReadFile(migrationPath)
+		// 埋め込まれたマイグレーションファイルを読み込む
+		content, err := migrationsFS.ReadFile(migrationPath)
 		if err != nil {
 			return fmt.Errorf("failed to read migration file %s: %w", migrationPath, err)
 		}

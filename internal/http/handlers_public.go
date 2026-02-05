@@ -1,9 +1,11 @@
 package http
 
 import (
+	"embed"
 	"fmt"
 	"html"
 	"html/template"
+	"io/fs"
 	"log"
 	"net/http"
 	"net/url"
@@ -166,8 +168,64 @@ func highlightQuery(text string, query string) template.HTML {
 	return template.HTML(highlighted)
 }
 
-// NewPublicHandlers はテンプレートパスを指定してPublicHandlersを作成します
-func NewPublicHandlers(postService service.PostService, blogTitle, baseURL, templatePattern string) *PublicHandlers {
+// NewPublicHandlers は埋め込まれたテンプレートからPublicHandlersを作成します
+func NewPublicHandlers(postService service.PostService, blogTitle, baseURL string, templatesFS embed.FS) *PublicHandlers {
+	// カスタムテンプレート関数を定義
+	funcMap := template.FuncMap{
+		"truncate":               truncateRunes,
+		"splitTags":              splitTags,
+		"formatDateWithTZ":       formatDateWithTZ,
+		"formatDateDetailWithTZ": formatDateDetailWithTZ,
+		"highlightQuery":         highlightQuery,
+		"renderMarkdown":         renderMarkdown,
+		"markdownExcerpt":        markdownExcerpt,
+	}
+
+	// 埋め込まれたテンプレートからサブFSを作成
+	templateFS, err := fs.Sub(templatesFS, "internal/view/templates")
+	if err != nil {
+		panic(fmt.Sprintf("failed to get templates sub FS: %v", err))
+	}
+
+	// ヘルパー関数: 埋め込まれたテンプレートをパース
+	parseTemplates := func(names ...string) *template.Template {
+		t := template.New("").Funcs(funcMap)
+		for _, name := range names {
+			content, err := fs.ReadFile(templateFS, name)
+			if err != nil {
+				panic(fmt.Sprintf("failed to read template %s: %v", name, err))
+			}
+			_, err = t.New(name).Parse(string(content))
+			if err != nil {
+				panic(fmt.Sprintf("failed to parse template %s: %v", name, err))
+			}
+		}
+		return t
+	}
+
+	// 各ページごとに独立したテンプレートセットを作成
+	homeTemplate := parseTemplates("layout.html", "home.html")
+	postsTemplate := parseTemplates("layout.html", "posts.html")
+	postTemplate := parseTemplates("layout.html", "post.html")
+	tagsTemplate := parseTemplates("layout.html", "tags.html")
+	tagPostsTemplate := parseTemplates("layout.html", "tag_posts.html")
+	notFoundTemplate := parseTemplates("layout.html", "notfound.html")
+
+	return &PublicHandlers{
+		postService:      postService,
+		blogTitle:        blogTitle,
+		baseURL:          baseURL,
+		homeTemplate:     homeTemplate,
+		postsTemplate:    postsTemplate,
+		postTemplate:     postTemplate,
+		tagsTemplate:     tagsTemplate,
+		tagPostsTemplate: tagPostsTemplate,
+		notFoundTemplate: notFoundTemplate,
+	}
+}
+
+// NewPublicHandlersFromPath はファイルシステムからテンプレートを読み込んでPublicHandlersを作成します（テスト用）
+func NewPublicHandlersFromPath(postService service.PostService, blogTitle, baseURL, templatePattern string) *PublicHandlers {
 	dir := filepath.Dir(templatePattern)
 	layoutPath := filepath.Join(dir, "layout.html")
 

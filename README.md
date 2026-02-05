@@ -180,25 +180,52 @@ timedatectl list-timezones | grep -i tokyo
 
 ### 2. バイナリのビルドとデプロイ
 
+go-sqlite3 は CGO を必要とするため、サーバー上でビルドします。
+
 ```bash
-# ローカルでビルド（Linux向けクロスコンパイル）
-GOOS=linux GOARCH=amd64 go build -o bin/goblog cmd/goblog/main.go
+# サーバーにSSH
+ssh user@your-server
 
-# サーバーに転送
-scp bin/goblog user@your-server:/opt/goblog/bin/
+# Go、ビルドツールをインストール
+sudo apt install -y golang-go build-essential git
 
-# 実行権限を付与
-ssh user@your-server "sudo chmod +x /opt/goblog/bin/goblog"
+# Node.js v24 をインストール（NodeSource経由）
+curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# リポジトリをクローン
+git clone https://github.com/capybara-translation/goblog.git
+cd goblog
+
+# 管理画面SPA（React）をビルド
+cd web-admin
+npm install
+npm run build
+cd ..
+
+# バイナリをビルド
+go build -o bin/goblog cmd/goblog/main.go
+go build -o bin/adduser cmd/adduser/main.go
+go build -o bin/seed cmd/seed/main.go
+
+# バイナリを配置
+sudo mv bin/goblog bin/adduser bin/seed /opt/goblog/bin/
+sudo chown root:root /opt/goblog/bin/goblog /opt/goblog/bin/adduser /opt/goblog/bin/seed
 ```
+
+**注**: マイグレーションファイル、テンプレート、静的ファイルはバイナリに埋め込まれているため、別途コピーする必要はありません。
 
 ### 3. systemdサービスの設定
 
 ```bash
+# クローンしたリポジトリ内で作業（~/goblog）
+cd ~/goblog
+
 # サービスファイルをコピー
 sudo cp deploy/goblog.service /etc/systemd/system/
 
 # 環境変数を編集（ドメイン名やタイトルを変更）
-sudo nano /etc/systemd/system/goblog.service
+sudo vim /etc/systemd/system/goblog.service
 
 # サービスを有効化して起動
 sudo systemctl daemon-reload
@@ -207,6 +234,9 @@ sudo systemctl start goblog
 
 # ステータス確認
 sudo systemctl status goblog
+
+# 環境変数を確認
+sudo systemctl show goblog --property=Environment
 
 # ログ確認
 sudo journalctl -u goblog -f
@@ -226,6 +256,9 @@ sudo journalctl -u goblog -f
 ### 4. nginxの設定
 
 ```bash
+# クローンしたリポジトリ内で作業（~/goblog）
+cd ~/goblog
+
 # 設定ファイルをコピーしてドメイン名を変更
 sudo cp deploy/nginx.conf /etc/nginx/sites-available/goblog
 sudo nano /etc/nginx/sites-available/goblog  # example.com を実際のドメインに変更
@@ -256,12 +289,7 @@ sudo certbot renew --dry-run
 ### 6. 管理者ユーザーの作成
 
 ```bash
-# adduserコマンドをビルドしてサーバーに転送
-GOOS=linux GOARCH=amd64 go build -o bin/adduser cmd/adduser/main.go
-scp bin/adduser user@your-server:/opt/goblog/bin/
-
-# サーバーでユーザーを作成
-ssh user@your-server
+# サーバーでユーザーを作成（adduserはステップ2で配置済み）
 cd /opt/goblog
 sudo -u goblog PASSWORD_POLICY=STRONG DATABASE_PATH=/var/lib/goblog/goblog.db ./bin/adduser
 ```

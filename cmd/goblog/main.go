@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/capybara-translation/goblog"
 	"github.com/capybara-translation/goblog/internal/auth"
 	"github.com/capybara-translation/goblog/internal/config"
 	"github.com/capybara-translation/goblog/internal/db"
@@ -32,8 +33,8 @@ func main() {
 	}
 	defer database.Close()
 
-	// マイグレーションの実行
-	if err := db.RunMigrations(database, "migrations/001_create_posts.sql", "migrations/002_create_users.sql", "migrations/003_add_is_pinned.sql"); err != nil {
+	// マイグレーションの実行（埋め込まれたファイルから）
+	if err := db.RunMigrations(database, goblog.Migrations, "migrations/001_create_posts.sql", "migrations/002_create_users.sql", "migrations/003_add_is_pinned.sql"); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
@@ -55,8 +56,8 @@ func main() {
 		log.Fatalf("Failed to create upload directory: %v", err)
 	}
 
-	// ルーターの初期化
-	r := gobloghttp.NewRouter(postService, authService, cfg.SecureCookie, cfg.BlogTitle, cfg.BaseURL, cfg.UploadDir, cfg.MaxUploadSize)
+	// ルーターの初期化（埋め込みリソースを使用）
+	r := gobloghttp.NewRouter(postService, authService, cfg.SecureCookie, cfg.BlogTitle, cfg.BaseURL, cfg.UploadDir, cfg.MaxUploadSize, goblog.Templates, goblog.StaticFiles)
 
 	// サーバー起動
 	port := ":" + cfg.Port
