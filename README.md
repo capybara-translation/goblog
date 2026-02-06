@@ -1,87 +1,87 @@
 # goblog
 goblog is a simple blog system written in Go.
 
-## 開発環境のセットアップ
+## Development Environment Setup
 
-### 1. リポジトリのクローン
+### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/capybara-translation/goblog.git
 cd goblog
 ```
 
-### 2. 依存関係のインストール
+### 2. Install Dependencies
 
 ```bash
 make deps
-# または
+# or
 go mod download
 ```
 
-### 3. 環境変数の設定（オプション）
+### 3. Configure Environment Variables (Optional)
 
-開発環境では `.env` ファイルで環境変数を管理できます：
+In the development environment, you can manage environment variables with a `.env` file:
 
 ```bash
-# .env.example をコピーして .env を作成
+# Copy .env.example to create .env
 cp .env.example .env
 
-# .env ファイルを編集して設定をカスタマイズ
-# 例：ポート番号やブログタイトルを変更
+# Edit .env file to customize settings
+# e.g., change port number or blog title
 ```
 
-**注意:** `.env` ファイルは `.gitignore` に含まれているため、Git にコミットされません。
+**Note:** The `.env` file is included in `.gitignore` and will not be committed to Git.
 
-### 4. データベースのセットアップとテストデータ投入
+### 4. Database Setup and Test Data
 
 ```bash
-# データベースをリセットしてテストデータ投入
+# Reset database and seed test data
 make reset
 
-# または個別に実行
-make clean  # データベースを削除
-make seed   # テストデータを投入
+# Or run individually
+make clean  # Delete database
+make seed   # Seed test data
 ```
 
-これにより、動作確認用のテストユーザーとテスト記事が作成されます。
+This creates test users and test posts for verification.
 
-**テストユーザー:**
-- ユーザー名: `admin`
-- パスワード: `password`
+**Test User:**
+- Username: `admin`
+- Password: `password`
 
-### 5. サーバーの起動
+### 5. Starting the Server
 
-#### 開発環境
+#### Development Environment
 
-**方法1: .env ファイルを使用（推奨）**
+**Method 1: Using .env file (Recommended)**
 
 ```bash
-# .env ファイルを作成して設定
+# Create and configure .env file
 cp .env.example .env
-# .env ファイルを編集して設定をカスタマイズ
+# Edit .env file to customize settings
 
-# サーバーを起動（.env から自動的に読み込まれます）
+# Start server (automatically loads from .env)
 make run
-# または
+# or
 go run cmd/goblog/main.go
 ```
 
-**方法2: 環境変数を直接指定**
+**Method 2: Specify Environment Variables Directly**
 
 ```bash
-# 環境変数を指定して起動
-PORT=8000 BLOG_TITLE="開発ブログ" go run cmd/goblog/main.go
+# Start with environment variables
+PORT=8000 BLOG_TITLE="Dev Blog" go run cmd/goblog/main.go
 ```
 
-ブラウザで http://localhost:8080 にアクセスして確認できます。
+Access http://localhost:8080 in your browser to verify.
 
-#### 本番環境（環境変数を使用）
+#### Production Environment (Using Environment Variables)
 
 ```bash
-# 環境変数で設定を指定
+# Specify settings with environment variables
 SECURE_COOKIE=true PASSWORD_POLICY=STRONG PORT=3000 BLOG_TITLE="My Awesome Blog" go run cmd/goblog/main.go
 
-# または環境変数をエクスポート
+# Or export environment variables
 export SECURE_COOKIE=true
 export PASSWORD_POLICY=STRONG
 export PORT=3000
@@ -90,393 +90,397 @@ export BLOG_TITLE="My Awesome Blog"
 go run cmd/goblog/main.go
 ```
 
-**利用可能な環境変数:**
+**Available Environment Variables:**
 
-| 環境変数 | 説明 | デフォルト値 |
-|---------|------|-------------|
-| `PORT` | サーバーのポート番号 | `8080` |
-| `SECURE_COOKIE` | Cookie の Secure フラグ（HTTPS環境では `true` に設定） | `false` |
-| `PASSWORD_POLICY` | パスワードポリシー（`NONE` または `STRONG`） | `NONE` |
-| `DATABASE_PATH` | データベースファイルのパス | `data/goblog.db` |
-| `BLOG_TITLE` | ブログのタイトル（ヘッダーやページタイトルに表示） | `goblog` |
-| `BASE_URL` | サイトのベースURL（サイトマップ等で使用） | `http://localhost:{PORT}` |
-| `UPLOAD_DIR` | アップロードファイルの保存先ディレクトリ | `data/uploads` |
-| `MAX_UPLOAD_SIZE` | アップロードファイルの最大サイズ（バイト） | `5242880`（5MB） |
-| `TZ` | タイムゾーン（例: `Asia/Tokyo`, `UTC`, `America/New_York`）<br>日付表示に使用される | システムのタイムゾーン |
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Server port number | `8080` |
+| `SECURE_COOKIE` | Cookie Secure flag (set to `true` for HTTPS) | `false` |
+| `PASSWORD_POLICY` | Password policy (`NONE` or `STRONG`) | `NONE` |
+| `DATABASE_PATH` | Database file path | `data/goblog.db` |
+| `BLOG_TITLE` | Blog title (displayed in header and page titles) | `goblog` |
+| `BASE_URL` | Site base URL (used for sitemap, etc.) | `http://localhost:{PORT}` |
+| `UPLOAD_DIR` | Upload file storage directory | `data/uploads` |
+| `MAX_UPLOAD_SIZE` | Maximum upload file size (bytes) | `5242880` (5MB) |
+| `TZ` | Timezone (e.g., `Asia/Tokyo`, `UTC`, `America/New_York`)<br>Used for date display | System timezone |
 
-**パスワードポリシーについて:**
+**About Password Policy:**
 
-- `NONE`: 制限なし（開発/テスト環境向け）
-- `STRONG`: 厳格なポリシー（本番環境向け）
-  - 最小15文字
-  - 大文字を1文字以上含む
-  - 小文字を1文字以上含む
-  - 数字を1文字以上含む
-  - 記号を1文字以上含む
+- `NONE`: No restrictions (for development/testing)
+- `STRONG`: Strict policy (for production)
+  - Minimum 15 characters
+  - At least 1 uppercase letter
+  - At least 1 lowercase letter
+  - At least 1 number
+  - At least 1 symbol
 
-※ 大文字小文字を区別しません（`none`/`NONE`/`None`、`strong`/`STRONG`/`Strong` すべて有効）
+*Case-insensitive (`none`/`NONE`/`None`, `strong`/`STRONG`/`Strong` are all valid)
 
-**タイムゾーンについて:**
+**About Timezone:**
 
-日付表示は ISO 8601 形式（YYYY-MM-DD）にタイムゾーン略称を付けた形式で表示されます：
-- 例: `2024-12-26 (JST)`, `2024-12-25 (UTC)`, `2024-12-26 (EST)`
+Dates are displayed in ISO 8601 format (YYYY-MM-DD) with timezone abbreviation:
+- e.g., `2024-12-26 (JST)`, `2024-12-25 (UTC)`, `2024-12-26 (EST)`
 
-TZ 環境変数を設定することで、ブログの執筆者のタイムゾーンで日付を表示できます：
+Set the TZ environment variable to display dates in the blog author's timezone:
 
 ```bash
-# Asia/Tokyo タイムゾーンで起動
+# Start with Asia/Tokyo timezone
 TZ=Asia/Tokyo make run
 
-# または .env ファイルに設定
+# Or add to .env file
 echo "TZ=Asia/Tokyo" >> .env
 ```
 
-**注意:**
-- 本番環境（HTTPS対応サーバー）では必ず `SECURE_COOKIE=true` を設定してください。これにより Cookie が HTTPS 接続でのみ送信されるようになります。
-- 本番環境では `PASSWORD_POLICY=STRONG` を設定することを強く推奨します。
-- **本番環境では `.env` ファイルではなく、システムの環境変数を直接設定することを推奨します。**
+**Notes:**
+- For production (HTTPS-enabled server), always set `SECURE_COOKIE=true`. This ensures cookies are only sent over HTTPS connections.
+- Setting `PASSWORD_POLICY=STRONG` is highly recommended for production.
+- **For production, it is recommended to set system environment variables directly instead of using a `.env` file.**
 
-### 6. テストの実行
+### 6. Running Tests
 
 ```bash
-# 全テストを実行
+# Run all tests
 make test
 
-# 詳細な出力付き
+# With verbose output
 make test-v
 
-# カバレッジを確認
+# Check coverage
 make test-cover
 ```
 
-## 本番環境へのデプロイ
+## Production Deployment
 
-本番環境ではsystemdでサービスを管理し、nginxでリバースプロキシを構成します。
+In production, use systemd for service management and nginx for reverse proxy.
 
-### 1. サーバーの準備
+### 1. Server Preparation
 
 ```bash
-# 必要なパッケージをインストール
+# Install required packages
 sudo apt update
 sudo apt install -y nginx certbot python3-certbot-nginx
 
-# タイムゾーンを設定（日本の場合）
+# Set timezone (for Japan)
 sudo timedatectl set-timezone Asia/Tokyo
 
-# 設定を確認
+# Verify settings
 timedatectl
 
-# goblog用のユーザーとディレクトリを作成
+# Create user and directories for goblog
 sudo useradd -r -s /bin/false goblog
 sudo mkdir -p /opt/goblog/bin
 sudo mkdir -p /var/lib/goblog/uploads
 sudo chown -R goblog:goblog /var/lib/goblog
 ```
 
-**利用可能なタイムゾーン一覧を確認:**
+**Check available timezones:**
 ```bash
 timedatectl list-timezones | grep -i tokyo
 ```
 
-### 2. バイナリのビルドとデプロイ
+### 2. Build and Deploy Binaries
 
-go-sqlite3 は CGO を必要とするため、サーバー上でビルドします。
+go-sqlite3 requires CGO, so build on the server.
 
 ```bash
-# サーバーにSSH
+# SSH to server
 ssh user@your-server
 
-# Go、ビルドツールをインストール
+# Install Go and build tools
 sudo apt install -y golang-go build-essential git
 
-# Node.js v24 をインストール（NodeSource経由）
+# Install Node.js v24 (via NodeSource)
 curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
 sudo apt install -y nodejs
 
-# リポジトリをクローン
+# Clone repository
 git clone https://github.com/capybara-translation/goblog.git
 cd goblog
 
-# 管理画面SPA（React）をビルド
+# Build admin SPA (React)
 cd web-admin
 npm install
 npm run build
 cd ..
 
-# バイナリをビルド
+# Build binaries
 go build -o bin/goblog cmd/goblog/main.go
 go build -o bin/adduser cmd/adduser/main.go
 go build -o bin/seed cmd/seed/main.go
 
-# バイナリを配置
+# Deploy binaries
 sudo mv bin/goblog bin/adduser bin/seed /opt/goblog/bin/
 sudo chown root:root /opt/goblog/bin/goblog /opt/goblog/bin/adduser /opt/goblog/bin/seed
 ```
 
-**注**: マイグレーションファイル、テンプレート、静的ファイルはバイナリに埋め込まれているため、別途コピーする必要はありません。
+**Note**: Migration files, templates, and static files are embedded in the binary, so no separate copying is required.
 
-### 3. systemdサービスの設定
+### 3. Configure systemd Service
 
 ```bash
-# クローンしたリポジトリ内で作業（~/goblog）
+# Work from cloned repository (~/goblog)
 cd ~/goblog
 
-# サービスファイルをコピー
+# Copy service file
 sudo cp deploy/goblog.service /etc/systemd/system/
 
-# 環境変数を編集（ドメイン名やタイトルを変更）
+# Edit environment variables (change domain name and title)
 sudo vim /etc/systemd/system/goblog.service
 
-# サービスを有効化して起動
+# Enable and start service
 sudo systemctl daemon-reload
 sudo systemctl enable goblog
 sudo systemctl start goblog
 
-# ステータス確認
+# Check status
 sudo systemctl status goblog
 
-# 環境変数を確認
+# Verify environment variables
 sudo systemctl show goblog --property=Environment
 
-# ログ確認
+# Check logs
 sudo journalctl -u goblog -f
 ```
 
-**重要な環境変数:**
+**Important Environment Variables:**
 
-| 環境変数 | 本番環境での設定例 |
-|---------|-------------------|
-| `SECURE_COOKIE` | `true`（必須） |
-| `PASSWORD_POLICY` | `STRONG`（推奨） |
+| Variable | Production Setting |
+|----------|-------------------|
+| `SECURE_COOKIE` | `true` (required) |
+| `PASSWORD_POLICY` | `STRONG` (recommended) |
 | `BASE_URL` | `https://your-domain.com` |
 | `DATABASE_PATH` | `/var/lib/goblog/goblog.db` |
 | `UPLOAD_DIR` | `/var/lib/goblog/uploads` |
-| `BLOG_TITLE` | 任意のブログタイトル |
+| `BLOG_TITLE` | Your blog title |
 
-### 4. nginxの設定
+### 4. Configure nginx
 
 ```bash
-# クローンしたリポジトリ内で作業（~/goblog）
+# Work from cloned repository (~/goblog)
 cd ~/goblog
 
-# 設定ファイルをコピーしてドメイン名を変更
+# Copy config file and change domain name
 sudo cp deploy/nginx.conf /etc/nginx/sites-available/goblog
-sudo vim /etc/nginx/sites-available/goblog  # example.com を実際のドメインに変更
+sudo vim /etc/nginx/sites-available/goblog  # Change your-domain.com to actual domain
 
-# サイトを有効化
+# Enable site
 sudo ln -s /etc/nginx/sites-available/goblog /etc/nginx/sites-enabled/
 
-# デフォルトサイトを無効化（任意）
+# Disable default site (optional)
 sudo rm /etc/nginx/sites-enabled/default
 
-# 設定をテスト
+# Test configuration
 sudo nginx -t
 
-# nginxを再起動
+# Reload nginx
 sudo systemctl reload nginx
 ```
 
-### 5. SSL証明書の取得（Let's Encrypt）
+### 5. Obtain SSL Certificate (Let's Encrypt)
 
 ```bash
-# certbotでSSL証明書を取得
-sudo certbot --nginx -d your-domain.com -d www.your-domain.com
+# Obtain SSL certificate with certbot (automatically adds SSL to nginx config)
+sudo certbot --nginx -d your-domain.com
 
-# 自動更新の確認
+# Verify auto-renewal
 sudo certbot renew --dry-run
 ```
 
-### 6. 管理者ユーザーの作成
+**Note**: certbot automatically:
+- Adds SSL certificate paths to nginx config
+- Configures HTTP to HTTPS redirect
+
+### 6. Create Admin User
 
 ```bash
-# サーバーでユーザーを作成（adduserはステップ2で配置済み）
+# Create user on server (adduser deployed in step 2)
 cd /opt/goblog
 sudo -u goblog PASSWORD_POLICY=STRONG DATABASE_PATH=/var/lib/goblog/goblog.db ./bin/adduser
 ```
 
-### 7. 動作確認
+### 7. Verify Operation
 
 ```bash
-# ヘルスチェック
+# Health check
 curl https://your-domain.com/api/v1/health
 
-# サイトマップ確認
+# Check sitemap
 curl https://your-domain.com/sitemap.xml
 ```
 
-### トラブルシューティング
+### Troubleshooting
 
 ```bash
-# goblogのログを確認
+# Check goblog logs
 sudo journalctl -u goblog -n 100
 
-# goblogのログをリアルタイムで確認
+# Monitor goblog logs in real-time
 sudo journalctl -u goblog -f
 
-# nginxのエラーログを確認
+# Check nginx error logs
 sudo tail -f /var/log/nginx/goblog_error.log
 ```
 
-### サービスの再起動
+### Service Restart
 
-| 変更内容 | 必要なコマンド |
-|---------|---------------|
-| Unitファイル変更 | `sudo systemctl daemon-reload && sudo systemctl restart goblog` |
-| バイナリ更新 | `sudo systemctl restart goblog` |
-| 環境変数変更（Unit内） | `sudo systemctl daemon-reload && sudo systemctl restart goblog` |
-| nginx設定変更 | `sudo nginx -t && sudo systemctl reload nginx` |
+| Change | Required Command |
+|--------|-----------------|
+| Unit file change | `sudo systemctl daemon-reload && sudo systemctl restart goblog` |
+| Binary update | `sudo systemctl restart goblog` |
+| Environment variable change (in Unit) | `sudo systemctl daemon-reload && sudo systemctl restart goblog` |
+| nginx config change | `sudo nginx -t && sudo systemctl reload nginx` |
 
 ```bash
-# Unitファイルまたは環境変数を変更した場合
+# After changing Unit file or environment variables
 sudo systemctl daemon-reload
 sudo systemctl restart goblog
 
-# バイナリのみ更新した場合
+# After updating binary only
 sudo systemctl restart goblog
 
-# nginx設定を変更した場合（設定テスト後にリロード）
+# After changing nginx config (test then reload)
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-## 利用可能なMakeコマンド
+## Available Make Commands
 
-開発でよく使うコマンドをMakefileにまとめています：
+Common development commands are organized in the Makefile:
 
-### 基本コマンド
-
-```bash
-make help        # ヘルプを表示
-make run         # サーバーを起動
-make stop        # 起動中のサーバーを停止
-make test        # テストを実行
-make test-v      # テストを詳細出力で実行
-make test-cover  # テストカバレッジを表示
-make clean       # データベースと管理者用SPAビルド成果物を削除
-make seed        # テストデータを投入
-make reset       # データベースをリセットしてテストデータ投入（管理者用SPAも再ビルド）
-make build       # 管理者用SPAとバックエンドをビルド
-make install     # バイナリをインストール
-make deps        # 依存関係をダウンロード
-```
-
-### 管理者用SPA（React）関連コマンド
+### Basic Commands
 
 ```bash
-make install-admin  # 管理者用SPAのnpm依存関係をインストール
-make build-admin    # 管理者用SPAをビルド
-make dev-admin      # 管理者用SPAの開発サーバーを起動
-make clean-admin    # 管理者用SPAのビルド成果物を削除
+make help        # Show help
+make run         # Start server
+make stop        # Stop running server
+make test        # Run tests
+make test-v      # Run tests with verbose output
+make test-cover  # Show test coverage
+make clean       # Delete database and admin SPA build artifacts
+make seed        # Seed test data
+make reset       # Reset database and seed test data (also rebuilds admin SPA)
+make build       # Build admin SPA and backend
+make install     # Install binaries
+make deps        # Download dependencies
+```
+
+### Admin SPA (React) Commands
+
+```bash
+make install-admin  # Install admin SPA npm dependencies
+make build-admin    # Build admin SPA
+make dev-admin      # Start admin SPA development server
+make clean-admin    # Delete admin SPA build artifacts
 ```
 
 
-## ディレクトリ構成
+## Directory Structure
 
 ```
 /cmd/
-  /adduser/main.go     # 管理者ユーザー追加コマンド
-  /goblog/main.go      # アプリケーション本体
-  /seed/main.go        # テストデータ投入コマンド
+  /adduser/main.go     # Admin user creation command
+  /goblog/main.go      # Main application
+  /seed/main.go        # Test data seeding command
 
-/deploy/               # デプロイ設定
-  goblog.service       # systemd Unitファイル
-  nginx.conf           # nginx設定ファイル
+/deploy/               # Deployment configuration
+  goblog.service       # systemd Unit file
+  nginx.conf           # nginx configuration
 
 /internal/
-  /auth/               # 認証ユーティリティ
-    session.go         # セッション管理
-  /config/             # 設定管理
-    config.go          # 環境変数からの設定読み込み
-  /db/                 # データベース
-    db.go              # DB接続・マイグレーション
-  /domain/             # ドメインモデル
-    post.go            # 記事モデル
-    user.go            # ユーザーモデル
-  /http/               # HTTPレイヤー
-    router.go          # ルーティング設定
-    middleware.go      # 認証・CSRFミドルウェア
-    handlers_admin.go  # 管理者用SPA配信
-    handlers_api.go    # API ハンドラー
-    handlers_auth.go   # 認証ハンドラー
-    handlers_image.go  # 画像アップロードハンドラー
-    handlers_public.go # 公開ページハンドラー
-    handlers_sitemap.go # サイトマップハンドラー
-  /markdown/           # Markdown処理
-    markdown.go        # Markdown→HTML変換
-    dataline_extension.go # 行番号付与拡張
-  /repo/               # データアクセス層
-    post_repo.go       # 記事リポジトリ
-    user_repo.go       # ユーザーリポジトリ
-  /service/            # ビジネスロジック層
-    auth_service.go    # 認証サービス
-    post_service.go    # 記事サービス
-  /view/               # ビュー関連
-    /static/           # 静的ファイル
-      markdown.css     # Markdownスタイル
-    /templates/        # HTMLテンプレート
-      layout.html      # 共通レイアウト
-      home.html        # トップページ
-      posts.html       # 記事一覧
-      post.html        # 記事詳細
-      tags.html        # タグ一覧
-      tag_posts.html   # タグ別記事一覧
-      notfound.html    # 404ページ
+  /auth/               # Authentication utilities
+    session.go         # Session management
+  /config/             # Configuration management
+    config.go          # Load config from environment variables
+  /db/                 # Database
+    db.go              # DB connection and migrations
+  /domain/             # Domain models
+    post.go            # Post model
+    user.go            # User model
+  /http/               # HTTP layer
+    router.go          # Routing configuration
+    middleware.go      # Authentication and CSRF middleware
+    handlers_admin.go  # Admin SPA serving
+    handlers_api.go    # API handlers
+    handlers_auth.go   # Authentication handlers
+    handlers_image.go  # Image upload handlers
+    handlers_public.go # Public page handlers
+    handlers_sitemap.go # Sitemap handlers
+  /markdown/           # Markdown processing
+    markdown.go        # Markdown to HTML conversion
+    dataline_extension.go # Line number extension
+  /repo/               # Data access layer
+    post_repo.go       # Post repository
+    user_repo.go       # User repository
+  /service/            # Business logic layer
+    auth_service.go    # Authentication service
+    post_service.go    # Post service
+  /view/               # View related
+    /static/           # Static files
+      markdown.css     # Markdown styles
+    /templates/        # HTML templates
+      layout.html      # Common layout
+      home.html        # Home page
+      posts.html       # Post list
+      post.html        # Post detail
+      tags.html        # Tag list
+      tag_posts.html   # Posts by tag
+      notfound.html    # 404 page
 
-/migrations/           # SQLマイグレーション
-  001_create_posts.sql # 記事テーブル
-  002_create_users.sql # ユーザーテーブル
-  003_add_is_pinned.sql # ピン留め機能
+/migrations/           # SQL migrations
+  001_create_posts.sql # Posts table
+  002_create_users.sql # Users table
+  003_add_is_pinned.sql # Pin feature
 
-/web-admin/            # 管理者用SPA（React）
+/web-admin/            # Admin SPA (React)
   /src/
-    /api/              # APIクライアント
-    /components/       # 共通コンポーネント
-    /hooks/            # カスタムフック
-    /pages/            # ページコンポーネント
-    /mocks/            # テスト用モック（MSW）
-    /utils/            # ユーティリティ
-    App.tsx            # ルートコンポーネント
-    main.tsx           # エントリポイント
+    /api/              # API client
+    /components/       # Common components
+    /hooks/            # Custom hooks
+    /pages/            # Page components
+    /mocks/            # Test mocks (MSW)
+    /utils/            # Utilities
+    App.tsx            # Root component
+    main.tsx           # Entry point
 ```
 
-## URL設計
+## URL Design
 
-### 公開ページ
+### Public Pages
 
-- `GET /` - トップページ
-- `GET /posts` - 記事一覧（ページネーション対応）
-- `GET /posts/{slug}` - 記事詳細
-- `GET /tags` - タグ一覧
-- `GET /tags/{tag}` - タグ別記事一覧（ページネーション対応）
-- `GET /sitemap.xml` - サイトマップ
+- `GET /` - Home page
+- `GET /posts` - Post list (with pagination)
+- `GET /posts/{slug}` - Post detail
+- `GET /tags` - Tag list
+- `GET /tags/{tag}` - Posts by tag (with pagination)
+- `GET /sitemap.xml` - Sitemap
 
-### 静的ファイル 
+### Static Files
 
-- `GET /static/*` - CSS等の静的ファイル
-- `GET /uploads/*` - アップロードされた画像
+- `GET /static/*` - Static files like CSS
+- `GET /uploads/*` - Uploaded images
 
-### 管理者用SPA
+### Admin SPA
 
-- `GET /admin` - SPA入口
-- `GET /admin/*` - SPAフォールバック（クライアントサイドルーティング対応）
+- `GET /admin` - SPA entry point
+- `GET /admin/*` - SPA fallback (client-side routing support)
 
-### API（/api/v1）
+### API (/api/v1)
 
-**公開エンドポイント:**
-- `GET /api/v1/health` - ヘルスチェック
-- `POST /api/v1/auth/login` - ログイン
+**Public Endpoints:**
+- `GET /api/v1/health` - Health check
+- `POST /api/v1/auth/login` - Login
 
-**保護エンドポイント（認証 + CSRF 必須）:**
-- `POST /api/v1/auth/logout` - ログアウト
-- `GET /api/v1/auth/me` - ログイン状態確認
-- `GET /api/v1/posts` - 記事一覧取得（`?status=draft|published&tag=タグ名&limit=N&offset=N`）
-- `POST /api/v1/posts` - 記事作成
-- `GET /api/v1/posts/{id}` - 記事取得
-- `PUT /api/v1/posts/{id}` - 記事更新
-- `DELETE /api/v1/posts/{id}` - 記事削除
-- `POST /api/v1/posts/{id}/publish` - 記事公開
-- `POST /api/v1/posts/{id}/unpublish` - 記事非公開化
-- `POST /api/v1/posts/{id}/pin` - 記事をピン留め
-- `POST /api/v1/posts/{id}/unpin` - 記事のピン留め解除
-- `GET /api/v1/tags` - タグ一覧取得（`?status=draft|published`）
-- `POST /api/v1/markdown/preview` - Markdownプレビュー
-- `POST /api/v1/images` - 画像アップロード
+**Protected Endpoints (Authentication + CSRF Required):**
+- `POST /api/v1/auth/logout` - Logout
+- `GET /api/v1/auth/me` - Check login status
+- `GET /api/v1/posts` - Get post list (`?status=draft|published&tag=tagname&limit=N&offset=N`)
+- `POST /api/v1/posts` - Create post
+- `GET /api/v1/posts/{id}` - Get post
+- `PUT /api/v1/posts/{id}` - Update post
+- `DELETE /api/v1/posts/{id}` - Delete post
+- `POST /api/v1/posts/{id}/publish` - Publish post
+- `POST /api/v1/posts/{id}/unpublish` - Unpublish post
+- `POST /api/v1/posts/{id}/pin` - Pin post
+- `POST /api/v1/posts/{id}/unpin` - Unpin post
+- `GET /api/v1/tags` - Get tag list (`?status=draft|published`)
+- `POST /api/v1/markdown/preview` - Markdown preview
+- `POST /api/v1/images` - Image upload
