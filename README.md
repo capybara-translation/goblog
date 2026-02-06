@@ -261,7 +261,7 @@ cd ~/goblog
 
 # 設定ファイルをコピーしてドメイン名を変更
 sudo cp deploy/nginx.conf /etc/nginx/sites-available/goblog
-sudo nano /etc/nginx/sites-available/goblog  # example.com を実際のドメインに変更
+sudo vim /etc/nginx/sites-available/goblog  # example.com を実際のドメインに変更
 
 # サイトを有効化
 sudo ln -s /etc/nginx/sites-available/goblog /etc/nginx/sites-enabled/
