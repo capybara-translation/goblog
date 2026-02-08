@@ -51,8 +51,6 @@ make seed   # テストデータを投入
 
 ### 5. サーバーの起動
 
-#### 開発環境
-
 **方法1: .env ファイルを使用（推奨）**
 
 ```bash
@@ -75,20 +73,6 @@ PORT=8000 BLOG_TITLE="開発ブログ" go run cmd/goblog/main.go
 
 ブラウザで http://localhost:8080 にアクセスして確認できます。
 
-#### 本番環境（環境変数を使用）
-
-```bash
-# 環境変数で設定を指定
-SECURE_COOKIE=true PASSWORD_POLICY=STRONG PORT=3000 BLOG_TITLE="My Awesome Blog" go run cmd/goblog/main.go
-
-# または環境変数をエクスポート
-export SECURE_COOKIE=true
-export PASSWORD_POLICY=STRONG
-export PORT=3000
-export DATABASE_PATH=/var/lib/goblog/production.db
-export BLOG_TITLE="My Awesome Blog"
-go run cmd/goblog/main.go
-```
 
 **利用可能な環境変数:**
 
@@ -180,12 +164,7 @@ timedatectl list-timezones | grep -i tokyo
 
 ### 2. バイナリのビルドとデプロイ
 
-go-sqlite3 は CGO を必要とするため、サーバー上でビルドします。
-
 ```bash
-# サーバーにSSH
-ssh user@your-server
-
 # Go、ビルドツールをインストール
 sudo apt install -y golang-go build-essential git
 
@@ -319,12 +298,12 @@ sudo tail -f /var/log/nginx/goblog_error.log
 
 ### サービスの再起動
 
-| 変更内容 | 必要なコマンド |
-|---------|---------------|
-| Unitファイル変更 | `sudo systemctl daemon-reload && sudo systemctl restart goblog` |
-| バイナリ更新 | `sudo systemctl restart goblog` |
-| 環境変数変更（Unit内） | `sudo systemctl daemon-reload && sudo systemctl restart goblog` |
-| nginx設定変更 | `sudo nginx -t && sudo systemctl reload nginx` |
+| 変更内容          | 必要なコマンド |
+|---------------|---------------|
+| Unitファイル      | `sudo systemctl daemon-reload && sudo systemctl restart goblog` |
+| バイナリファイル      | `sudo systemctl restart goblog` |
+| 環境変数（Unit内） | `sudo systemctl daemon-reload && sudo systemctl restart goblog` |
+| nginx設定     | `sudo nginx -t && sudo systemctl reload nginx` |
 
 ```bash
 # Unitファイルまたは環境変数を変更した場合

@@ -51,8 +51,6 @@ This creates test users and test posts for verification.
 
 ### 5. Starting the Server
 
-#### Development Environment
-
 **Method 1: Using .env file (Recommended)**
 
 ```bash
@@ -75,20 +73,6 @@ PORT=8000 BLOG_TITLE="Dev Blog" go run cmd/goblog/main.go
 
 Access http://localhost:8080 in your browser to verify.
 
-#### Production Environment (Using Environment Variables)
-
-```bash
-# Specify settings with environment variables
-SECURE_COOKIE=true PASSWORD_POLICY=STRONG PORT=3000 BLOG_TITLE="My Awesome Blog" go run cmd/goblog/main.go
-
-# Or export environment variables
-export SECURE_COOKIE=true
-export PASSWORD_POLICY=STRONG
-export PORT=3000
-export DATABASE_PATH=/var/lib/goblog/production.db
-export BLOG_TITLE="My Awesome Blog"
-go run cmd/goblog/main.go
-```
 
 **Available Environment Variables:**
 
@@ -153,7 +137,7 @@ make test-cover
 
 In production, use systemd for service management and nginx for reverse proxy.
 
-### 1. Server Preparation
+### 1. Server Setup
 
 ```bash
 # Install required packages
@@ -180,12 +164,7 @@ timedatectl list-timezones | grep -i tokyo
 
 ### 2. Build and Deploy Binaries
 
-go-sqlite3 requires CGO, so build on the server.
-
 ```bash
-# SSH to server
-ssh user@your-server
-
 # Install Go and build tools
 sudo apt install -y golang-go build-essential git
 
@@ -323,12 +302,12 @@ sudo tail -f /var/log/nginx/goblog_error.log
 
 ### Service Restart
 
-| Change | Required Command |
-|--------|-----------------|
-| Unit file change | `sudo systemctl daemon-reload && sudo systemctl restart goblog` |
-| Binary update | `sudo systemctl restart goblog` |
-| Environment variable change (in Unit) | `sudo systemctl daemon-reload && sudo systemctl restart goblog` |
-| nginx config change | `sudo nginx -t && sudo systemctl reload nginx` |
+| Changes to:                    | Required Command |
+|--------------------------------|-----------------|
+| Unit file                      | `sudo systemctl daemon-reload && sudo systemctl restart goblog` |
+| Binary file                    | `sudo systemctl restart goblog` |
+| Environment variables (in Unit) | `sudo systemctl daemon-reload && sudo systemctl restart goblog` |
+| nginx config                   | `sudo nginx -t && sudo systemctl reload nginx` |
 
 ```bash
 # After changing Unit file or environment variables
