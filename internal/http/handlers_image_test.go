@@ -3,6 +3,11 @@ package http
 import (
 	"bytes"
 	"encoding/json"
+	"image"
+	"image/color"
+	"image/gif"
+	"image/jpeg"
+	"image/png"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -11,6 +16,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/chai2010/webp"
 )
 
 func TestNewImageHandlers(t *testing.T) {
@@ -288,8 +295,16 @@ func TestHandleUploadImage_FileActuallySaved(t *testing.T) {
 		t.Fatalf("failed to read saved file: %v", err)
 	}
 
-	if !bytes.Equal(savedData, jpegData) {
-		t.Error("saved file content does not match original")
+	// 保存されたファイルが有効なJPEGであることを確認
+	// （メタデータ削除により元のバイト列とは異なる可能性がある）
+	if !bytes.HasPrefix(savedData, []byte{0xFF, 0xD8, 0xFF}) {
+		t.Error("saved file is not a valid JPEG")
+	}
+
+	// 画像としてデコード可能であることを確認
+	_, err = jpeg.Decode(bytes.NewReader(savedData))
+	if err != nil {
+		t.Errorf("saved file cannot be decoded as JPEG: %v", err)
 	}
 }
 
@@ -452,36 +467,54 @@ func createMultipartRequest(fieldName, filename string, data []byte, contentType
 	return req, nil
 }
 
-// 最小限の有効な画像データを生成
+// 有効な画像データを生成するヘルパー関数
+
 func createJPEGData() []byte {
-	// 最小限のJPEGヘッダー
-	return []byte{
-		0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01,
-		0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xFF, 0xD9,
+	img := image.NewRGBA(image.Rect(0, 0, 10, 10))
+	for y := 0; y < 10; y++ {
+		for x := 0; x < 10; x++ {
+			img.Set(x, y, color.RGBA{R: 255, G: 0, B: 0, A: 255})
+		}
 	}
+
+	var buf bytes.Buffer
+	jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90})
+	return buf.Bytes()
 }
 
 func createPNGData() []byte {
-	// 最小限のPNGヘッダー
-	return []byte{
-		0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
-		0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+	img := image.NewRGBA(image.Rect(0, 0, 10, 10))
+	for y := 0; y < 10; y++ {
+		for x := 0; x < 10; x++ {
+			img.Set(x, y, color.RGBA{R: 0, G: 255, B: 0, A: 255})
+		}
 	}
+
+	var buf bytes.Buffer
+	png.Encode(&buf, img)
+	return buf.Bytes()
 }
 
 func createGIFData() []byte {
-	// 最小限のGIFヘッダー（GIF89a）
-	return []byte{
-		0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
-	}
+	img := image.NewPaletted(image.Rect(0, 0, 10, 10), color.Palette{
+		color.RGBA{R: 0, G: 0, B: 255, A: 255},
+		color.RGBA{R: 255, G: 255, B: 255, A: 255},
+	})
+
+	var buf bytes.Buffer
+	gif.Encode(&buf, img, nil)
+	return buf.Bytes()
 }
 
 func createWebPData() []byte {
-	// 最小限のWebPヘッダー（RIFF....WEBP）
-	return []byte{
-		0x52, 0x49, 0x46, 0x46, // RIFF
-		0x24, 0x00, 0x00, 0x00, // ファイルサイズ
-		0x57, 0x45, 0x42, 0x50, // WEBP
-		0x56, 0x50, 0x38, 0x4C, // VP8L
+	img := image.NewRGBA(image.Rect(0, 0, 10, 10))
+	for y := 0; y < 10; y++ {
+		for x := 0; x < 10; x++ {
+			img.Set(x, y, color.RGBA{R: 255, G: 255, B: 0, A: 255})
+		}
 	}
+
+	var buf bytes.Buffer
+	webp.Encode(&buf, img, &webp.Options{Lossless: true})
+	return buf.Bytes()
 }

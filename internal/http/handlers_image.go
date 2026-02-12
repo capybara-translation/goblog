@@ -106,14 +106,22 @@ func (h *ImageHandlers) HandleUploadImage(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// メタデータ（EXIF等）を削除
+	strippedBytes, err := StripMetadata(fileBytes, contentType)
+	if err != nil {
+		log.Printf("failed to strip metadata from %s: %v", contentType, err)
+		writeError(w, http.StatusBadRequest, "Failed to process image metadata")
+		return
+	}
+
 	// 一意なファイル名を生成（UUID v4 + 拡張子）
 	newFilename := uuid.New().String() + ext
 
 	// ファイルパスの構築（ディレクトリトラバーサル防止）
 	safePath := filepath.Join(h.uploadDir, filepath.Base(newFilename))
 
-	// ファイルを保存
-	if err := os.WriteFile(safePath, fileBytes, 0644); err != nil {
+	// ファイルを保存（メタデータ削除済み）
+	if err := os.WriteFile(safePath, strippedBytes, 0644); err != nil {
 		log.Printf("failed to save file: %v", err)
 		writeError(w, http.StatusInternalServerError, "Failed to save image")
 		return
