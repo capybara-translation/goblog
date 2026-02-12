@@ -3,6 +3,8 @@ package markdown
 import (
 	"strings"
 	"testing"
+
+	"github.com/capybara-translation/goblog/internal/ogp"
 )
 
 func TestConvert_BasicMarkdown(t *testing.T) {
@@ -367,6 +369,204 @@ func main() {
 		if !strings.Contains(result, expected) {
 			t.Errorf("Convert() should contain %q in result:\n%s", expected, result)
 		}
+	}
+}
+
+// mockOGPGetter implements OGPGetter for testing
+type mockOGPGetter struct {
+	data map[string]*ogp.Data
+}
+
+func newMockOGPGetter() *mockOGPGetter {
+	return &mockOGPGetter{
+		data: map[string]*ogp.Data{
+			"https://example.com": {
+				URL:         "https://example.com",
+				Title:       "Example Title",
+				Description: "Example Description",
+				ImageURL:    "https://example.com/image.jpg",
+				SiteName:    "example.com",
+			},
+			"https://example.com/no-image": {
+				URL:         "https://example.com/no-image",
+				Title:       "No Image Page",
+				Description: "Page without image",
+				SiteName:    "example.com",
+			},
+		},
+	}
+}
+
+func (m *mockOGPGetter) Get(url string) *ogp.Data {
+	if data, ok := m.data[url]; ok {
+		return data
+	}
+	return &ogp.Data{
+		URL:   url,
+		Title: url,
+	}
+}
+
+func TestConvert_LinkCard(t *testing.T) {
+	ogpGetter := newMockOGPGetter()
+	converter := NewConverterWithOGP(ogpGetter)
+
+	tests := []struct {
+		name        string
+		input       string
+		contains    []string
+		notContains []string
+	}{
+		{
+			name:  "Standalone URL becomes link card",
+			input: "https://example.com",
+			contains: []string{
+				`class="link-card"`,
+				`href="https://example.com"`,
+				`class="link-card-title"`,
+				"Example Title",
+				`class="link-card-description"`,
+				"Example Description",
+				`class="link-card-image"`,
+				`src="https://example.com/image.jpg"`,
+			},
+		},
+		{
+			name:  "Link card without image",
+			input: "https://example.com/no-image",
+			contains: []string{
+				`class="link-card"`,
+				"No Image Page",
+			},
+			notContains: []string{
+				`class="link-card-image"`,
+			},
+		},
+		{
+			name:  "URL in text is not a link card",
+			input: "Visit https://example.com for more info",
+			contains: []string{
+				`href="https://example.com"`,
+			},
+			notContains: []string{
+				`class="link-card"`,
+			},
+		},
+		{
+			name:  "Markdown link is not a link card",
+			input: "[Example](https://example.com)",
+			contains: []string{
+				`href="https://example.com"`,
+				">Example<",
+			},
+			notContains: []string{
+				`class="link-card"`,
+			},
+		},
+		{
+			name:  "Link card has target blank and rel noopener",
+			input: "https://example.com",
+			contains: []string{
+				`target="_blank"`,
+				`rel="noopener noreferrer`,
+			},
+		},
+		{
+			name:  "Link card shows domain",
+			input: "https://example.com",
+			contains: []string{
+				`class="link-card-domain"`,
+				"example.com",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := converter.Convert(tt.input)
+			if err != nil {
+				t.Fatalf("Convert() error = %v", err)
+			}
+			for _, expected := range tt.contains {
+				if !strings.Contains(result, expected) {
+					t.Errorf("Convert() = %q, want to contain %q", result, expected)
+				}
+			}
+			for _, notExpected := range tt.notContains {
+				if strings.Contains(result, notExpected) {
+					t.Errorf("Convert() = %q, should NOT contain %q", result, notExpected)
+				}
+			}
+		})
+	}
+}
+
+func TestConvert_LinkCardXSS(t *testing.T) {
+	// Test that OGP data is properly escaped
+	ogpGetter := &mockOGPGetter{
+		data: map[string]*ogp.Data{
+			"https://example.com": {
+				URL:         "https://example.com",
+				Title:       `<script>alert('xss')</script>`,
+				Description: `<img src=x onerror=alert('xss')>`,
+				ImageURL:    `javascript:alert('xss')`,
+				SiteName:    `<a onclick="alert('xss')">evil</a>`,
+			},
+		},
+	}
+	converter := NewConverterWithOGP(ogpGetter)
+
+	result, err := converter.Convert("https://example.com")
+	if err != nil {
+		t.Fatalf("Convert() error = %v", err)
+	}
+
+	// Check that dangerous HTML tags are escaped (angle brackets become &lt; &gt;)
+	// The key security concern is that raw HTML tags should not render
+	notContains := []string{
+		"<script>",   // Script tag should be escaped
+		"<img src=x", // Img tag with onerror attack should be escaped
+		"<a onclick", // Anchor tag with onclick should be escaped
+	}
+
+	for _, notExpected := range notContains {
+		if strings.Contains(result, notExpected) {
+			t.Errorf("Convert() = %q, should NOT contain %q (XSS vulnerability)", result, notExpected)
+		}
+	}
+
+	// Check that the content is HTML-escaped (contains &lt; instead of <)
+	mustContain := []string{
+		"&lt;script&gt;", // Escaped script tag
+		"&lt;img",        // Escaped img tag
+	}
+
+	for _, expected := range mustContain {
+		if !strings.Contains(result, expected) {
+			t.Errorf("Convert() = %q, should contain escaped %q", result, expected)
+		}
+	}
+
+	// javascript: protocol should not be used as image src
+	if strings.Contains(result, `src="javascript:`) {
+		t.Errorf("Convert() = %q, should NOT contain javascript: protocol in src attribute", result)
+	}
+
+	// Verify the legitimate link-card-image element exists
+	if !strings.Contains(result, `class="link-card-image"`) {
+		t.Errorf("Convert() = %q, should contain link-card-image", result)
+	}
+}
+
+func TestNewConverterWithOGP(t *testing.T) {
+	ogpGetter := newMockOGPGetter()
+
+	// NewConverterWithOGP should return a new instance each time (not singleton)
+	c1 := NewConverterWithOGP(ogpGetter)
+	c2 := NewConverterWithOGP(ogpGetter)
+
+	if c1 == c2 {
+		t.Error("NewConverterWithOGP() should return different instances")
 	}
 }
 

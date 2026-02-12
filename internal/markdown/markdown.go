@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"sync"
 
+	"github.com/capybara-translation/goblog/internal/ogp"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/yuin/goldmark"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
@@ -15,13 +16,20 @@ import (
 	"github.com/yuin/goldmark/util"
 )
 
+// OGPGetter defines the interface for retrieving OGP data
+// This is a minimal interface that the markdown converter needs
+type OGPGetter interface {
+	Get(url string) *ogp.Data
+}
+
 // Converter is an interface for converting Markdown to HTML
 type Converter interface {
 	Convert(markdown string) (string, error)
 }
 
 type converter struct {
-	policy *bluemonday.Policy
+	policy    *bluemonday.Policy
+	ogpGetter OGPGetter
 }
 
 var (
@@ -29,7 +37,7 @@ var (
 	once     sync.Once
 )
 
-// NewConverter returns a singleton Converter
+// NewConverter returns a singleton Converter (without OGP support)
 func NewConverter() Converter {
 	once.Do(func() {
 		instance = &converter{
@@ -39,11 +47,19 @@ func NewConverter() Converter {
 	return instance
 }
 
+// NewConverterWithOGP creates a new Converter with OGP link card support
+func NewConverterWithOGP(ogpGetter OGPGetter) Converter {
+	return &converter{
+		policy:    createPolicy(),
+		ogpGetter: ogpGetter,
+	}
+}
+
 // createPolicy creates an HTML sanitization policy
 func createPolicy() *bluemonday.Policy {
 	policy := bluemonday.UGCPolicy()
-	// Allow class attribute for syntax highlighting
-	policy.AllowAttrs("class").Matching(bluemonday.SpaceSeparatedTokens).OnElements("code", "pre", "span", "div")
+	// Allow class attribute for syntax highlighting and link cards
+	policy.AllowAttrs("class").Matching(bluemonday.SpaceSeparatedTokens).OnElements("code", "pre", "span", "div", "a", "svg", "path", "img")
 	// Allow style attribute for code blocks (highlight colors)
 	policy.AllowAttrs("style").OnElements("pre", "code", "span")
 	// Allow only checkboxes for task lists (limited to type="checkbox" for security)
@@ -53,11 +69,43 @@ func createPolicy() *bluemonday.Policy {
 	policy.AllowAttrs("class").Matching(bluemonday.SpaceSeparatedTokens).OnElements("li", "ul")
 	// Allow data-line attribute (for preview sync scrolling)
 	policy.AllowAttrs("data-line").Matching(regexp.MustCompile(`^\d+$`)).Globally()
+	// Allow attributes for link cards
+	policy.AllowAttrs("target", "rel").OnElements("a")
+	policy.AllowAttrs("loading", "alt").OnElements("img")
+	// Allow SVG elements for link card icons
+	policy.AllowElements("svg", "path")
+	policy.AllowAttrs("viewBox", "width", "height", "fill").OnElements("svg")
+	policy.AllowAttrs("d").OnElements("path")
 	return policy
 }
 
 // createMarkdown creates a goldmark instance
-func createMarkdown(src []byte) goldmark.Markdown {
+func createMarkdown(src []byte, ogpGetter OGPGetter) goldmark.Markdown {
+	li := newLineIndex(src)
+
+	// Build renderer options
+	rendererOpts := []renderer.Option{
+		html.WithHardWraps(),
+		html.WithXHTML(),
+	}
+
+	// Add link card renderer if OGP getter is available
+	// Note: lower priority number = higher precedence in goldmark
+	if ogpGetter != nil {
+		rendererOpts = append(rendererOpts,
+			renderer.WithNodeRenderers(
+				util.Prioritized(NewLinkCardRenderer(ogpGetter, li), 10), // high precedence for link cards
+			),
+		)
+	}
+
+	// Add practical line renderer (for data-line attributes)
+	rendererOpts = append(rendererOpts,
+		renderer.WithNodeRenderers(
+			util.Prioritized(&practicalLineRenderer{li: li}, 50),
+		),
+	)
+
 	return goldmark.New(
 		goldmark.WithExtensions(
 			extension.GFM, // tables, strikethrough, task lists, etc.
@@ -68,24 +116,16 @@ func createMarkdown(src []byte) goldmark.Markdown {
 		goldmark.WithParserOptions(
 			parser.WithAutoHeadingID(),
 		),
-		goldmark.WithRendererOptions(
-			html.WithHardWraps(),
-			html.WithXHTML(),
-			// Custom renderer that adds data-line attribute
-			renderer.WithNodeRenderers(
-				util.Prioritized(&practicalLineRenderer{
-					li: newLineIndex(src),
-				}, 50), // lower priority than highlighting
-			),
-		),
+		goldmark.WithRendererOptions(rendererOpts...),
 	)
 }
 
 // Convert converts Markdown to sanitized HTML
 // Adds data-line attribute to each block element for preview sync scrolling
+// If OGP getter is configured, standalone URLs are converted to link cards
 func (c *converter) Convert(markdown string) (string, error) {
 	src := []byte(markdown)
-	md := createMarkdown(src)
+	md := createMarkdown(src, c.ogpGetter)
 
 	var buf bytes.Buffer
 	if err := md.Convert(src, &buf); err != nil {

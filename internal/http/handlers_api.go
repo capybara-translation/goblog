@@ -405,18 +405,33 @@ type PreviewResponse struct {
 	HTML string `json:"html"`
 }
 
+// PreviewHandler handles Markdown preview requests
+type PreviewHandler struct {
+	converter markdown.Converter
+}
+
+// NewPreviewHandler creates a new PreviewHandler with optional OGP support
+func NewPreviewHandler(ogpService service.OGPService) *PreviewHandler {
+	var converter markdown.Converter
+	if ogpService != nil {
+		converter = markdown.NewConverterWithOGP(ogpService)
+	} else {
+		converter = markdown.NewConverter()
+	}
+	return &PreviewHandler{converter: converter}
+}
+
 // HandlePreview converts Markdown to HTML and returns it
 // If the content contains @@CURSOR@@, it is replaced with a scroll marker
 // POST /api/v1/preview
-func HandlePreview(w http.ResponseWriter, r *http.Request) {
+func (h *PreviewHandler) HandlePreview(w http.ResponseWriter, r *http.Request) {
 	var req PreviewRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	converter := markdown.NewConverter()
-	html, err := converter.Convert(req.Content)
+	html, err := h.converter.Convert(req.Content)
 	if err != nil {
 		log.Printf("failed to convert markdown: %v", err)
 		writeError(w, http.StatusInternalServerError, "Failed to convert markdown")

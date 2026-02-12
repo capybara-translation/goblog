@@ -10,11 +10,11 @@ import (
 )
 
 // NewRouter creates the application router using embedded resources
-func NewRouter(postService service.PostService, authService service.AuthService, secureCookie bool, blogTitle, baseURL, uploadDir string, maxUploadSize int64, templatesFS, staticFS embed.FS) *mux.Router {
+func NewRouter(postService service.PostService, authService service.AuthService, ogpService service.OGPService, secureCookie bool, blogTitle, baseURL, uploadDir string, maxUploadSize int64, templatesFS, staticFS embed.FS) *mux.Router {
 	r := mux.NewRouter()
 
 	// Initialize public page handlers (using embedded templates)
-	publicHandlers := NewPublicHandlers(postService, blogTitle, baseURL, templatesFS)
+	publicHandlers := NewPublicHandlers(postService, ogpService, blogTitle, baseURL, templatesFS)
 
 	// Display custom 404 page for non-existent routes
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -79,8 +79,9 @@ func NewRouter(postService service.PostService, authService service.AuthService,
 	protectedAPI.HandleFunc("/posts/{id}/unpin", apiHandlers.HandleUnpinPost).Methods("POST")
 	protectedAPI.HandleFunc("/tags", apiHandlers.HandleGetTags).Methods("GET")
 
-	// Markdown preview
-	protectedAPI.HandleFunc("/markdown/preview", HandlePreview).Methods("POST")
+	// Markdown preview (with OGP link card support)
+	previewHandler := NewPreviewHandler(ogpService)
+	protectedAPI.HandleFunc("/markdown/preview", previewHandler.HandlePreview).Methods("POST")
 
 	// Image upload
 	protectedAPI.HandleFunc("/images", imageHandlers.HandleUploadImage).Methods("POST")
@@ -157,8 +158,9 @@ func NewRouterWithTemplates(postService service.PostService, authService service
 	protectedAPI.HandleFunc("/posts/{id}/unpin", apiHandlers.HandleUnpinPost).Methods("POST")
 	protectedAPI.HandleFunc("/tags", apiHandlers.HandleGetTags).Methods("GET")
 
-	// Markdown preview
-	protectedAPI.HandleFunc("/markdown/preview", HandlePreview).Methods("POST")
+	// Markdown preview (without OGP support in test mode)
+	testPreviewHandler := NewPreviewHandler(nil)
+	protectedAPI.HandleFunc("/markdown/preview", testPreviewHandler.HandlePreview).Methods("POST")
 
 	// Image upload
 	protectedAPI.HandleFunc("/images", imageHandlers.HandleUploadImage).Methods("POST")

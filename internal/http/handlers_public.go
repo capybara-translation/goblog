@@ -26,6 +26,8 @@ import (
 // PublicHandlers is a struct that groups handlers for public pages
 type PublicHandlers struct {
 	postService      service.PostService
+	ogpService       service.OGPService
+	mdConverter      markdown.Converter
 	blogTitle        string // Blog title
 	baseURL          string // Site base URL (for sitemap)
 	homeTemplate     *template.Template
@@ -237,17 +239,49 @@ func renderMarkdownWithHighlight(content string, query string) template.HTML {
 }
 
 // NewPublicHandlers creates PublicHandlers from embedded templates
-func NewPublicHandlers(postService service.PostService, blogTitle, baseURL string, templatesFS embed.FS) *PublicHandlers {
-	// Define custom template functions
+func NewPublicHandlers(postService service.PostService, ogpService service.OGPService, blogTitle, baseURL string, templatesFS embed.FS) *PublicHandlers {
+	// Create markdown converter with OGP support
+	var converter markdown.Converter
+	if ogpService != nil {
+		converter = markdown.NewConverterWithOGP(ogpService)
+	} else {
+		converter = markdown.NewConverter()
+	}
+
+	// Define custom template functions with closure-based markdown functions
 	funcMap := template.FuncMap{
 		"truncate":               truncateRunes,
 		"splitTags":              splitTags,
 		"formatDateWithTZ":       formatDateWithTZ,
 		"formatDateDetailWithTZ": formatDateDetailWithTZ,
 		"highlightQuery":         highlightQuery,
-		"renderMarkdown":              renderMarkdown,
-		"renderMarkdownWithHighlight": renderMarkdownWithHighlight,
-		"markdownExcerpt":             markdownExcerpt,
+		// Closure-based markdown functions that use the OGP-enabled converter
+		"renderMarkdown": func(content string) template.HTML {
+			htmlContent, err := converter.Convert(content)
+			if err != nil {
+				return template.HTML(template.HTMLEscapeString(content))
+			}
+			return template.HTML(htmlContent)
+		},
+		"renderMarkdownWithHighlight": func(content string, query string) template.HTML {
+			htmlContent, err := converter.Convert(content)
+			if err != nil {
+				return template.HTML(template.HTMLEscapeString(content))
+			}
+			if query == "" {
+				return template.HTML(htmlContent)
+			}
+			highlighted := highlightHTMLContent(htmlContent, query)
+			return template.HTML(highlighted)
+		},
+		"markdownExcerpt": func(content string, maxLen int) string {
+			htmlContent, err := converter.Convert(content)
+			if err != nil {
+				return truncateRunes(content, maxLen)
+			}
+			plainText := stripHTMLTags(htmlContent)
+			return truncateRunes(plainText, maxLen)
+		},
 	}
 
 	// Create sub FS from embedded templates
@@ -282,6 +316,8 @@ func NewPublicHandlers(postService service.PostService, blogTitle, baseURL strin
 
 	return &PublicHandlers{
 		postService:      postService,
+		ogpService:       ogpService,
+		mdConverter:      converter,
 		blogTitle:        blogTitle,
 		baseURL:          baseURL,
 		homeTemplate:     homeTemplate,

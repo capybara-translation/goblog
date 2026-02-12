@@ -182,3 +182,73 @@
 .markdown-content del {
     color: #71717a;
 }
+
+/* リンクカード */
+.markdown-content .link-card {
+    display: flex;
+    border: 1px solid #3f3f46;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    margin: 1rem 0;
+    background-color: #27272a;
+    text-decoration: none;
+    transition: border-color 0.2s, background-color 0.2s;
+}
+.markdown-content .link-card:hover {
+    border-color: #52525b;
+    background-color: #3f3f46;
+}
+.markdown-content .link-card-content {
+    flex: 1;
+    padding: 1rem;
+    min-width: 0;
+}
+.markdown-content .link-card-title {
+    font-weight: 600;
+    font-size: 0.9375rem;
+    color: #e4e4e7;
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+.markdown-content .link-card-description {
+    font-size: 0.8125rem;
+    color: #a1a1aa;
+    margin-bottom: 0.5rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.markdown-content .link-card-domain {
+    font-size: 0.75rem;
+    color: #71717a;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+.markdown-content .link-card-icon {
+    flex-shrink: 0;
+}
+.markdown-content .link-card-image {
+    max-width: 200px;
+    max-height: 200px;
+    object-fit: contain;
+    flex-shrink: 0;
+    margin-right: 1rem;
+}
+
+/* レスポンシブ: モバイルでは縦並び */
+@media (max-width: 480px) {
+    .markdown-content .link-card {
+        flex-direction: column-reverse;
+    }
+    .markdown-content .link-card-image {
+        width: 100%;
+        max-height: 200px;
+        object-fit: contain;
+    }
+}
