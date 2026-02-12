@@ -448,11 +448,17 @@ describe('MarkdownEditor', () => {
 
   describe('data-lineスクロール機能', () => {
     let scrollToMock: ReturnType<typeof vi.fn>;
+    let originalScrollTo: typeof Element.prototype.scrollTo;
 
     beforeEach(() => {
       // scrollTo をモック
+      originalScrollTo = Element.prototype.scrollTo;
       scrollToMock = vi.fn();
-      Element.prototype.scrollTo = scrollToMock;
+      Element.prototype.scrollTo = scrollToMock as unknown as typeof Element.prototype.scrollTo;
+    });
+
+    afterEach(() => {
+      Element.prototype.scrollTo = originalScrollTo;
     });
 
     it('PreviewAPIにコンテンツがそのまま送信される（マーカーなし）', async () => {

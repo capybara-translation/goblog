@@ -57,10 +57,10 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
       }
     });
 
-    if (targetElement) {
+    if (targetElement !== null) {
       // 要素を画面の1/3の位置にスクロール
       const containerRect = container.getBoundingClientRect();
-      const elementRect = targetElement.getBoundingClientRect();
+      const elementRect = (targetElement as Element).getBoundingClientRect();
       const scrollTop = elementRect.top - containerRect.top + container.scrollTop - container.clientHeight / 3;
       container.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
     }
