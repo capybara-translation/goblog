@@ -4,7 +4,7 @@ interface TagListProps {
 
 export function TagList({ tags }: TagListProps) {
   if (!tags || !tags.trim()) {
-    return <span className="text-sm text-primary-400">タグなし</span>;
+    return <span className="text-sm text-primary-400">No tags</span>;
   }
 
   const tagArray = tags.split(',').map((tag) => tag.trim()).filter(Boolean);

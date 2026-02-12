@@ -21,12 +21,12 @@ func TestSessionStore_Create(t *testing.T) {
 		t.Error("expected session ID to be non-empty")
 	}
 
-	// セッションIDが十分な長さであることを確認（Base64で44文字程度）
+	// Verify that the session ID has sufficient length (approximately 44 characters in Base64)
 	if len(sessionID) < 40 {
 		t.Errorf("session ID too short: %d characters", len(sessionID))
 	}
 
-	// 作成したセッションを取得できることを確認
+	// Verify that the created session can be retrieved
 	session, err := store.Get(sessionID)
 	if err != nil {
 		t.Fatalf("failed to get session: %v", err)
@@ -52,7 +52,7 @@ func TestSessionStore_Get(t *testing.T) {
 		t.Fatalf("failed to create session: %v", err)
 	}
 
-	// セッションを取得
+	// Get the session
 	session, err := store.Get(sessionID)
 	if err != nil {
 		t.Fatalf("failed to get session: %v", err)
@@ -66,7 +66,7 @@ func TestSessionStore_Get(t *testing.T) {
 		t.Errorf("expected user ID %d, got %d", userID, session.UserID)
 	}
 
-	// 有効期限が正しく設定されていることを確認
+	// Verify that the expiry time is set correctly
 	expectedExpiry := time.Now().Add(ttl)
 	if session.ExpiresAt.Before(expectedExpiry.Add(-5 * time.Second)) {
 		t.Error("expiry time is too early")
@@ -79,7 +79,7 @@ func TestSessionStore_Get(t *testing.T) {
 func TestSessionStore_Get_NotFound(t *testing.T) {
 	store := NewInMemorySessionStore()
 
-	// 存在しないセッションIDで取得
+	// Retrieve with a non-existent session ID
 	session, err := store.Get("nonexistent-session-id")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -94,14 +94,14 @@ func TestSessionStore_Get_Expired(t *testing.T) {
 	store := NewInMemorySessionStore()
 
 	userID := int64(789)
-	ttl := 100 * time.Millisecond // 100ミリ秒で期限切れ
+	ttl := 100 * time.Millisecond // Expires in 100 milliseconds
 
 	sessionID, err := store.Create(userID, ttl)
 	if err != nil {
 		t.Fatalf("failed to create session: %v", err)
 	}
 
-	// セッションが存在することを確認
+	// Verify that the session exists
 	session, err := store.Get(sessionID)
 	if err != nil {
 		t.Fatalf("failed to get session: %v", err)
@@ -110,10 +110,10 @@ func TestSessionStore_Get_Expired(t *testing.T) {
 		t.Fatal("expected session to exist")
 	}
 
-	// 期限切れまで待つ
+	// Wait for expiration
 	time.Sleep(150 * time.Millisecond)
 
-	// 期限切れセッションを取得（自動削除されるはず）
+	// Get the expired session (should be automatically deleted)
 	session, err = store.Get(sessionID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -123,7 +123,7 @@ func TestSessionStore_Get_Expired(t *testing.T) {
 		t.Error("expected expired session to be nil")
 	}
 
-	// 再度取得しても存在しないことを確認（削除されている）
+	// Verify it still doesn't exist when retrieved again (deleted)
 	session, err = store.Get(sessionID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -145,7 +145,7 @@ func TestSessionStore_Delete(t *testing.T) {
 		t.Fatalf("failed to create session: %v", err)
 	}
 
-	// セッションが存在することを確認
+	// Verify that the session exists
 	session, err := store.Get(sessionID)
 	if err != nil {
 		t.Fatalf("failed to get session: %v", err)
@@ -154,13 +154,13 @@ func TestSessionStore_Delete(t *testing.T) {
 		t.Fatal("expected session to exist")
 	}
 
-	// セッションを削除
+	// Delete the session
 	err = store.Delete(sessionID)
 	if err != nil {
 		t.Fatalf("failed to delete session: %v", err)
 	}
 
-	// 削除後に取得できないことを確認
+	// Verify that the session cannot be retrieved after deletion
 	session, err = store.Get(sessionID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -174,23 +174,23 @@ func TestSessionStore_Delete(t *testing.T) {
 func TestSessionStore_CleanupExpired(t *testing.T) {
 	store := NewInMemorySessionStore()
 
-	// 3つのセッションを作成
-	// セッション1: すぐに期限切れ
+	// Create 3 sessions
+	// Session 1: Expires immediately
 	sessionID1, _ := store.Create(1, 50*time.Millisecond)
 
-	// セッション2: 有効
+	// Session 2: Valid
 	sessionID2, _ := store.Create(2, 10*time.Hour)
 
-	// セッション3: すぐに期限切れ
+	// Session 3: Expires immediately
 	sessionID3, _ := store.Create(3, 50*time.Millisecond)
 
-	// 期限切れまで待つ
+	// Wait for expiration
 	time.Sleep(100 * time.Millisecond)
 
-	// クリーンアップ実行
+	// Run cleanup
 	store.CleanupExpired()
 
-	// セッション1と3は削除されているはず
+	// Sessions 1 and 3 should be deleted
 	session1, _ := store.Get(sessionID1)
 	if session1 != nil {
 		t.Error("expected session 1 to be cleaned up")
@@ -201,7 +201,7 @@ func TestSessionStore_CleanupExpired(t *testing.T) {
 		t.Error("expected session 3 to be cleaned up")
 	}
 
-	// セッション2は残っているはず
+	// Session 2 should remain
 	session2, _ := store.Get(sessionID2)
 	if session2 == nil {
 		t.Error("expected session 2 to remain")
@@ -214,12 +214,12 @@ func TestSessionStore_CleanupExpired(t *testing.T) {
 func TestSessionStore_ConcurrentAccess(t *testing.T) {
 	store := NewInMemorySessionStore()
 
-	// 並行アクセスのテスト
+	// Test concurrent access
 	const numGoroutines = 100
 	var wg sync.WaitGroup
 	wg.Add(numGoroutines)
 
-	// 100個のgoroutineが同時にセッションを作成
+	// 100 goroutines create sessions simultaneously
 	sessionIDs := make([]string, numGoroutines)
 	for i := 0; i < numGoroutines; i++ {
 		go func(index int) {
@@ -235,7 +235,7 @@ func TestSessionStore_ConcurrentAccess(t *testing.T) {
 
 	wg.Wait()
 
-	// 全てのセッションが取得できることを確認
+	// Verify that all sessions can be retrieved
 	for i := 0; i < numGoroutines; i++ {
 		session, err := store.Get(sessionIDs[i])
 		if err != nil {
@@ -253,14 +253,14 @@ func TestSessionStore_ConcurrentAccess(t *testing.T) {
 func TestSessionStore_ConcurrentReadWrite(t *testing.T) {
 	store := NewInMemorySessionStore()
 
-	// 初期セッションを作成
+	// Create an initial session
 	sessionID, _ := store.Create(999, 1*time.Hour)
 
 	var wg sync.WaitGroup
 	const numReaders = 50
 	const numWriters = 10
 
-	// 50個のgoroutineが同時に読み取り
+	// 50 goroutines read simultaneously
 	wg.Add(numReaders)
 	for i := 0; i < numReaders; i++ {
 		go func() {
@@ -271,7 +271,7 @@ func TestSessionStore_ConcurrentReadWrite(t *testing.T) {
 		}()
 	}
 
-	// 10個のgoroutineが同時に書き込み
+	// 10 goroutines write simultaneously
 	wg.Add(numWriters)
 	for i := 0; i < numWriters; i++ {
 		go func(index int) {
@@ -282,12 +282,12 @@ func TestSessionStore_ConcurrentReadWrite(t *testing.T) {
 		}(i)
 	}
 
-	// データ競合やデッドロックが発生しないことを確認
+	// Verify that no data races or deadlocks occur
 	wg.Wait()
 }
 
 func TestGenerateSessionID(t *testing.T) {
-	// セッションIDを複数生成して、重複がないことを確認
+	// Generate multiple session IDs and verify no duplicates
 	ids := make(map[string]bool)
 	const numIDs = 1000
 

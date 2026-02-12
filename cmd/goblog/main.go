@@ -17,49 +17,49 @@ import (
 )
 
 func main() {
-	// .envファイルから環境変数を読み込む（存在しない場合はスキップ）
+	// Load environment variables from .env file (skip if not found)
 	if err := godotenv.Load(); err != nil {
-		// .envファイルが存在しない場合はログに記録するが、エラーにはしない
+		// Log if .env file doesn't exist, but don't treat it as an error
 		log.Printf(".env file not found or could not be loaded: %v", err)
 	}
 
-	// 設定の読み込み
+	// Load configuration
 	cfg := config.Load()
 
-	// データベースの初期化
+	// Initialize database
 	database, err := db.Open(cfg.DatabasePath)
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
 	}
 	defer database.Close()
 
-	// マイグレーションの実行（埋め込まれたファイルから）
+	// Run migrations (from embedded files)
 	if err := db.RunMigrations(database, goblog.Migrations, "migrations/001_create_posts.sql", "migrations/002_create_users.sql", "migrations/003_add_is_pinned.sql"); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
 	fmt.Println("Database initialized successfully")
 
-	// Repository層の初期化
+	// Initialize repository layer
 	postRepo := repo.NewPostRepository(database)
 	userRepo := repo.NewUserRepository(database)
 
-	// SessionStoreの初期化
+	// Initialize SessionStore
 	sessionStore := auth.NewInMemorySessionStore()
 
-	// Service層の初期化
+	// Initialize service layer
 	postService := service.NewPostService(postRepo)
 	authService := service.NewAuthService(userRepo, sessionStore, cfg.PasswordPolicy)
 
-	// アップロードディレクトリの作成
+	// Create upload directory
 	if err := os.MkdirAll(cfg.UploadDir, 0755); err != nil {
 		log.Fatalf("Failed to create upload directory: %v", err)
 	}
 
-	// ルーターの初期化（埋め込みリソースを使用）
+	// Initialize router (using embedded resources)
 	r := gobloghttp.NewRouter(postService, authService, cfg.SecureCookie, cfg.BlogTitle, cfg.BaseURL, cfg.UploadDir, cfg.MaxUploadSize, goblog.Templates, goblog.StaticFiles)
 
-	// サーバー起動
+	// Start server
 	port := ":" + cfg.Port
 	fmt.Printf("Server starting on http://localhost%s\n", port)
 	fmt.Printf("Secure Cookie: %v\n", cfg.SecureCookie)

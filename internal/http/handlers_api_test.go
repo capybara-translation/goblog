@@ -15,7 +15,7 @@ import (
 
 const testSessionID = "test-session-id"
 
-// mockPostServiceForAPI は PostService のモック実装です（API用）
+// mockPostServiceForAPI is a mock implementation of PostService (for API)
 type mockPostServiceForAPI struct {
 	getAllPostsFunc             func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
 	getAllPostsByTagFunc        func(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
@@ -173,7 +173,7 @@ func (m *mockPostServiceForAPI) SetPinned(id int64, pinned bool) (*domain.Post, 
 
 var _ service.PostService = (*mockPostServiceForAPI)(nil)
 
-// mockAuthServiceForAPI は AuthService のモック実装です（API用）
+// mockAuthServiceForAPI is a mock implementation of AuthService (for API)
 type mockAuthServiceForAPI struct {
 	loginFunc            func(username, password, ipAddress string) (string, error)
 	logoutFunc           func(sessionID string) error
@@ -211,8 +211,8 @@ func (m *mockAuthServiceForAPI) CreateUser(username, password string) (*domain.U
 
 var _ service.AuthService = (*mockAuthServiceForAPI)(nil)
 
-// createTestAuthService はテスト用の認証サービスを作成します
-// testSessionID を持つセッションを有効として扱います
+// createTestAuthService creates an authentication service for testing.
+// Sessions with testSessionID are treated as valid.
 func createTestAuthService() *mockAuthServiceForAPI {
 	return &mockAuthServiceForAPI{
 		getUserBySessionFunc: func(sessionID string) (*domain.User, error) {
@@ -229,7 +229,7 @@ func createTestAuthService() *mockAuthServiceForAPI {
 	}
 }
 
-// addSessionCookie はリクエストに認証用のセッションCookieを追加します
+// addSessionCookie adds an authentication session Cookie to the request
 func addSessionCookie(req *http.Request) {
 	req.AddCookie(&http.Cookie{
 		Name:  sessionCookieName,
@@ -237,7 +237,7 @@ func addSessionCookie(req *http.Request) {
 	})
 }
 
-// addCSRFToken はリクエストにCSRFトークンを追加します（CookieとHeader）
+// addCSRFToken adds a CSRF token to the request (Cookie and Header)
 func addCSRFToken(req *http.Request, token string) {
 	req.AddCookie(&http.Cookie{
 		Name:  csrfCookieName,
@@ -246,7 +246,7 @@ func addCSRFToken(req *http.Request, token string) {
 	req.Header.Set(csrfHeaderName, token)
 }
 
-// addAuthAndCSRF はリクエストに認証CookieとCSRFトークンを追加します
+// addAuthAndCSRF adds authentication Cookie and CSRF token to the request
 func addAuthAndCSRF(req *http.Request) {
 	addSessionCookie(req)
 	addCSRFToken(req, "test-csrf-token")
@@ -258,19 +258,19 @@ func TestHandleHealth(t *testing.T) {
 
 	HandleHealth(w, req)
 
-	// ステータスコードを確認
+	// Verify status code
 	if w.Code != http.StatusOK {
 		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
 	}
 
-	// Content-Typeを確認
+	// Verify Content-Type
 	contentType := w.Header().Get("Content-Type")
 	expected := "application/json"
 	if contentType != expected {
 		t.Errorf("expected Content-Type %q, got %q", expected, contentType)
 	}
 
-	// JSONレスポンスを確認
+	// Verify JSON response
 	var response map[string]string
 	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 		t.Fatalf("failed to parse JSON response: %v", err)
@@ -282,7 +282,7 @@ func TestHandleHealth(t *testing.T) {
 }
 
 func TestHandleHealth_ViaRouter(t *testing.T) {
-	// ルーター経由でもテスト
+	// Also test via router
 	mockPostService := &mockPostServiceForAPI{}
 	mockAuthService := createTestAuthService()
 	router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
@@ -306,7 +306,7 @@ func TestHandleHealth_ViaRouter(t *testing.T) {
 	}
 }
 
-// 未認証テスト群
+// Unauthenticated tests
 func TestUnauthenticated_Endpoints(t *testing.T) {
 	mockPostService := &mockPostServiceForAPI{}
 	mockAuthService := createTestAuthService()
@@ -377,10 +377,10 @@ func TestHandleGetPosts(t *testing.T) {
 	}
 }
 
-// TestHandleGetPosts_Empty は記事が0件の場合にnullではなく空配列を返すことをテストします
+// TestHandleGetPosts_Empty tests that an empty array is returned instead of null when there are 0 posts
 func TestHandleGetPosts_Empty(t *testing.T) {
 	mockPostService := &mockPostServiceForAPI{
-		// nilを返すことでGoの挙動を再現
+		// Reproduce Go behavior by returning nil
 		getAllPostsFunc: func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
 			return nil, nil
 		},
@@ -401,7 +401,7 @@ func TestHandleGetPosts_Empty(t *testing.T) {
 		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
 	}
 
-	// JSONレスポンスがnullではなく空配列を含むことを確認
+	// Verify JSON response contains an empty array, not null
 	body := w.Body.String()
 	if !strings.Contains(body, `"posts":[]`) {
 		t.Errorf("expected posts to be empty array, got: %s", body)
@@ -460,7 +460,7 @@ func TestHandleGetPosts_WithFilters(t *testing.T) {
 		expectedCount  int
 	}{
 		{
-			name:        "全記事取得",
+			name:        "Get all posts",
 			queryParams: "",
 			mockFunc: func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
 				return []*domain.Post{
@@ -472,7 +472,7 @@ func TestHandleGetPosts_WithFilters(t *testing.T) {
 			expectedCount:  2,
 		},
 		{
-			name:        "公開記事のみ",
+			name:        "Published posts only",
 			queryParams: "?status=published",
 			mockFunc: func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
 				if status != nil && *status == publishedStatus {
@@ -486,7 +486,7 @@ func TestHandleGetPosts_WithFilters(t *testing.T) {
 			expectedCount:  1,
 		},
 		{
-			name:        "下書きのみ",
+			name:        "Draft posts only",
 			queryParams: "?status=draft",
 			mockFunc: func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
 				if status != nil && *status == draftStatus {
@@ -652,57 +652,57 @@ func TestHandleCreatePost_Validation(t *testing.T) {
 		expectedError string
 	}{
 		{
-			name:          "タイトルが空",
+			name:          "Empty title",
 			body:          `{"title":"","slug":"test-slug","content":"Content"}`,
 			expectedError: "title is required",
 		},
 		{
-			name:          "タイトルが空白のみ",
+			name:          "Title with only whitespace",
 			body:          `{"title":"   ","slug":"test-slug","content":"Content"}`,
 			expectedError: "title is required",
 		},
 		{
-			name:          "スラグが空",
+			name:          "Empty slug",
 			body:          `{"title":"Test Title","slug":"","content":"Content"}`,
 			expectedError: "slug is required",
 		},
 		{
-			name:          "スラグが空白のみ",
+			name:          "Slug with only whitespace",
 			body:          `{"title":"Test Title","slug":"   ","content":"Content"}`,
 			expectedError: "slug is required",
 		},
 		{
-			name:          "スラグに空白を含む",
+			name:          "Slug contains whitespace",
 			body:          `{"title":"Test Title","slug":"test slug","content":"Content"}`,
 			expectedError: "slug must not contain whitespace",
 		},
 		{
-			name:          "スラグに大文字を含む",
+			name:          "Slug contains uppercase letters",
 			body:          `{"title":"Test Title","slug":"Test-Slug","content":"Content"}`,
 			expectedError: "slug must contain only lowercase letters, numbers, and hyphens",
 		},
 		{
-			name:          "スラグに日本語を含む",
+			name:          "Slug contains Japanese characters",
 			body:          `{"title":"Test Title","slug":"テスト","content":"Content"}`,
 			expectedError: "slug must contain only lowercase letters, numbers, and hyphens",
 		},
 		{
-			name:          "スラグにアンダースコアを含む",
+			name:          "Slug contains underscore",
 			body:          `{"title":"Test Title","slug":"test_slug","content":"Content"}`,
 			expectedError: "slug must contain only lowercase letters, numbers, and hyphens",
 		},
 		{
-			name:          "スラグがハイフンで始まる",
+			name:          "Slug starts with hyphen",
 			body:          `{"title":"Test Title","slug":"-test-slug","content":"Content"}`,
 			expectedError: "slug must contain only lowercase letters, numbers, and hyphens",
 		},
 		{
-			name:          "スラグがハイフンで終わる",
+			name:          "Slug ends with hyphen",
 			body:          `{"title":"Test Title","slug":"test-slug-","content":"Content"}`,
 			expectedError: "slug must contain only lowercase letters, numbers, and hyphens",
 		},
 		{
-			name:          "スラグに連続ハイフン",
+			name:          "Slug contains consecutive hyphens",
 			body:          `{"title":"Test Title","slug":"test--slug","content":"Content"}`,
 			expectedError: "slug must contain only lowercase letters, numbers, and hyphens",
 		},
@@ -744,17 +744,17 @@ func TestHandleUpdatePost_Validation(t *testing.T) {
 		expectedError string
 	}{
 		{
-			name:          "タイトルが空",
+			name:          "Empty title",
 			body:          `{"title":"","slug":"test-slug","content":"Content"}`,
 			expectedError: "title is required",
 		},
 		{
-			name:          "スラグが空",
+			name:          "Empty slug",
 			body:          `{"title":"Test Title","slug":"","content":"Content"}`,
 			expectedError: "slug is required",
 		},
 		{
-			name:          "スラグがURLセーフでない",
+			name:          "Slug is not URL-safe",
 			body:          `{"title":"Test Title","slug":"Test Slug!","content":"Content"}`,
 			expectedError: "slug must not contain whitespace",
 		},
@@ -956,7 +956,7 @@ func TestHandleGetPosts_LimitMax(t *testing.T) {
 	mockPostService := &mockPostServiceForAPI{
 		getAllPostsFunc: func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
 			callCount++
-			// limit が 200 以下に制限されていることを確認
+			// Verify that limit is capped at 200 or less
 			if limit > 200 {
 				t.Errorf("expected limit to be capped at 200, got %d", limit)
 			}
@@ -972,22 +972,22 @@ func TestHandleGetPosts_LimitMax(t *testing.T) {
 		expectedLimit int
 	}{
 		{
-			name:          "limit=300 は 200 に制限される",
+			name:          "limit=300 is capped at 200",
 			limitParam:    "?limit=300",
 			expectedLimit: 200,
 		},
 		{
-			name:          "limit=1000 は 200 に制限される",
+			name:          "limit=1000 is capped at 200",
 			limitParam:    "?limit=1000",
 			expectedLimit: 200,
 		},
 		{
-			name:          "limit=50 はそのまま",
+			name:          "limit=50 remains unchanged",
 			limitParam:    "?limit=50",
 			expectedLimit: 50,
 		},
 		{
-			name:          "limit=200 はそのまま",
+			name:          "limit=200 remains unchanged",
 			limitParam:    "?limit=200",
 			expectedLimit: 200,
 		},
@@ -1021,7 +1021,7 @@ func TestHandleGetPosts_LimitMax(t *testing.T) {
 func TestHandleGetPosts_WithTagFilter(t *testing.T) {
 	mockAuthService := createTestAuthService()
 
-	t.Run("タグでフィルタリング", func(t *testing.T) {
+	t.Run("Filter by tag", func(t *testing.T) {
 		receivedTag := ""
 		mockPostService := &mockPostServiceForAPI{
 			getAllPostsByTagFunc: func(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
@@ -1049,7 +1049,7 @@ func TestHandleGetPosts_WithTagFilter(t *testing.T) {
 		}
 	})
 
-	t.Run("タグとステータスの両方でフィルタリング", func(t *testing.T) {
+	t.Run("Filter by both tag and status", func(t *testing.T) {
 		receivedTag := ""
 		var receivedStatus *domain.PostStatus
 
@@ -1095,19 +1095,19 @@ func TestHandleGetPosts_InvalidStatus(t *testing.T) {
 		expectedError  string
 	}{
 		{
-			name:           "無効なステータス値",
+			name:           "Invalid status value",
 			status:         "invalid",
 			expectedStatus: http.StatusBadRequest,
 			expectedError:  "invalid status",
 		},
 		{
-			name:           "タイポしたステータス",
+			name:           "Typo in status",
 			status:         "publised",
 			expectedStatus: http.StatusBadRequest,
 			expectedError:  "invalid status",
 		},
 		{
-			name:           "大文字のステータス",
+			name:           "Uppercase status",
 			status:         "PUBLISHED",
 			expectedStatus: http.StatusBadRequest,
 			expectedError:  "invalid status",
@@ -1139,7 +1139,7 @@ func TestHandleGetPosts_InvalidStatus(t *testing.T) {
 func TestHandleGetTags(t *testing.T) {
 	mockAuthService := createTestAuthService()
 
-	t.Run("全タグを取得（ソート確認）", func(t *testing.T) {
+	t.Run("Get all tags (verify sorting)", func(t *testing.T) {
 		mockPostService := &mockPostServiceForAPI{
 			getAllTagsFunc: func(status *domain.PostStatus) (map[string]int, error) {
 				return map[string]int{
@@ -1169,7 +1169,7 @@ func TestHandleGetTags(t *testing.T) {
 			t.Errorf("expected 4 tags, got %d", len(tags))
 		}
 
-		// ソート順を確認: 記事数降順、同数なら名前昇順
+		// Verify sort order: descending by post count, ascending by name if counts are equal
 		if tags[0]["name"] != "Go" || int(tags[0]["count"].(float64)) != 10 {
 			t.Errorf("expected first tag to be Go with count 10, got %v", tags[0])
 		}
@@ -1187,7 +1187,7 @@ func TestHandleGetTags(t *testing.T) {
 		}
 	})
 
-	t.Run("ステータスフィルタ付きでタグを取得", func(t *testing.T) {
+	t.Run("Get tags with status filter", func(t *testing.T) {
 		var receivedStatus *domain.PostStatus
 		mockPostService := &mockPostServiceForAPI{
 			getAllTagsFunc: func(status *domain.PostStatus) (map[string]int, error) {
@@ -1212,7 +1212,7 @@ func TestHandleGetTags(t *testing.T) {
 		}
 	})
 
-	t.Run("無効なステータス値でエラー", func(t *testing.T) {
+	t.Run("Error on invalid status value", func(t *testing.T) {
 		mockPostService := &mockPostServiceForAPI{}
 		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
@@ -1234,7 +1234,7 @@ func TestHandleGetTags(t *testing.T) {
 		}
 	})
 
-	t.Run("サービスエラーの伝播", func(t *testing.T) {
+	t.Run("Service error propagation", func(t *testing.T) {
 		mockPostService := &mockPostServiceForAPI{
 			getAllTagsFunc: func(status *domain.PostStatus) (map[string]int, error) {
 				return nil, fmt.Errorf("database error")
@@ -1253,7 +1253,7 @@ func TestHandleGetTags(t *testing.T) {
 		}
 	})
 
-	t.Run("タグが存在しない場合は空配列", func(t *testing.T) {
+	t.Run("Empty array when no tags exist", func(t *testing.T) {
 		mockPostService := &mockPostServiceForAPI{
 			getAllTagsFunc: func(status *domain.PostStatus) (map[string]int, error) {
 				return map[string]int{}, nil
@@ -1281,11 +1281,11 @@ func TestHandleGetTags(t *testing.T) {
 }
 
 func TestHandleGetTags_Sorting(t *testing.T) {
-	// タグのソートロジックをより詳細にテスト
+	// Test tag sorting logic in more detail
 	mockAuthService := createTestAuthService()
 	mockPostService := &mockPostServiceForAPI{
 		getAllTagsFunc: func(status *domain.PostStatus) (map[string]int, error) {
-			// 同じカウントのタグを含むデータ
+			// Data containing tags with the same count
 			return map[string]int{
 				"Zebra":  5,
 				"Apple":  5,
@@ -1311,7 +1311,7 @@ func TestHandleGetTags_Sorting(t *testing.T) {
 	var tags []map[string]interface{}
 	json.NewDecoder(w.Body).Decode(&tags)
 
-	// 期待される順序:
+	// Expected order:
 	// 1. Docker (count: 10)
 	// 2. Go (count: 10)
 	// 3. Apple (count: 5)
@@ -1347,7 +1347,7 @@ func TestHandleGetTags_Sorting(t *testing.T) {
 func TestHandleGetPosts_WithSearchQuery(t *testing.T) {
 	mockAuthService := createTestAuthService()
 
-	t.Run("検索クエリで記事を取得", func(t *testing.T) {
+	t.Run("Get posts with search query", func(t *testing.T) {
 		receivedQuery := ""
 		mockPostService := &mockPostServiceForAPI{
 			searchPostsFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
@@ -1391,7 +1391,7 @@ func TestHandleGetPosts_WithSearchQuery(t *testing.T) {
 		}
 	})
 
-	t.Run("検索クエリ + ステータスフィルタ", func(t *testing.T) {
+	t.Run("Search query + status filter", func(t *testing.T) {
 		receivedQuery := ""
 		var receivedStatus *domain.PostStatus
 
@@ -1428,7 +1428,7 @@ func TestHandleGetPosts_WithSearchQuery(t *testing.T) {
 		}
 	})
 
-	t.Run("日本語検索クエリ", func(t *testing.T) {
+	t.Run("Japanese search query", func(t *testing.T) {
 		receivedQuery := ""
 		mockPostService := &mockPostServiceForAPI{
 			searchPostsFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
@@ -1458,7 +1458,7 @@ func TestHandleGetPosts_WithSearchQuery(t *testing.T) {
 		}
 	})
 
-	t.Run("検索結果が0件の場合", func(t *testing.T) {
+	t.Run("When search results are 0", func(t *testing.T) {
 		mockPostService := &mockPostServiceForAPI{
 			searchPostsFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
 				return []*domain.Post{}, nil
@@ -1493,7 +1493,7 @@ func TestHandleGetPosts_WithSearchQuery(t *testing.T) {
 		}
 	})
 
-	t.Run("検索クエリ + ページネーション", func(t *testing.T) {
+	t.Run("Search query + pagination", func(t *testing.T) {
 		receivedLimit := 0
 		receivedOffset := 0
 
@@ -1539,7 +1539,7 @@ func TestHandleGetPosts_WithSearchQuery(t *testing.T) {
 		}
 	})
 
-	t.Run("検索サービスエラー", func(t *testing.T) {
+	t.Run("Search service error", func(t *testing.T) {
 		mockPostService := &mockPostServiceForAPI{
 			searchPostsFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
 				return nil, fmt.Errorf("database error")
@@ -1567,7 +1567,7 @@ func TestHandleGetPosts_WithSearchQuery(t *testing.T) {
 		}
 	})
 
-	t.Run("検索カウントサービスエラー", func(t *testing.T) {
+	t.Run("Search count service error", func(t *testing.T) {
 		mockPostService := &mockPostServiceForAPI{
 			searchPostsFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
 				return []*domain.Post{{ID: 1, Title: "Test"}}, nil
@@ -1589,11 +1589,11 @@ func TestHandleGetPosts_WithSearchQuery(t *testing.T) {
 		}
 	})
 
-	t.Run("検索クエリが長すぎる場合はエラー", func(t *testing.T) {
+	t.Run("Error when search query is too long", func(t *testing.T) {
 		mockPostService := &mockPostServiceForAPI{}
 		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
-		// 201文字のクエリ（制限は200文字）
+		// 201-character query (limit is 200 characters)
 		longQuery := strings.Repeat("a", 201)
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?q="+longQuery, nil)
 		addSessionCookie(req)
@@ -1615,7 +1615,7 @@ func TestHandleGetPosts_WithSearchQuery(t *testing.T) {
 		}
 	})
 
-	t.Run("検索クエリが200文字ちょうどは許可", func(t *testing.T) {
+	t.Run("Search query of exactly 200 characters is allowed", func(t *testing.T) {
 		mockPostService := &mockPostServiceForAPI{
 			searchPostsFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
 				return []*domain.Post{}, nil
@@ -1626,7 +1626,7 @@ func TestHandleGetPosts_WithSearchQuery(t *testing.T) {
 		}
 		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
-		// 200文字のクエリ（制限ちょうど）
+		// 200-character query (exactly at the limit)
 		exactQuery := strings.Repeat("a", 200)
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts?q="+exactQuery, nil)
 		addSessionCookie(req)
@@ -1645,7 +1645,7 @@ func TestHandlePreview(t *testing.T) {
 	mockAuthService := createTestAuthService()
 	router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
-	t.Run("MarkdownをHTMLに変換", func(t *testing.T) {
+	t.Run("Convert Markdown to HTML", func(t *testing.T) {
 		body := `{"content":"# Hello\n\nThis is **bold** text."}`
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/markdown/preview", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -1663,7 +1663,7 @@ func TestHandlePreview(t *testing.T) {
 			t.Fatalf("failed to parse JSON response: %v", err)
 		}
 
-		// HTMLに変換されていることを確認
+		// Verify conversion to HTML
 		if !strings.Contains(response.HTML, "<h1") {
 			t.Errorf("expected HTML to contain <h1>, got %q", response.HTML)
 		}
@@ -1672,7 +1672,7 @@ func TestHandlePreview(t *testing.T) {
 		}
 	})
 
-	t.Run("空のコンテンツ", func(t *testing.T) {
+	t.Run("Empty content", func(t *testing.T) {
 		body := `{"content":""}`
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/markdown/preview", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -1690,13 +1690,13 @@ func TestHandlePreview(t *testing.T) {
 			t.Fatalf("failed to parse JSON response: %v", err)
 		}
 
-		// 空文字列のHTMLが返される
+		// Empty string HTML is returned
 		if response.HTML != "" {
 			t.Errorf("expected empty HTML, got %q", response.HTML)
 		}
 	})
 
-	t.Run("不正なJSONリクエスト", func(t *testing.T) {
+	t.Run("Invalid JSON request", func(t *testing.T) {
 		body := `{invalid json}`
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/markdown/preview", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -1719,7 +1719,7 @@ func TestHandlePreview(t *testing.T) {
 		}
 	})
 
-	t.Run("XSSサニタイズ", func(t *testing.T) {
+	t.Run("XSS sanitization", func(t *testing.T) {
 		body := `{"content":"<script>alert('xss')</script>"}`
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/markdown/preview", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -1737,13 +1737,13 @@ func TestHandlePreview(t *testing.T) {
 			t.Fatalf("failed to parse JSON response: %v", err)
 		}
 
-		// scriptタグがサニタイズされていることを確認
+		// Verify script tags are sanitized
 		if strings.Contains(response.HTML, "<script>") {
 			t.Errorf("expected script tag to be sanitized, got %q", response.HTML)
 		}
 	})
 
-	t.Run("コードブロックのシンタックスハイライト", func(t *testing.T) {
+	t.Run("Syntax highlighting for code blocks", func(t *testing.T) {
 		body := "{\"content\":\"```go\\nfunc main() {}\\n```\"}"
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/markdown/preview", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -1761,13 +1761,13 @@ func TestHandlePreview(t *testing.T) {
 			t.Fatalf("failed to parse JSON response: %v", err)
 		}
 
-		// preタグが含まれていることを確認
+		// Verify pre tag is included
 		if !strings.Contains(response.HTML, "<pre") {
 			t.Errorf("expected HTML to contain <pre>, got %q", response.HTML)
 		}
 	})
 
-	t.Run("data-line属性が付与される", func(t *testing.T) {
+	t.Run("data-line attribute is added", func(t *testing.T) {
 		body := `{"content":"# Hello\n\nParagraph text"}`
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/markdown/preview", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -1785,25 +1785,25 @@ func TestHandlePreview(t *testing.T) {
 			t.Fatalf("failed to parse JSON response: %v", err)
 		}
 
-		// data-line属性が付与されていることを確認
+		// Verify data-line attribute is added
 		if !strings.Contains(response.HTML, `data-line="`) {
 			t.Errorf("expected HTML to contain data-line attribute, got %q", response.HTML)
 		}
-		// 見出しにdata-line="0"が付与されていることを確認
+		// Verify heading has data-line="0"
 		if !strings.Contains(response.HTML, `<h1`) || !strings.Contains(response.HTML, `data-line="0"`) {
 			t.Errorf("expected HTML to contain h1 with data-line=\"0\", got %q", response.HTML)
 		}
-		// 段落にdata-line="2"が付与されていることを確認
+		// Verify paragraph has data-line="2"
 		if !strings.Contains(response.HTML, `<p `) || !strings.Contains(response.HTML, `data-line="2"`) {
 			t.Errorf("expected HTML to contain p with data-line=\"2\", got %q", response.HTML)
 		}
 	})
 
-	t.Run("未認証でエラー", func(t *testing.T) {
+	t.Run("Error when unauthenticated", func(t *testing.T) {
 		body := `{"content":"# Test"}`
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/markdown/preview", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
-		// 認証なし
+		// No authentication
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -1813,11 +1813,11 @@ func TestHandlePreview(t *testing.T) {
 		}
 	})
 
-	t.Run("CSRFトークンなしでエラー", func(t *testing.T) {
+	t.Run("Error when CSRF token is missing", func(t *testing.T) {
 		body := `{"content":"# Test"}`
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/markdown/preview", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
-		addSessionCookie(req) // 認証Cookieのみ、CSRFトークンなし
+		addSessionCookie(req) // Only authentication Cookie, no CSRF token
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -1829,7 +1829,7 @@ func TestHandlePreview(t *testing.T) {
 }
 
 func TestHandlePinPost(t *testing.T) {
-	t.Run("記事をピン留めする", func(t *testing.T) {
+	t.Run("Pin a post", func(t *testing.T) {
 		mockPostService := &mockPostServiceForAPI{
 			setPinnedFunc: func(id int64, pinned bool) (*domain.Post, error) {
 				if id != 1 {
@@ -1870,7 +1870,7 @@ func TestHandlePinPost(t *testing.T) {
 		}
 	})
 
-	t.Run("不正なIDでエラー", func(t *testing.T) {
+	t.Run("Error on invalid ID", func(t *testing.T) {
 		mockPostService := &mockPostServiceForAPI{}
 		mockAuthService := createTestAuthService()
 		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
@@ -1895,7 +1895,7 @@ func TestHandlePinPost(t *testing.T) {
 		}
 	})
 
-	t.Run("サービスエラー", func(t *testing.T) {
+	t.Run("Service error", func(t *testing.T) {
 		mockPostService := &mockPostServiceForAPI{
 			setPinnedFunc: func(id int64, pinned bool) (*domain.Post, error) {
 				return nil, fmt.Errorf("post not found: %d", id)
@@ -1915,13 +1915,13 @@ func TestHandlePinPost(t *testing.T) {
 		}
 	})
 
-	t.Run("未認証でエラー", func(t *testing.T) {
+	t.Run("Error when unauthenticated", func(t *testing.T) {
 		mockPostService := &mockPostServiceForAPI{}
 		mockAuthService := createTestAuthService()
 		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/posts/1/pin", nil)
-		// 認証なし
+		// No authentication
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -1933,7 +1933,7 @@ func TestHandlePinPost(t *testing.T) {
 }
 
 func TestHandleUnpinPost(t *testing.T) {
-	t.Run("記事のピン留めを解除する", func(t *testing.T) {
+	t.Run("Unpin a post", func(t *testing.T) {
 		mockPostService := &mockPostServiceForAPI{
 			setPinnedFunc: func(id int64, pinned bool) (*domain.Post, error) {
 				if id != 1 {
@@ -1974,7 +1974,7 @@ func TestHandleUnpinPost(t *testing.T) {
 		}
 	})
 
-	t.Run("不正なIDでエラー", func(t *testing.T) {
+	t.Run("Error on invalid ID", func(t *testing.T) {
 		mockPostService := &mockPostServiceForAPI{}
 		mockAuthService := createTestAuthService()
 		router := NewRouterWithTemplates(mockPostService, mockAuthService, testSecureCookie, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
@@ -1990,7 +1990,7 @@ func TestHandleUnpinPost(t *testing.T) {
 		}
 	})
 
-	t.Run("サービスエラー", func(t *testing.T) {
+	t.Run("Service error", func(t *testing.T) {
 		mockPostService := &mockPostServiceForAPI{
 			setPinnedFunc: func(id int64, pinned bool) (*domain.Post, error) {
 				return nil, fmt.Errorf("post not found: %d", id)

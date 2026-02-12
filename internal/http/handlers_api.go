@@ -16,27 +16,27 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// APIHandlers は管理画面API用のハンドラーをまとめた構造体です
+// APIHandlers is a struct that groups handlers for admin panel API
 type APIHandlers struct {
 	postService service.PostService
 }
 
-// NewAPIHandlers は新しいAPIHandlersを作成します
+// NewAPIHandlers creates a new APIHandlers
 func NewAPIHandlers(postService service.PostService) *APIHandlers {
 	return &APIHandlers{
 		postService: postService,
 	}
 }
 
-// HandleHealth はAPIのヘルスチェックエンドポイントです
+// HandleHealth is the API health check endpoint
 func HandleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprintf(w, `{"status":"ok"}`)
 }
 
-// リクエスト/レスポンス用の構造体
+// Structs for requests/responses
 
-// CreatePostRequest は記事作成リクエストの構造体です
+// CreatePostRequest is the struct for post creation requests
 type CreatePostRequest struct {
 	Title    string `json:"title"`
 	Slug     string `json:"slug"`
@@ -45,7 +45,7 @@ type CreatePostRequest struct {
 	IsPinned bool   `json:"is_pinned"`
 }
 
-// UpdatePostRequest は記事更新リクエストの構造体です
+// UpdatePostRequest is the struct for post update requests
 type UpdatePostRequest struct {
 	Title    string `json:"title"`
 	Slug     string `json:"slug"`
@@ -54,18 +54,18 @@ type UpdatePostRequest struct {
 	IsPinned bool   `json:"is_pinned"`
 }
 
-// ErrorResponse はエラーレスポンスの構造体です
+// ErrorResponse is the struct for error responses
 type ErrorResponse struct {
 	Error string `json:"error"`
 }
 
-// PostsResponse は記事一覧APIのレスポンス構造体です
+// PostsResponse is the response struct for posts list API
 type PostsResponse struct {
 	Posts []*domain.Post `json:"posts"`
 	Total int            `json:"total"`
 }
 
-// ヘルパー関数
+// Helper functions
 
 func writeJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
@@ -79,27 +79,27 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, ErrorResponse{Error: message})
 }
 
-// slugPattern はURLセーフなスラグのパターン（英小文字、数字、ハイフンのみ）
+// slugPattern is the pattern for URL-safe slugs (lowercase letters, numbers, and hyphens only)
 var slugPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
-// validatePostRequest は記事作成・更新リクエストのバリデーションを行います
+// validatePostRequest validates post creation and update requests
 func validatePostRequest(title, slug string) error {
-	// タイトル必須チェック
+	// Title required check
 	if strings.TrimSpace(title) == "" {
 		return fmt.Errorf("title is required")
 	}
 
-	// スラグ必須チェック
+	// Slug required check
 	if strings.TrimSpace(slug) == "" {
 		return fmt.Errorf("slug is required")
 	}
 
-	// スラグに空白が含まれていないかチェック
+	// Check that slug does not contain whitespace
 	if strings.ContainsAny(slug, " \t\n\r") {
 		return fmt.Errorf("slug must not contain whitespace")
 	}
 
-	// スラグがURLセーフかチェック（英小文字、数字、ハイフンのみ）
+	// Check if slug is URL-safe (lowercase letters, numbers, and hyphens only)
 	if !slugPattern.MatchString(slug) {
 		return fmt.Errorf("slug must contain only lowercase letters, numbers, and hyphens")
 	}
@@ -107,24 +107,24 @@ func validatePostRequest(title, slug string) error {
 	return nil
 }
 
-// HandleGetPosts は記事一覧を取得します
-// GET /api/v1/posts?status=draft|published&tag=Go&q=検索語&limit=20&offset=0
+// HandleGetPosts retrieves the list of posts
+// GET /api/v1/posts?status=draft|published&tag=Go&q=searchterm&limit=20&offset=0
 func (h *APIHandlers) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
-	// クエリパラメータを取得
+	// Get query parameters
 	statusStr := r.URL.Query().Get("status")
 	tagStr := r.URL.Query().Get("tag")
 	queryStr := r.URL.Query().Get("q")
 	limitStr := r.URL.Query().Get("limit")
 	offsetStr := r.URL.Query().Get("offset")
 
-	// 検索クエリの長さ制限
+	// Search query length limit
 	const maxQueryLength = 200
 	if len(queryStr) > maxQueryLength {
 		writeError(w, http.StatusBadRequest, "search query too long (max 200 characters)")
 		return
 	}
 
-	// デフォルト値
+	// Default values
 	const maxLimit = 200
 	limit := 20
 	offset := 0
@@ -157,14 +157,14 @@ func (h *APIHandlers) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
 	var total int
 	var err error
 
-	// 検索モード
+	// Search mode
 	if queryStr != "" {
 		posts, err = h.postService.SearchPosts(queryStr, status, limit, offset)
 		if err == nil {
 			total, err = h.postService.CountSearchPosts(queryStr, status)
 		}
 	} else if tagStr != "" {
-		// タグフィルタリング
+		// Tag filtering
 		posts, err = h.postService.GetAllPostsByTag(tagStr, status, limit, offset)
 		if err == nil {
 			total, err = h.postService.CountPostsByTag(tagStr, status)
@@ -182,7 +182,7 @@ func (h *APIHandlers) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// nilスライスはJSONで"null"になるため、空スライスを保証
+	// Ensure empty slice instead of nil (nil becomes "null" in JSON)
 	if posts == nil {
 		posts = []*domain.Post{}
 	}
@@ -193,7 +193,7 @@ func (h *APIHandlers) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// HandleGetPost は記事詳細を取得します
+// HandleGetPost retrieves post details
 // GET /api/v1/posts/{id}
 func (h *APIHandlers) HandleGetPost(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
@@ -220,7 +220,7 @@ func (h *APIHandlers) HandleGetPost(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, post)
 }
 
-// HandleCreatePost は記事を作成します
+// HandleCreatePost creates a post
 // POST /api/v1/posts
 func (h *APIHandlers) HandleCreatePost(w http.ResponseWriter, r *http.Request) {
 	var req CreatePostRequest
@@ -229,7 +229,7 @@ func (h *APIHandlers) HandleCreatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// バリデーション
+	// Validation
 	if err := validatePostRequest(req.Title, req.Slug); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -245,7 +245,7 @@ func (h *APIHandlers) HandleCreatePost(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, post)
 }
 
-// HandleUpdatePost は記事を更新します
+// HandleUpdatePost updates a post
 // PUT /api/v1/posts/{id}
 func (h *APIHandlers) HandleUpdatePost(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
@@ -263,7 +263,7 @@ func (h *APIHandlers) HandleUpdatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// バリデーション
+	// Validation
 	if err := validatePostRequest(req.Title, req.Slug); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -279,7 +279,7 @@ func (h *APIHandlers) HandleUpdatePost(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, post)
 }
 
-// HandleDeletePost は記事を削除します
+// HandleDeletePost deletes a post
 // DELETE /api/v1/posts/{id}
 func (h *APIHandlers) HandleDeletePost(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
@@ -300,7 +300,7 @@ func (h *APIHandlers) HandleDeletePost(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// HandlePublishPost は記事を公開します
+// HandlePublishPost publishes a post
 // POST /api/v1/posts/{id}/publish
 func (h *APIHandlers) HandlePublishPost(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
@@ -322,7 +322,7 @@ func (h *APIHandlers) HandlePublishPost(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, post)
 }
 
-// HandleUnpublishPost は記事を非公開にします
+// HandleUnpublishPost unpublishes a post
 // POST /api/v1/posts/{id}/unpublish
 func (h *APIHandlers) HandleUnpublishPost(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
@@ -344,7 +344,7 @@ func (h *APIHandlers) HandleUnpublishPost(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, post)
 }
 
-// HandleGetTags はタグ一覧を取得します
+// HandleGetTags retrieves the list of tags
 // GET /api/v1/tags?status=published|draft
 func (h *APIHandlers) HandleGetTags(w http.ResponseWriter, r *http.Request) {
 	statusStr := r.URL.Query().Get("status")
@@ -366,7 +366,7 @@ func (h *APIHandlers) HandleGetTags(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// レスポンス用の構造体
+	// Struct for response
 	type TagResponse struct {
 		Name  string `json:"name"`
 		Count int    `json:"count"`
@@ -377,13 +377,13 @@ func (h *APIHandlers) HandleGetTags(w http.ResponseWriter, r *http.Request) {
 		tags = append(tags, TagResponse{Name: name, Count: count})
 	}
 
-	// 記事数の降順でソート、同数の場合はタグ名の昇順
+	// Sort by post count descending, then by tag name ascending if counts are equal
 	slices.SortFunc(tags, func(a, b TagResponse) int {
-		// 記事数で比較（降順）
+		// Compare by post count (descending)
 		if a.Count != b.Count {
 			return b.Count - a.Count
 		}
-		// タグ名で比較（昇順）
+		// Compare by tag name (ascending)
 		if a.Name < b.Name {
 			return -1
 		} else if a.Name > b.Name {
@@ -395,18 +395,18 @@ func (h *APIHandlers) HandleGetTags(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, tags)
 }
 
-// PreviewRequest はMarkdownプレビューリクエストの構造体です
+// PreviewRequest is the struct for Markdown preview requests
 type PreviewRequest struct {
 	Content string `json:"content"`
 }
 
-// PreviewResponse はMarkdownプレビューレスポンスの構造体です
+// PreviewResponse is the struct for Markdown preview responses
 type PreviewResponse struct {
 	HTML string `json:"html"`
 }
 
-// HandlePreview はMarkdownをHTMLに変換して返します
-// コンテンツ内に @@CURSOR@@ が含まれている場合、スクロール用マーカーに置換されます
+// HandlePreview converts Markdown to HTML and returns it
+// If the content contains @@CURSOR@@, it is replaced with a scroll marker
 // POST /api/v1/preview
 func HandlePreview(w http.ResponseWriter, r *http.Request) {
 	var req PreviewRequest
@@ -426,7 +426,7 @@ func HandlePreview(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, PreviewResponse{HTML: html})
 }
 
-// HandlePinPost は記事をピン留めします
+// HandlePinPost pins a post
 // POST /api/v1/posts/{id}/pin
 func (h *APIHandlers) HandlePinPost(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
@@ -448,7 +448,7 @@ func (h *APIHandlers) HandlePinPost(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, post)
 }
 
-// HandleUnpinPost は記事のピン留めを解除します
+// HandleUnpinPost unpins a post
 // POST /api/v1/posts/{id}/unpin
 func (h *APIHandlers) HandleUnpinPost(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)

@@ -16,14 +16,14 @@ import (
 
 const (
 	testTemplatePattern = "../view/templates/*.html"
-	testUploadDir       = ""                        // テストではアップロードディレクトリは使用しない
+	testUploadDir       = ""                        // Upload directory is not used in tests
 	testMaxUploadSize   = 5 * 1024 * 1024           // 5MB
-	testSecureCookie    = false                     // テストではSecure Cookieは無効
-	testBlogTitle       = "goblog"                  // テスト用ブログタイトル
-	testBaseURL         = "http://localhost:8080"   // テスト用ベースURL
+	testSecureCookie    = false                     // Secure Cookie is disabled in tests
+	testBlogTitle       = "goblog"                  // Blog title for testing
+	testBaseURL         = "http://localhost:8080"   // Base URL for testing
 )
 
-// mockPostService は PostService のモック実装です
+// mockPostService is a mock implementation of PostService
 type mockPostService struct {
 	getPublishedPostsFunc        func(limit, offset int) ([]*domain.Post, error)
 	getPublishedPostsByTagFunc   func(tag string, limit, offset int) ([]*domain.Post, error)
@@ -170,7 +170,7 @@ func TestHandleHome(t *testing.T) {
 		notContains    []string
 	}{
 		{
-			name: "記事がない場合",
+			name: "When there are no posts",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				return []*domain.Post{}, nil
 			},
@@ -181,7 +181,7 @@ func TestHandleHome(t *testing.T) {
 			},
 		},
 		{
-			name: "記事がある場合",
+			name: "When there are posts",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				publishedAt := time.Now()
 				return []*domain.Post{
@@ -266,7 +266,7 @@ func TestHandleHome_BlogTitle(t *testing.T) {
 		containsText []string
 	}{
 		{
-			name:      "デフォルトのブログタイトル",
+			name:      "Default blog title",
 			blogTitle: "goblog",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				return []*domain.Post{}, nil
@@ -279,7 +279,7 @@ func TestHandleHome_BlogTitle(t *testing.T) {
 			},
 		},
 		{
-			name:      "カスタムブログタイトル",
+			name:      "Custom blog title",
 			blogTitle: "My Awesome Blog",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				return []*domain.Post{}, nil
@@ -292,7 +292,7 @@ func TestHandleHome_BlogTitle(t *testing.T) {
 			},
 		},
 		{
-			name:      "日本語のブログタイトル",
+			name:      "Japanese blog title",
 			blogTitle: "テストブログ",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				publishedAt := time.Now()
@@ -351,7 +351,7 @@ func TestHandlePosts(t *testing.T) {
 		notContains    []string
 	}{
 		{
-			name: "記事がない場合",
+			name: "When there are no posts",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				return []*domain.Post{}, nil
 			},
@@ -363,7 +363,7 @@ func TestHandlePosts(t *testing.T) {
 			},
 		},
 		{
-			name: "記事がある場合",
+			name: "When there are posts",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				publishedAt := time.Now()
 				return []*domain.Post{
@@ -451,13 +451,13 @@ func TestHandlePosts_Pagination(t *testing.T) {
 		notContains    []string
 	}{
 		{
-			name: "1ページ目（>次あり）",
+			name: "Page 1 (has next page)",
 			url:  "/posts?page=1",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				if limit != 21 || offset != 0 {
 					t.Errorf("expected limit=21, offset=0, got limit=%d, offset=%d", limit, offset)
 				}
-				// 21件返して>次があることを示す
+				// Return 21 items to indicate there's a next page
 				posts := make([]*domain.Post, 21)
 				publishedAt := time.Now()
 				for i := 0; i < 21; i++ {
@@ -483,13 +483,13 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			},
 		},
 		{
-			name: "2ページ目（前後のページあり）",
+			name: "Page 2 (has previous and next pages)",
 			url:  "/posts?page=2",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				if limit != 21 || offset != 20 {
 					t.Errorf("expected limit=21, offset=20, got limit=%d, offset=%d", limit, offset)
 				}
-				// 21件返して>次があることを示す
+				// Return 21 items to indicate there's a next page
 				posts := make([]*domain.Post, 21)
 				publishedAt := time.Now()
 				for i := 0; i < 21; i++ {
@@ -513,13 +513,13 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			},
 		},
 		{
-			name: "最後のページ（>次なし）",
+			name: "Last page (no next page)",
 			url:  "/posts?page=3",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				if limit != 21 || offset != 40 {
 					t.Errorf("expected limit=21, offset=40, got limit=%d, offset=%d", limit, offset)
 				}
-				// 10件だけ返して>次がないことを示す
+				// Return only 10 items to indicate there's no next page
 				posts := make([]*domain.Post, 10)
 				publishedAt := time.Now()
 				for i := 0; i < 10; i++ {
@@ -545,7 +545,7 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			},
 		},
 		{
-			name: "不正なページパラメータ（デフォルトで1ページ目）",
+			name: "Invalid page parameter (defaults to page 1)",
 			url:  "/posts?page=invalid",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				if limit != 21 || offset != 0 {
@@ -572,7 +572,7 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			},
 		},
 		{
-			name: "page=0（1ページ目として扱う）",
+			name: "page=0 (treated as page 1)",
 			url:  "/posts?page=0",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				if limit != 21 || offset != 0 {
@@ -599,7 +599,7 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			},
 		},
 		{
-			name: "page=-1（1ページ目として扱う）",
+			name: "page=-1 (treated as page 1)",
 			url:  "/posts?page=-1",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				if limit != 21 || offset != 0 {
@@ -626,7 +626,7 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			},
 		},
 		{
-			name: "ページパラメータなし（デフォルトで1ページ目）",
+			name: "No page parameter (defaults to page 1)",
 			url:  "/posts",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				if limit != 21 || offset != 0 {
@@ -717,7 +717,7 @@ func TestHandlePosts_BlogTitle(t *testing.T) {
 		containsText []string
 	}{
 		{
-			name:      "デフォルトのブログタイトル",
+			name:      "Default blog title",
 			blogTitle: "goblog",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				return []*domain.Post{}, nil
@@ -730,7 +730,7 @@ func TestHandlePosts_BlogTitle(t *testing.T) {
 			},
 		},
 		{
-			name:      "カスタムブログタイトル",
+			name:      "Custom blog title",
 			blogTitle: "My Tech Blog",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				publishedAt := time.Now()
@@ -789,7 +789,7 @@ func TestHandlePostDetail(t *testing.T) {
 		containsText   []string
 	}{
 		{
-			name: "記事が見つかる場合",
+			name: "When post is found",
 			slug: "test-post",
 			mockFunc: func(slug string) (*domain.Post, error) {
 				if slug == "test-post" {
@@ -819,7 +819,7 @@ func TestHandlePostDetail(t *testing.T) {
 			},
 		},
 		{
-			name: "記事が見つからない場合",
+			name: "When post is not found",
 			slug: "non-existent",
 			mockFunc: func(slug string) (*domain.Post, error) {
 				return nil, nil
@@ -835,7 +835,7 @@ func TestHandlePostDetail(t *testing.T) {
 			},
 		},
 		{
-			name: "英語のスラッグ",
+			name: "English slug",
 			slug: "hello-world",
 			mockFunc: func(slug string) (*domain.Post, error) {
 				if slug == "hello-world" {
@@ -894,7 +894,7 @@ func TestHandlePostDetail_BlogTitle(t *testing.T) {
 		containsText []string
 	}{
 		{
-			name:      "デフォルトのブログタイトル",
+			name:      "Default blog title",
 			blogTitle: "goblog",
 			slug:      "test-article",
 			mockFunc: func(slug string) (*domain.Post, error) {
@@ -919,7 +919,7 @@ func TestHandlePostDetail_BlogTitle(t *testing.T) {
 			},
 		},
 		{
-			name:      "カスタムブログタイトル",
+			name:      "Custom blog title",
 			blogTitle: "開発ブログ",
 			slug:      "golang-tips",
 			mockFunc: func(slug string) (*domain.Post, error) {
@@ -945,7 +945,7 @@ func TestHandlePostDetail_BlogTitle(t *testing.T) {
 			},
 		},
 		{
-			name:      "英語のブログタイトル",
+			name:      "English blog title",
 			blogTitle: "Tech Insights",
 			slug:      "first-post",
 			mockFunc: func(slug string) (*domain.Post, error) {
@@ -1068,7 +1068,7 @@ func TestTruncateRunes(t *testing.T) {
 				t.Errorf("truncateRunes() = %q, want %q", result, tt.expected)
 			}
 
-			// 重要: 切り詰めた結果に不正なUTF-8シーケンス（�）が含まれていないことを確認
+			// Important: Verify that the truncated result does not contain invalid UTF-8 sequences
 			if strings.Contains(result, "�") {
 				t.Errorf("truncateRunes() produced invalid UTF-8 sequence (�) for input %q", tt.input)
 			}
@@ -1085,7 +1085,7 @@ func TestHandleTags(t *testing.T) {
 		notContains    []string
 	}{
 		{
-			name: "タグがある場合",
+			name: "When tags exist",
 			mockFunc: func() (map[string]int, error) {
 				return map[string]int{
 					"Go":     10,
@@ -1107,7 +1107,7 @@ func TestHandleTags(t *testing.T) {
 			},
 		},
 		{
-			name: "タグがない場合",
+			name: "When no tags exist",
 			mockFunc: func() (map[string]int, error) {
 				return map[string]int{}, nil
 			},
@@ -1118,7 +1118,7 @@ func TestHandleTags(t *testing.T) {
 			},
 		},
 		{
-			name: "エラーが発生した場合",
+			name: "When an error occurs",
 			mockFunc: func() (map[string]int, error) {
 				return nil, fmt.Errorf("database error")
 			},
@@ -1171,7 +1171,7 @@ func TestHandleTagPosts(t *testing.T) {
 		notContains    []string
 	}{
 		{
-			name: "タグに記事がある場合",
+			name: "When tag has posts",
 			tag:  "Go",
 			mockFunc: func(tag string, limit, offset int) ([]*domain.Post, error) {
 				if tag == "Go" {
@@ -1210,7 +1210,7 @@ func TestHandleTagPosts(t *testing.T) {
 			},
 		},
 		{
-			name: "タグに記事がない場合",
+			name: "When tag has no posts",
 			tag:  "Python",
 			mockFunc: func(tag string, limit, offset int) ([]*domain.Post, error) {
 				return []*domain.Post{}, nil
@@ -1222,7 +1222,7 @@ func TestHandleTagPosts(t *testing.T) {
 			},
 		},
 		{
-			name: "エラーが発生した場合",
+			name: "When an error occurs",
 			tag:  "Go",
 			mockFunc: func(tag string, limit, offset int) ([]*domain.Post, error) {
 				return nil, fmt.Errorf("database error")
@@ -1277,7 +1277,7 @@ func TestHandleTagPosts_Pagination(t *testing.T) {
 		notContains    []string
 	}{
 		{
-			name: "1ページ目（>次あり）",
+			name: "Page 1 (has next page)",
 			tag:  "Go",
 			url:  "/tags/Go?page=1",
 			mockFunc: func(tag string, limit, offset int) ([]*domain.Post, error) {
@@ -1310,7 +1310,7 @@ func TestHandleTagPosts_Pagination(t *testing.T) {
 			},
 		},
 		{
-			name: "2ページ目",
+			name: "Page 2",
 			tag:  "React",
 			url:  "/tags/React?page=2",
 			mockFunc: func(tag string, limit, offset int) ([]*domain.Post, error) {
@@ -1463,7 +1463,7 @@ func TestHandlePosts_Search(t *testing.T) {
 		notContains    []string
 	}{
 		{
-			name: "検索クエリで記事を取得",
+			name: "Get posts with search query",
 			url:  "/posts?q=Go",
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				if query != "Go" {
@@ -1496,20 +1496,20 @@ func TestHandlePosts_Search(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			containsText: []string{
 				"Search results for \"<span class=\"font-medium\">Go</span>\"",
-				"<mark>Go</mark>入門",           // ハイライトされたタイトル
-				"<mark>Go</mark>応用テクニック", // ハイライトされたタイトル
+				"<mark>Go</mark>入門",           // Highlighted title
+				"<mark>Go</mark>応用テクニック", // Highlighted title
 				"/posts/go-introduction",
 				"/posts/go-advanced",
-				`value="Go"`,      // 検索ボックスに値が残っている
-				`href="/posts"`,   // クリアリンク
-				"Clear",           // クリアボタン
+				`value="Go"`,      // Value remains in search box
+				`href="/posts"`,   // Clear link
+				"Clear",           // Clear button
 			},
 			notContains: []string{
 				"No posts yet.",
 			},
 		},
 		{
-			name: "日本語検索クエリ",
+			name: "Japanese search query",
 			url:  "/posts?q=%E3%83%97%E3%83%AD%E3%82%B0%E3%83%A9%E3%83%9F%E3%83%B3%E3%82%B0", // "プログラミング"
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				if query != "プログラミング" {
@@ -1533,11 +1533,11 @@ func TestHandlePosts_Search(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			containsText: []string{
 				"Search results for \"<span class=\"font-medium\">プログラミング</span>\"",
-				"<mark>プログラミング</mark>入門", // ハイライトされたタイトル
+				"<mark>プログラミング</mark>入門", // Highlighted title
 			},
 		},
 		{
-			name: "検索結果が0件",
+			name: "Search results are 0",
 			url:  "/posts?q=notfound",
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				return []*domain.Post{}, nil
@@ -1548,14 +1548,14 @@ func TestHandlePosts_Search(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			containsText: []string{
 				"No posts found matching \"notfound\"",
-				`value="notfound"`, // 検索ボックスに値が残っている
+				`value="notfound"`, // Value remains in search box
 			},
 			notContains: []string{
-				"No posts yet.", // 通常の空メッセージではない
+				"No posts yet.", // Not the normal empty message
 			},
 		},
 		{
-			name: "検索 + ページネーション（1ページ目）",
+			name: "Search + pagination (page 1)",
 			url:  "/posts?q=Go&page=1",
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				if limit != 21 || offset != 0 {
@@ -1581,11 +1581,11 @@ func TestHandlePosts_Search(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"/posts?page=2&q=Go", // 検索クエリがページネーションに含まれる
+				"/posts?page=2&q=Go", // Search query is included in pagination
 			},
 		},
 		{
-			name: "検索 + ページネーション（2ページ目）",
+			name: "Search + pagination (page 2)",
 			url:  "/posts?q=Go&page=2",
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				if limit != 21 || offset != 20 {
@@ -1614,11 +1614,11 @@ func TestHandlePosts_Search(t *testing.T) {
 				"/posts?page=1&q=Go",
 			},
 			notContains: []string{
-				"/posts?page=3", // 次ページはない
+				"/posts?page=3", // No next page
 			},
 		},
 		{
-			name: "検索エラー",
+			name: "Search error",
 			url:  "/posts?q=error",
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				return nil, fmt.Errorf("database error")
@@ -1667,11 +1667,11 @@ func TestHandlePosts_Search(t *testing.T) {
 }
 
 func TestHandlePosts_SearchQueryLimit(t *testing.T) {
-	t.Run("検索クエリが長すぎる場合はエラー", func(t *testing.T) {
+	t.Run("Error when search query is too long", func(t *testing.T) {
 		mockService := &mockPostService{}
 		router := NewRouterWithTemplates(mockService, nil, testSecureCookie, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
-		// 201文字のクエリ（制限は200文字）
+		// 201-character query (limit is 200 characters)
 		longQuery := strings.Repeat("a", 201)
 		req := httptest.NewRequest(http.MethodGet, "/posts?q="+longQuery, nil)
 		w := httptest.NewRecorder()
@@ -1683,7 +1683,7 @@ func TestHandlePosts_SearchQueryLimit(t *testing.T) {
 		}
 	})
 
-	t.Run("検索クエリが200文字ちょうどは許可", func(t *testing.T) {
+	t.Run("Search query of exactly 200 characters is allowed", func(t *testing.T) {
 		mockService := &mockPostService{
 			searchPublishedPostsFunc: func(query string, limit, offset int) ([]*domain.Post, error) {
 				return []*domain.Post{}, nil
@@ -1694,7 +1694,7 @@ func TestHandlePosts_SearchQueryLimit(t *testing.T) {
 		}
 		router := NewRouterWithTemplates(mockService, nil, testSecureCookie, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
-		// 200文字のクエリ（制限ちょうど）
+		// 200-character query (exactly at the limit)
 		exactQuery := strings.Repeat("a", 200)
 		req := httptest.NewRequest(http.MethodGet, "/posts?q="+exactQuery, nil)
 		w := httptest.NewRecorder()
@@ -1708,7 +1708,7 @@ func TestHandlePosts_SearchQueryLimit(t *testing.T) {
 }
 
 func TestHandlePosts_SearchForm(t *testing.T) {
-	// 検索フォームが常に表示されていることを確認
+	// Verify that the search form is always displayed
 	mockService := &mockPostService{
 		getPublishedPostsFunc: func(limit, offset int) ([]*domain.Post, error) {
 			return []*domain.Post{}, nil
@@ -1742,7 +1742,7 @@ func TestHandlePosts_SearchForm(t *testing.T) {
 }
 
 func TestFormatDateWithTZ_Integration(t *testing.T) {
-	// テンプレートとの統合テスト：実際のHTMLレスポンスに正しい日付フォーマットが含まれているか確認
+	// Integration test with templates: Verify correct date format is included in actual HTML response
 	publishedAt := time.Date(2024, 12, 25, 15, 30, 0, 0, time.UTC)
 
 	t.Run("JST timezone in rendered HTML", func(t *testing.T) {
@@ -1770,16 +1770,16 @@ func TestFormatDateWithTZ_Integration(t *testing.T) {
 
 		body := w.Body.String()
 
-		// タイムゾーン略称とUTCオフセットが含まれていることを確認
-		// 注: sync.Onceによるキャッシュのため、テスト実行順によりタイムゾーンが異なる可能性がある
-		// +記号はHTMLエンティティ（&#43;）にエスケープされる
-		// -記号はそのまま出力される
+		// Verify timezone abbreviation and UTC offset are included
+		// Note: Due to sync.Once caching, timezone may differ depending on test execution order
+		// The + sign is escaped to HTML entity (&#43;)
+		// The - sign is output as-is
 		datePattern := regexp.MustCompile(`>\d{4}-\d{2}-\d{2} \([A-Z]+, UTC(&#43;|-)\d+\)</time>`)
 		if !datePattern.MatchString(body) {
 			t.Errorf("expected body to contain date with timezone and UTC offset pattern, but it didn't. Body: %s", body)
 		}
 
-		// title属性にも同様のパターンが含まれる
+		// The title attribute also contains a similar pattern
 		titlePattern := regexp.MustCompile(`title="\d{4}-\d{2}-\d{2} \d{2}:\d{2} \([A-Z]+, UTC(&#43;|-)\d+\)"`)
 		if !titlePattern.MatchString(body) {
 			t.Errorf("expected body to contain title with timezone and UTC offset pattern, but it didn't. Body: %s", body)
@@ -1811,14 +1811,14 @@ func TestFormatDateWithTZ_Integration(t *testing.T) {
 
 		body := w.Body.String()
 
-		// タイムゾーン略称とUTCオフセットが含まれていることを確認
-		// +記号はHTMLエンティティ（&#43;）にエスケープされる
+		// Verify timezone abbreviation and UTC offset are included
+		// The + sign is escaped to HTML entity (&#43;)
 		datePattern := regexp.MustCompile(`>\d{4}-\d{2}-\d{2} \([A-Z]+, UTC(&#43;|-)\d+\)</time>`)
 		if !datePattern.MatchString(body) {
 			t.Errorf("expected body to contain date with timezone and UTC offset pattern, but it didn't. Body: %s", body)
 		}
 
-		// title属性にも同様のパターンが含まれる
+		// The title attribute also contains a similar pattern
 		titlePattern := regexp.MustCompile(`title="\d{4}-\d{2}-\d{2} \d{2}:\d{2} \([A-Z]+, UTC(&#43;|-)\d+\)"`)
 		if !titlePattern.MatchString(body) {
 			t.Errorf("expected body to contain title with timezone and UTC offset pattern, but it didn't. Body: %s", body)
@@ -1834,55 +1834,55 @@ func TestHighlightQuery(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "通常のハイライト",
+			name:     "Normal highlight",
 			text:     "Go言語入門",
 			query:    "Go",
 			expected: "<mark>Go</mark>言語入門",
 		},
 		{
-			name:     "大文字小文字を区別しない",
+			name:     "Case insensitive",
 			text:     "Go言語入門",
 			query:    "go",
 			expected: "<mark>Go</mark>言語入門",
 		},
 		{
-			name:     "複数マッチ",
+			name:     "Multiple matches",
 			text:     "GoでGoを学ぶ",
 			query:    "Go",
 			expected: "<mark>Go</mark>で<mark>Go</mark>を学ぶ",
 		},
 		{
-			name:     "クエリが空",
+			name:     "Empty query",
 			text:     "テスト文字列",
 			query:    "",
 			expected: "テスト文字列",
 		},
 		{
-			name:     "HTMLエスケープ",
+			name:     "HTML escape",
 			text:     "<script>alert('xss')</script>",
 			query:    "script",
 			expected: "&lt;<mark>script</mark>&gt;alert(&#39;xss&#39;)&lt;/<mark>script</mark>&gt;",
 		},
 		{
-			name:     "正規表現特殊文字をエスケープ",
+			name:     "Escape regex special characters",
 			text:     "test (括弧) test",
 			query:    "(括弧)",
 			expected: "test <mark>(括弧)</mark> test",
 		},
 		{
-			name:     "日本語検索",
+			name:     "Japanese search",
 			text:     "プログラミング入門ガイド",
 			query:    "プログラミング",
 			expected: "<mark>プログラミング</mark>入門ガイド",
 		},
 		{
-			name:     "マッチなし",
+			name:     "No match",
 			text:     "Hello World",
 			query:    "Python",
 			expected: "Hello World",
 		},
 		{
-			name:     "混合テキスト",
+			name:     "Mixed text",
 			text:     "GoとPythonで開発",
 			query:    "Python",
 			expected: "Goと<mark>Python</mark>で開発",
@@ -1908,7 +1908,7 @@ func TestHandlePosts_SearchHighlight(t *testing.T) {
 		notContains    []string
 	}{
 		{
-			name: "タイトルと本文にハイライトが適用される",
+			name: "Highlight is applied to title and body",
 			url:  "/posts?q=Go",
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				publishedAt := time.Now()
@@ -1924,12 +1924,12 @@ func TestHandlePosts_SearchHighlight(t *testing.T) {
 				}, nil
 			},
 			containsText: []string{
-				"<mark>Go</mark>言語入門",            // タイトルにハイライト
-				"<mark>Go</mark>の基本的な使い方を解説します", // 本文にもハイライト
+				"<mark>Go</mark>言語入門",            // Highlight in title
+				"<mark>Go</mark>の基本的な使い方を解説します", // Highlight in body too
 			},
 		},
 		{
-			name: "日本語クエリでハイライト",
+			name: "Highlight with Japanese query",
 			url:  "/posts?q=%E3%83%97%E3%83%AD%E3%82%B0%E3%83%A9%E3%83%9F%E3%83%B3%E3%82%B0", // プログラミング
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				publishedAt := time.Now()
@@ -1945,12 +1945,12 @@ func TestHandlePosts_SearchHighlight(t *testing.T) {
 				}, nil
 			},
 			containsText: []string{
-				"<mark>プログラミング</mark>入門",   // タイトルにハイライト
-				"<mark>プログラミング</mark>を始めよう", // 本文にもハイライト
+				"<mark>プログラミング</mark>入門",   // Highlight in title
+				"<mark>プログラミング</mark>を始めよう", // Highlight in body too
 			},
 		},
 		{
-			name: "クエリなしの場合はハイライトなし",
+			name: "No highlight when no query",
 			url:  "/posts",
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				publishedAt := time.Now()
@@ -1966,18 +1966,18 @@ func TestHandlePosts_SearchHighlight(t *testing.T) {
 				}, nil
 			},
 			containsText: []string{
-				">Go言語入門</a>", // タイトルはそのまま（markタグなし）
+				">Go言語入門</a>", // Title as-is (no mark tag)
 			},
 			notContains: []string{
-				"<mark>", // markタグが含まれない
+				"<mark>", // No mark tag
 			},
 		},
 		{
-			name: "長い本文も全文表示でハイライト",
+			name: "Highlight in full text display for long body",
 			url:  "/posts?q=Go",
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				publishedAt := time.Now()
-				// 200文字を超える内容
+				// Content exceeding 200 characters
 				longContent := "Goは効率的なプログラミング言語です。" + strings.Repeat("この文章は長いテストコンテンツです。", 20)
 				return []*domain.Post{
 					{
@@ -1991,8 +1991,8 @@ func TestHandlePosts_SearchHighlight(t *testing.T) {
 				}, nil
 			},
 			containsText: []string{
-				"<mark>Go</mark>言語の紹介",        // タイトルにハイライト
-				"<mark>Go</mark>は効率的なプログラミング言語です", // 本文にもハイライト
+				"<mark>Go</mark>言語の紹介",        // Highlight in title
+				"<mark>Go</mark>は効率的なプログラミング言語です", // Highlight in body too
 			},
 		},
 	}
@@ -2002,7 +2002,7 @@ func TestHandlePosts_SearchHighlight(t *testing.T) {
 			mockService := &mockPostService{
 				searchPublishedPostsFunc: tt.mockSearch,
 				getPublishedPostsFunc: func(limit, offset int) ([]*domain.Post, error) {
-					// クエリなしの場合はこちらが呼ばれる
+					// This is called when there's no query
 					return tt.mockSearch("", limit, offset)
 				},
 			}
@@ -2042,7 +2042,7 @@ func TestCustom404Page(t *testing.T) {
 		containsText []string
 	}{
 		{
-			name:      "存在しないURLへのアクセス",
+			name:      "Access to non-existent URL",
 			blogTitle: "goblog",
 			url:       "/not_exists",
 			setup:     func(m *mockPostService) {},
@@ -2059,7 +2059,7 @@ func TestCustom404Page(t *testing.T) {
 			},
 		},
 		{
-			name:      "深いパスの存在しないURL",
+			name:      "Non-existent URL with deep path",
 			blogTitle: "goblog",
 			url:       "/foo/bar/baz",
 			setup:     func(m *mockPostService) {},
@@ -2069,7 +2069,7 @@ func TestCustom404Page(t *testing.T) {
 			},
 		},
 		{
-			name:      "記事が見つからない場合の404ページ",
+			name:      "404 page when post is not found",
 			blogTitle: "goblog",
 			url:       "/posts/non-existent-post",
 			setup: func(m *mockPostService) {
@@ -2091,7 +2091,7 @@ func TestCustom404Page(t *testing.T) {
 			},
 		},
 		{
-			name:      "カスタムブログタイトルでの404ページ",
+			name:      "404 page with custom blog title",
 			blogTitle: "My Tech Blog",
 			url:       "/posts/not-found",
 			setup: func(m *mockPostService) {
@@ -2108,7 +2108,7 @@ func TestCustom404Page(t *testing.T) {
 			},
 		},
 		{
-			name:      "日本語ブログタイトルでの404ページ",
+			name:      "404 page with Japanese blog title",
 			blogTitle: "テストブログ",
 			url:       "/posts/missing",
 			setup: func(m *mockPostService) {
@@ -2166,7 +2166,7 @@ func TestPinnedPostsInHeader(t *testing.T) {
 		notContains    []string
 	}{
 		{
-			name: "ピン留め記事がヘッダーに表示される",
+			name: "Pinned posts are displayed in header",
 			pinnedPosts: []*domain.Post{
 				{
 					ID:          1,
@@ -2193,7 +2193,7 @@ func TestPinnedPostsInHeader(t *testing.T) {
 			},
 		},
 		{
-			name:        "ピン留め記事がない場合",
+			name:        "When there are no pinned posts",
 			pinnedPosts: []*domain.Post{},
 			containsText: []string{
 				`href="/tags"`,

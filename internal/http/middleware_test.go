@@ -27,10 +27,10 @@ func TestAuthMiddleware_Success(t *testing.T) {
 		},
 	}
 
-	// ミドルウェアを適用したハンドラーを作成
+	// Create a handler with middleware applied
 	var capturedUserID int64
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// コンテキストからユーザーIDを取得
+		// Get user ID from context
 		userID, ok := GetUserIDFromContext(r.Context())
 		if !ok {
 			t.Error("expected user ID in context")
@@ -44,7 +44,7 @@ func TestAuthMiddleware_Success(t *testing.T) {
 	middleware := AuthMiddleware(mockService)
 	protectedHandler := middleware(handler)
 
-	// 有効なセッションIDでリクエスト
+	// Request with valid session ID
 	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  sessionCookieName,
@@ -52,15 +52,15 @@ func TestAuthMiddleware_Success(t *testing.T) {
 	})
 	rec := httptest.NewRecorder()
 
-	// ハンドラーを実行
+	// Execute handler
 	protectedHandler.ServeHTTP(rec, req)
 
-	// ステータスコードを確認
+	// Verify status code
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 
-	// コンテキストに正しいユーザーIDが設定されていることを確認
+	// Verify correct user ID is set in context
 	if capturedUserID != 123 {
 		t.Errorf("expected user ID %d in context, got %d", 123, capturedUserID)
 	}
@@ -74,7 +74,7 @@ func TestAuthMiddleware_NoCookie(t *testing.T) {
 		},
 	}
 
-	// ミドルウェアを適用したハンドラーを作成
+	// Create a handler with middleware applied
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("handler should not be called when auth fails")
 		w.WriteHeader(http.StatusOK)
@@ -83,18 +83,18 @@ func TestAuthMiddleware_NoCookie(t *testing.T) {
 	middleware := AuthMiddleware(mockService)
 	protectedHandler := middleware(handler)
 
-	// Cookieなしでリクエスト
+	// Request without cookie
 	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
 	rec := httptest.NewRecorder()
 
 	protectedHandler.ServeHTTP(rec, req)
 
-	// ステータスコードを確認
+	// Verify status code
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
 	}
 
-	// エラーメッセージを確認
+	// Verify error message
 	expectedError := "Authentication required"
 	if !strings.Contains(rec.Body.String(), expectedError) {
 		t.Errorf("expected error message to contain %q, got %q", expectedError, rec.Body.String())
@@ -104,12 +104,12 @@ func TestAuthMiddleware_NoCookie(t *testing.T) {
 func TestAuthMiddleware_InvalidSession(t *testing.T) {
 	mockService := &mockAuthService{
 		getUserBySessionFunc: func(sessionID string) (*domain.User, error) {
-			// セッションが無効（ユーザーが見つからない）
+			// Session is invalid (user not found)
 			return nil, nil
 		},
 	}
 
-	// ミドルウェアを適用したハンドラーを作成
+	// Create a handler with middleware applied
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("handler should not be called when auth fails")
 		w.WriteHeader(http.StatusOK)
@@ -118,7 +118,7 @@ func TestAuthMiddleware_InvalidSession(t *testing.T) {
 	middleware := AuthMiddleware(mockService)
 	protectedHandler := middleware(handler)
 
-	// 無効なセッションIDでリクエスト
+	// Request with invalid session ID
 	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  sessionCookieName,
@@ -128,12 +128,12 @@ func TestAuthMiddleware_InvalidSession(t *testing.T) {
 
 	protectedHandler.ServeHTTP(rec, req)
 
-	// ステータスコードを確認
+	// Verify status code
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
 	}
 
-	// エラーメッセージを確認
+	// Verify error message
 	expectedError := "Session expired or invalid"
 	if !strings.Contains(rec.Body.String(), expectedError) {
 		t.Errorf("expected error message to contain %q, got %q", expectedError, rec.Body.String())
@@ -143,12 +143,12 @@ func TestAuthMiddleware_InvalidSession(t *testing.T) {
 func TestAuthMiddleware_DatabaseError(t *testing.T) {
 	mockService := &mockAuthService{
 		getUserBySessionFunc: func(sessionID string) (*domain.User, error) {
-			// データベースエラーをシミュレート
+			// Simulate database error
 			return nil, errors.New("database connection error")
 		},
 	}
 
-	// ミドルウェアを適用したハンドラーを作成
+	// Create a handler with middleware applied
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("handler should not be called when database error occurs")
 		w.WriteHeader(http.StatusOK)
@@ -157,7 +157,7 @@ func TestAuthMiddleware_DatabaseError(t *testing.T) {
 	middleware := AuthMiddleware(mockService)
 	protectedHandler := middleware(handler)
 
-	// リクエストを作成
+	// Create request
 	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  sessionCookieName,
@@ -167,12 +167,12 @@ func TestAuthMiddleware_DatabaseError(t *testing.T) {
 
 	protectedHandler.ServeHTTP(rec, req)
 
-	// DBエラー時は500エラーを返す
+	// Return 500 error on DB error
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
 	}
 
-	// エラーメッセージを確認
+	// Verify error message
 	expectedError := "Internal server error"
 	if !strings.Contains(rec.Body.String(), expectedError) {
 		t.Errorf("expected error message to contain %q, got %q", expectedError, rec.Body.String())
@@ -195,7 +195,7 @@ func TestGetUserIDFromContext_Success(t *testing.T) {
 		},
 	}
 
-	// ミドルウェア経由でリクエストを処理
+	// Process request via middleware
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userID, ok := GetUserIDFromContext(r.Context())
 		if !ok {
@@ -227,7 +227,7 @@ func TestGetUserIDFromContext_Success(t *testing.T) {
 }
 
 func TestGetUserIDFromContext_NotFound(t *testing.T) {
-	// コンテキストにユーザーIDがない場合
+	// When user ID is not in context
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
 	userID, ok := GetUserIDFromContext(req.Context())
@@ -241,7 +241,7 @@ func TestGetUserIDFromContext_NotFound(t *testing.T) {
 }
 
 func TestCSRFMiddleware_GetRequest_Skip(t *testing.T) {
-	// GETリクエストはCSRFチェックをスキップ
+	// GET requests skip CSRF check
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
@@ -250,20 +250,20 @@ func TestCSRFMiddleware_GetRequest_Skip(t *testing.T) {
 	middleware := CSRFMiddleware()
 	protectedHandler := middleware(handler)
 
-	// CSRFトークンなしでGETリクエスト
+	// GET request without CSRF token
 	req := httptest.NewRequest(http.MethodGet, "/api/posts", nil)
 	rec := httptest.NewRecorder()
 
 	protectedHandler.ServeHTTP(rec, req)
 
-	// GETリクエストはCSRFチェックをスキップするのでOK
+	// GET requests skip CSRF check so OK
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 }
 
 func TestCSRFMiddleware_PostRequest_Success(t *testing.T) {
-	// POSTリクエストで正しいCSRFトークンがある場合は成功
+	// POST request succeeds when correct CSRF token is present
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
@@ -274,7 +274,7 @@ func TestCSRFMiddleware_PostRequest_Success(t *testing.T) {
 
 	csrfToken := "test-csrf-token"
 
-	// CookieとヘッダーにCSRFトークンを設定
+	// Set CSRF token in cookie and header
 	req := httptest.NewRequest(http.MethodPost, "/api/posts", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  csrfCookieName,
@@ -285,14 +285,14 @@ func TestCSRFMiddleware_PostRequest_Success(t *testing.T) {
 
 	protectedHandler.ServeHTTP(rec, req)
 
-	// CSRFトークンが一致するので成功
+	// Succeeds because CSRF tokens match
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 }
 
 func TestCSRFMiddleware_NoCookie(t *testing.T) {
-	// CSRFトークンCookieがない場合は403
+	// Return 403 when CSRF token cookie is missing
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("handler should not be called when CSRF cookie is missing")
 		w.WriteHeader(http.StatusOK)
@@ -301,14 +301,14 @@ func TestCSRFMiddleware_NoCookie(t *testing.T) {
 	middleware := CSRFMiddleware()
 	protectedHandler := middleware(handler)
 
-	// CSRFトークンCookieなしでPOSTリクエスト
+	// POST request without CSRF token cookie
 	req := httptest.NewRequest(http.MethodPost, "/api/posts", nil)
 	req.Header.Set(csrfHeaderName, "some-token")
 	rec := httptest.NewRecorder()
 
 	protectedHandler.ServeHTTP(rec, req)
 
-	// CSRFトークンCookieがないので403
+	// Return 403 because CSRF token cookie is missing
 	if rec.Code != http.StatusForbidden {
 		t.Errorf("expected status %d, got %d", http.StatusForbidden, rec.Code)
 	}
@@ -320,7 +320,7 @@ func TestCSRFMiddleware_NoCookie(t *testing.T) {
 }
 
 func TestCSRFMiddleware_NoHeader(t *testing.T) {
-	// CSRFトークンヘッダーがない場合は403
+	// Return 403 when CSRF token header is missing
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("handler should not be called when CSRF header is missing")
 		w.WriteHeader(http.StatusOK)
@@ -329,7 +329,7 @@ func TestCSRFMiddleware_NoHeader(t *testing.T) {
 	middleware := CSRFMiddleware()
 	protectedHandler := middleware(handler)
 
-	// CSRFトークンヘッダーなしでPOSTリクエスト
+	// POST request without CSRF token header
 	req := httptest.NewRequest(http.MethodPost, "/api/posts", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  csrfCookieName,
@@ -339,7 +339,7 @@ func TestCSRFMiddleware_NoHeader(t *testing.T) {
 
 	protectedHandler.ServeHTTP(rec, req)
 
-	// CSRFトークンヘッダーがないので403
+	// Return 403 because CSRF token header is missing
 	if rec.Code != http.StatusForbidden {
 		t.Errorf("expected status %d, got %d", http.StatusForbidden, rec.Code)
 	}
@@ -351,7 +351,7 @@ func TestCSRFMiddleware_NoHeader(t *testing.T) {
 }
 
 func TestCSRFMiddleware_TokenMismatch(t *testing.T) {
-	// CSRFトークンが一致しない場合は403
+	// Return 403 when CSRF tokens do not match
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("handler should not be called when CSRF tokens mismatch")
 		w.WriteHeader(http.StatusOK)
@@ -360,7 +360,7 @@ func TestCSRFMiddleware_TokenMismatch(t *testing.T) {
 	middleware := CSRFMiddleware()
 	protectedHandler := middleware(handler)
 
-	// CookieとヘッダーのCSRFトークンが異なる
+	// CSRF tokens in cookie and header are different
 	req := httptest.NewRequest(http.MethodPost, "/api/posts", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  csrfCookieName,
@@ -371,7 +371,7 @@ func TestCSRFMiddleware_TokenMismatch(t *testing.T) {
 
 	protectedHandler.ServeHTTP(rec, req)
 
-	// CSRFトークンが一致しないので403
+	// Return 403 because CSRF tokens do not match
 	if rec.Code != http.StatusForbidden {
 		t.Errorf("expected status %d, got %d", http.StatusForbidden, rec.Code)
 	}
@@ -383,7 +383,7 @@ func TestCSRFMiddleware_TokenMismatch(t *testing.T) {
 }
 
 func TestCSRFMiddleware_PutRequest(t *testing.T) {
-	// PUT、DELETE、PATCHリクエストもCSRFチェックが必要
+	// PUT, DELETE, PATCH requests also require CSRF check
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
@@ -423,7 +423,7 @@ func TestCSRFMiddleware_PutRequest(t *testing.T) {
 }
 
 func TestGenerateCSRFToken(t *testing.T) {
-	// CSRFトークン生成のテスト
+	// Test CSRF token generation
 	token1, err := generateCSRFToken()
 	if err != nil {
 		t.Fatalf("failed to generate CSRF token: %v", err)
@@ -433,7 +433,7 @@ func TestGenerateCSRFToken(t *testing.T) {
 		t.Error("expected non-empty CSRF token")
 	}
 
-	// 2回目の生成で異なるトークンが生成されることを確認
+	// Verify that a different token is generated on the second call
 	token2, err := generateCSRFToken()
 	if err != nil {
 		t.Fatalf("failed to generate CSRF token: %v", err)

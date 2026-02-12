@@ -16,71 +16,71 @@ import (
 )
 
 var (
-	// ErrInvalidCredentials は認証情報が不正な場合のエラーです
+	// ErrInvalidCredentials is an error returned when authentication credentials are invalid
 	ErrInvalidCredentials = errors.New("invalid username or password")
-	// ErrUserNotFound はユーザーが見つからない場合のエラーです
+	// ErrUserNotFound is an error returned when a user is not found
 	ErrUserNotFound = errors.New("user not found")
-	// ErrUsernameAlreadyExists はユーザー名が既に存在する場合のエラーです
+	// ErrUsernameAlreadyExists is an error returned when a username already exists
 	ErrUsernameAlreadyExists = errors.New("username already exists")
-	// ErrWeakPassword はパスワードが弱い場合のエラーです
+	// ErrWeakPassword is an error returned when a password is too weak
 	ErrWeakPassword = errors.New("password does not meet security requirements")
 )
 
-// AuthService は認証に関するビジネスロジックを提供するインターフェースです
+// AuthService is an interface that provides business logic for authentication
 type AuthService interface {
-	// Login はユーザー名とパスワードで認証し、セッションIDを返します
-	// ipAddress はブルートフォース対策のために使用されます
+	// Login authenticates with username and password, and returns a session ID
+	// ipAddress is used for brute force protection
 	Login(username, password, ipAddress string) (string, error)
 
-	// Logout はセッションを削除します
+	// Logout deletes a session
 	Logout(sessionID string) error
 
-	// GetUserBySession はセッションIDからユーザー情報を取得します
+	// GetUserBySession retrieves user information from a session ID
 	GetUserBySession(sessionID string) (*domain.User, error)
 
-	// CreateUser は新しいユーザーを作成します
+	// CreateUser creates a new user
 	CreateUser(username, password string) (*domain.User, error)
 }
 
-// loginAttempt はログイン失敗の試行情報を保持します
+// loginAttempt holds information about failed login attempts
 type loginAttempt struct {
-	failCount  int       // 失敗回数
-	lastFailed time.Time // 最後の失敗時刻
+	failCount  int       // number of failures
+	lastFailed time.Time // time of the last failure
 }
 
-// authService はAuthServiceの実装です
+// authService is an implementation of AuthService
 type authService struct {
 	userRepo       repo.UserRepository
 	sessionStore   auth.SessionStore
 	sessionTTL     time.Duration
 	passwordPolicy config.PasswordPolicy
-	// ブルートフォース対策
-	loginAttempts map[string]*loginAttempt // IPアドレスごとの失敗情報
-	attemptsMutex sync.RWMutex             // loginAttemptsへのアクセス制御
+	// Brute force protection
+	loginAttempts map[string]*loginAttempt // failure information per IP address
+	attemptsMutex sync.RWMutex             // access control for loginAttempts
 }
 
-// NewAuthService は新しいAuthServiceを作成します
+// NewAuthService creates a new AuthService
 func NewAuthService(userRepo repo.UserRepository, sessionStore auth.SessionStore, passwordPolicy config.PasswordPolicy) AuthService {
 	s := &authService{
 		userRepo:       userRepo,
 		sessionStore:   sessionStore,
-		sessionTTL:     24 * time.Hour, // セッション有効期限: 24時間
+		sessionTTL:     24 * time.Hour, // session expiration: 24 hours
 		passwordPolicy: passwordPolicy,
 		loginAttempts:  make(map[string]*loginAttempt),
 	}
 
-	// 古いログイン失敗記録を定期的にクリーンアップ
+	// Periodically clean up old login failure records
 	go s.cleanupLoginAttempts()
 
 	return s
 }
 
-// Login はユーザー名とパスワードで認証し、セッションIDを返します
+// Login authenticates with username and password, and returns a session ID
 func (s *authService) Login(username, password, ipAddress string) (string, error) {
-	// ブルートフォース対策: 失敗回数に基づく遅延
+	// Brute force protection: delay based on failure count
 	s.applyLoginDelay(ipAddress)
 
-	// ユーザー名でユーザーを検索
+	// Search for user by username
 	user, err := s.userRepo.FindByUsername(username)
 	if err != nil {
 		return "", fmt.Errorf("failed to find user: %w", err)
@@ -90,16 +90,16 @@ func (s *authService) Login(username, password, ipAddress string) (string, error
 		return "", ErrInvalidCredentials
 	}
 
-	// パスワードを検証
+	// Verify password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
 		s.recordLoginFailure(ipAddress)
 		return "", ErrInvalidCredentials
 	}
 
-	// ログイン成功: 失敗カウントをリセット
+	// Login successful: reset failure count
 	s.resetLoginAttempts(ipAddress)
 
-	// セッションを作成
+	// Create session
 	sessionID, err := s.sessionStore.Create(user.ID, s.sessionTTL)
 	if err != nil {
 		return "", fmt.Errorf("failed to create session: %w", err)
@@ -108,14 +108,14 @@ func (s *authService) Login(username, password, ipAddress string) (string, error
 	return sessionID, nil
 }
 
-// Logout はセッションを削除します
+// Logout deletes a session
 func (s *authService) Logout(sessionID string) error {
 	return s.sessionStore.Delete(sessionID)
 }
 
-// GetUserBySession はセッションIDからユーザー情報を取得します
+// GetUserBySession retrieves user information from a session ID
 func (s *authService) GetUserBySession(sessionID string) (*domain.User, error) {
-	// セッションを取得
+	// Get session
 	session, err := s.sessionStore.Get(sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get session: %w", err)
@@ -124,7 +124,7 @@ func (s *authService) GetUserBySession(sessionID string) (*domain.User, error) {
 		return nil, nil
 	}
 
-	// ユーザー情報を取得
+	// Get user information
 	user, err := s.userRepo.FindByID(session.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find user: %w", err)
@@ -136,9 +136,9 @@ func (s *authService) GetUserBySession(sessionID string) (*domain.User, error) {
 	return user, nil
 }
 
-// CreateUser は新しいユーザーを作成します
+// CreateUser creates a new user
 func (s *authService) CreateUser(username, password string) (*domain.User, error) {
-	// ユーザー名の重複チェック
+	// Check for username duplication
 	existing, err := s.userRepo.FindByUsername(username)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check username: %w", err)
@@ -147,18 +147,18 @@ func (s *authService) CreateUser(username, password string) (*domain.User, error
 		return nil, ErrUsernameAlreadyExists
 	}
 
-	// パスワードポリシーに基づくバリデーション
+	// Validation based on password policy
 	if err := s.validatePassword(password); err != nil {
 		return nil, err
 	}
 
-	// パスワードをハッシュ化
+	// Hash the password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// ユーザーを作成
+	// Create user
 	now := time.Now()
 	user := &domain.User{
 		Username:     username,
@@ -174,26 +174,26 @@ func (s *authService) CreateUser(username, password string) (*domain.User, error
 	return user, nil
 }
 
-// validatePassword はパスワードポリシーに基づいてパスワードを検証します
+// validatePassword validates a password based on the password policy
 func (s *authService) validatePassword(password string) error {
 	switch s.passwordPolicy {
 	case config.PasswordPolicyNone:
-		// 制限なし
+		// No restrictions
 		return nil
 	case config.PasswordPolicyStrong:
 		return s.validateStrongPassword(password)
 	default:
-		// 不明なポリシーの場合はNONEとして扱う
+		// Treat unknown policies as NONE
 		return nil
 	}
 }
 
-// validateStrongPassword は厳格なパスワードポリシーを検証します
-// - 最小15文字
-// - 大文字を1文字以上含む
-// - 小文字を1文字以上含む
-// - 数字を1文字以上含む
-// - 記号を1文字以上含む
+// validateStrongPassword validates a strict password policy
+// - Minimum 15 characters
+// - At least one uppercase letter
+// - At least one lowercase letter
+// - At least one digit
+// - At least one symbol
 func (s *authService) validateStrongPassword(password string) error {
 	if len(password) < 15 {
 		return fmt.Errorf("%w: password must be at least 15 characters", ErrWeakPassword)
@@ -240,7 +240,7 @@ func (s *authService) validateStrongPassword(password string) error {
 	return nil
 }
 
-// applyLoginDelay はログイン失敗回数に基づいて遅延を適用します
+// applyLoginDelay applies a delay based on the number of login failures
 func (s *authService) applyLoginDelay(ipAddress string) {
 	if ipAddress == "" {
 		return
@@ -254,7 +254,7 @@ func (s *authService) applyLoginDelay(ipAddress string) {
 		return
 	}
 
-	// 失敗回数に応じた遅延
+	// Delay based on failure count
 	var delay time.Duration
 	switch {
 	case attempt.failCount >= 10:
@@ -270,7 +270,7 @@ func (s *authService) applyLoginDelay(ipAddress string) {
 	}
 }
 
-// recordLoginFailure はログイン失敗を記録します
+// recordLoginFailure records a login failure
 func (s *authService) recordLoginFailure(ipAddress string) {
 	if ipAddress == "" {
 		return
@@ -291,7 +291,7 @@ func (s *authService) recordLoginFailure(ipAddress string) {
 	}
 }
 
-// resetLoginAttempts はログイン成功時に失敗カウントをリセットします
+// resetLoginAttempts resets the failure count on successful login
 func (s *authService) resetLoginAttempts(ipAddress string) {
 	if ipAddress == "" {
 		return
@@ -303,7 +303,7 @@ func (s *authService) resetLoginAttempts(ipAddress string) {
 	delete(s.loginAttempts, ipAddress)
 }
 
-// cleanupLoginAttempts は古いログイン失敗記録を定期的にクリーンアップします
+// cleanupLoginAttempts periodically cleans up old login failure records
 func (s *authService) cleanupLoginAttempts() {
 	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
@@ -312,7 +312,7 @@ func (s *authService) cleanupLoginAttempts() {
 		s.attemptsMutex.Lock()
 		now := time.Now()
 		for ip, attempt := range s.loginAttempts {
-			// 最後の失敗から30分経過したら削除
+			// Delete if 30 minutes have passed since the last failure
 			if now.Sub(attempt.lastFailed) > 30*time.Minute {
 				delete(s.loginAttempts, ip)
 			}

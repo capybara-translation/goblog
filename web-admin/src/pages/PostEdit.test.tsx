@@ -7,7 +7,7 @@ import { ModalProvider } from '../hooks/useModal'
 import { apiClient } from '../api/client'
 import type { Post } from '../api/client'
 
-// apiClient をモック
+// Mock apiClient
 vi.mock('../api/client', () => ({
   apiClient: {
     getPost: vi.fn(),
@@ -20,7 +20,7 @@ vi.mock('../api/client', () => ({
   },
 }))
 
-// React Router のナビゲーションをモック
+// Mock React Router navigation
 const mockNavigate = vi.fn()
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom')
@@ -59,7 +59,7 @@ describe('PostEdit', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    // TagInputコンポーネント用のモック
+    // Mock for TagInput component
     vi.mocked(apiClient.getTags).mockResolvedValue([
       { name: 'Go', count: 5 },
       { name: 'React', count: 3 },
@@ -78,7 +78,7 @@ describe('PostEdit', () => {
         </ModalProvider>
       </MemoryRouter>
     )
-    // TagInput の getTags 呼び出し完了を待つ
+    // Wait for TagInput's getTags call to complete
     await waitFor(() => {
       expect(apiClient.getTags).toHaveBeenCalled()
     })
@@ -96,7 +96,7 @@ describe('PostEdit', () => {
         </ModalProvider>
       </MemoryRouter>
     )
-    // TagInput の getTags 呼び出し完了を待つ
+    // Wait for TagInput's getTags call to complete
     await waitFor(() => {
       expect(apiClient.getTags).toHaveBeenCalled()
     })
@@ -113,9 +113,9 @@ describe('PostEdit', () => {
       await renderCreateMode()
       expect(screen.getByLabelText(/Title/)).toHaveValue('')
       expect(screen.getByLabelText(/Slug/)).toHaveValue('')
-      // TagInputコンポーネントはlabel関連付けが異なるため、ラベル表示のみ確認
+      // TagInput component has different label association, so only verify label display
       expect(screen.getByText('Tags')).toBeInTheDocument()
-      // MarkdownEditor コンポーネントはlabel関連付けが異なるため、ラベル表示のみ確認
+      // MarkdownEditor component has different label association, so only verify label display
       expect(screen.getByText('Content (Markdown)')).toBeInTheDocument()
     })
 
@@ -168,10 +168,10 @@ describe('PostEdit', () => {
       })
 
       expect(screen.getByLabelText(/Slug/)).toHaveValue('draft-post')
-      // TagInputコンポーネントはTagsをチップで表示
+      // TagInput component displays tags as chips
       expect(screen.getByText('Go')).toBeInTheDocument()
       expect(screen.getByText('Testing')).toBeInTheDocument()
-      // MarkdownEditorのtextareaは直接取得できないため、APIコールを確認
+      // MarkdownEditor's textarea cannot be accessed directly, so verify API call
       expect(apiClient.getPost).toHaveBeenCalledWith(1)
     })
 
@@ -235,7 +235,7 @@ describe('PostEdit', () => {
       })
 
       expect(screen.getByText('Updated:')).toBeInTheDocument()
-      // published_at が null の場合は公開日を表示しない
+      // Don't display published date when published_at is null
       expect(screen.queryByText('Published:')).not.toBeInTheDocument()
     })
 
@@ -262,7 +262,7 @@ describe('PostEdit', () => {
         expect(screen.getByText('Created:')).toBeInTheDocument()
       })
 
-      // ISO 8601形式（yyyy-MM-dd HH:mm:ss）で表示されることを確認
+      // Verify displayed in ISO 8601 format (yyyy-MM-dd HH:mm:ss)
       const datePattern = /\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/
       const metadataSection = screen.getByText('Created:').closest('div')?.parentElement
       expect(metadataSection?.textContent).toMatch(datePattern)
@@ -302,12 +302,12 @@ describe('PostEdit', () => {
       const user = userEvent.setup()
       await renderCreateMode()
 
-      // TagInputコンポーネントのinputを取得
+      // Get TagInput component's input
       const tagsInput = screen.getByLabelText('Tag input')
-      // Tagsを入力してカンマで区切ると追加される
+      // Tags are added when separated by comma
       await user.type(tagsInput, 'NewTag,')
 
-      // 追加されたTagsがチップとして表示される
+      // Added tags are displayed as chips
       await waitFor(() => {
         expect(screen.getByText('NewTag')).toBeInTheDocument()
       })
@@ -315,9 +315,9 @@ describe('PostEdit', () => {
 
     it('should render markdown editor', async () => {
       await renderCreateMode()
-      // MarkdownEditorコンポーネントがレンダリングされていることを確認
+      // Verify MarkdownEditor component is rendered
       expect(screen.getByText('Content (Markdown)')).toBeInTheDocument()
-      // MDEditorはツールバーを表示する
+      // MDEditor displays toolbar
       expect(screen.getByRole('button', { name: /bold/i })).toBeInTheDocument()
     })
   })
@@ -355,9 +355,9 @@ describe('PostEdit', () => {
 
       await user.type(screen.getByLabelText(/Title/), 'New Post')
       await user.type(screen.getByLabelText(/Slug/), 'new-post')
-      // TagInputでTagsを追加（カンマで区切って追加）
+      // Add tags via TagInput (separated by comma)
       await user.type(screen.getByLabelText('Tag input'), 'React,')
-      // MarkdownEditorはlabel関連付けが異なるため、content入力はスキップ
+      // Skip content input since MarkdownEditor has different label association
       await user.click(screen.getByRole('button', { name: 'Save' }))
 
       await waitFor(() => {
@@ -370,11 +370,11 @@ describe('PostEdit', () => {
         })
       })
 
-      // モーダルが表示されることを確認
+      // Verify modal is displayed
       await waitFor(() => {
         expect(screen.getByText('Post created')).toBeInTheDocument()
       })
-      // OKをクリックしてモーダルを閉じる
+      // Click OK to close modal
       await user.click(screen.getByRole('button', { name: 'OK' }))
 
       await waitFor(() => {
@@ -398,7 +398,7 @@ describe('PostEdit', () => {
         expect(screen.getByText('Slug already exists')).toBeInTheDocument()
       })
 
-      // エラー時はモーダルが表示されない
+      // Modal should not be displayed on error
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
       expect(mockNavigate).not.toHaveBeenCalled()
     })
@@ -427,20 +427,20 @@ describe('PostEdit', () => {
         expect(titleInput).toBeDisabled()
         expect(slugInput).toBeDisabled()
         expect(tagsInput).toBeDisabled()
-        // MarkdownEditorのdisabled状態はコンポーネント内部で管理されるため、
-        // ボタンのdisabled状態のみ確認
+        // MarkdownEditor's disabled state is managed internally,
+        // so only verify button's disabled state
         expect(saveButton).toBeDisabled()
         expect(screen.getByRole('button', { name: 'Saving...' })).toBeInTheDocument()
       })
 
       resolveCreate!(mockDraftPost)
 
-      // モーダルが表示されることを確認
+      // Verify modal is displayed
       await waitFor(() => {
         expect(screen.getByText('Post created')).toBeInTheDocument()
       })
 
-      // OKをクリックしてモーダルを閉じる
+      // Click OK to close modal
       await user.click(screen.getByRole('button', { name: 'OK' }))
 
       await waitFor(() => {
@@ -479,11 +479,11 @@ describe('PostEdit', () => {
         })
       })
 
-      // モーダルが表示されることを確認
+      // Verify modal is displayed
       await waitFor(() => {
         expect(screen.getByText('Post updated')).toBeInTheDocument()
       })
-      // OKをクリックしてモーダルを閉じる
+      // Click OK to close modal
       await user.click(screen.getByRole('button', { name: 'OK' }))
 
       expect(mockNavigate).not.toHaveBeenCalled()
@@ -508,7 +508,7 @@ describe('PostEdit', () => {
         expect(screen.getByText('Failed to update')).toBeInTheDocument()
       })
 
-      // エラー時はモーダルが表示されない
+      // Modal should not be displayed on error
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
   })
@@ -534,11 +534,11 @@ describe('PostEdit', () => {
         expect(apiClient.publishPost).toHaveBeenCalledWith(1)
       })
 
-      // モーダルが表示されることを確認
+      // Verify modal is displayed
       await waitFor(() => {
         expect(screen.getByText('Post published')).toBeInTheDocument()
       })
-      // OKをクリックしてモーダルを閉じる
+      // Click OK to close modal
       await user.click(screen.getByRole('button', { name: 'OK' }))
     })
 
@@ -561,7 +561,7 @@ describe('PostEdit', () => {
         expect(screen.getByText('Failed to publish')).toBeInTheDocument()
       })
 
-      // エラー時はモーダルが表示されない
+      // Modal should not be displayed on error
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
 
@@ -610,11 +610,11 @@ describe('PostEdit', () => {
         expect(apiClient.unpublishPost).toHaveBeenCalledWith(2)
       })
 
-      // モーダルが表示されることを確認
+      // Verify modal is displayed
       await waitFor(() => {
         expect(screen.getByText('Post unpublished')).toBeInTheDocument()
       })
-      // OKをクリックしてモーダルを閉じる
+      // Click OK to close modal
       await user.click(screen.getByRole('button', { name: 'OK' }))
     })
 
@@ -637,7 +637,7 @@ describe('PostEdit', () => {
         expect(screen.getByText('Failed to unpublish')).toBeInTheDocument()
       })
 
-      // エラー時はモーダルが表示されない
+      // Modal should not be displayed on error
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
   })
@@ -655,13 +655,13 @@ describe('PostEdit', () => {
 
       await user.click(screen.getByRole('button', { name: 'Delete' }))
 
-      // 確認ダイアログが表示されることを確認
+      // Verify confirmation dialog is displayed
       await waitFor(() => {
         expect(screen.getByText('Are you sure you want to delete this post? This action cannot be undone.')).toBeInTheDocument()
         expect(screen.getByText('Delete Post')).toBeInTheDocument()
       })
 
-      // Cancelをクリック
+      // Click Cancel
       await user.click(screen.getByRole('button', { name: 'Cancel' }))
 
       expect(apiClient.deletePost).not.toHaveBeenCalled()
@@ -680,12 +680,12 @@ describe('PostEdit', () => {
 
       await user.click(screen.getByRole('button', { name: 'Delete' }))
 
-      // 確認ダイアログが表示されることを確認
+      // Verify confirmation dialog is displayed
       await waitFor(() => {
         expect(screen.getByText('Are you sure you want to delete this post? This action cannot be undone.')).toBeInTheDocument()
       })
 
-      // Deleteボタン（確認ダイアログ内）をクリック
+      // Click Delete button (inside confirmation dialog)
       const dialogDeleteButton = screen.getByRole('dialog').querySelector('button.bg-red-600')
       await user.click(dialogDeleteButton!)
 
@@ -693,11 +693,11 @@ describe('PostEdit', () => {
         expect(apiClient.deletePost).toHaveBeenCalledWith(1)
       })
 
-      // Delete完了モーダルが表示される
+      // Delete completion modal is displayed
       await waitFor(() => {
         expect(screen.getByText('Post deleted')).toBeInTheDocument()
       })
-      // OKをクリックしてモーダルを閉じる
+      // Click OK to close modal
       await user.click(screen.getByRole('button', { name: 'OK' }))
 
       await waitFor(() => {
@@ -720,12 +720,12 @@ describe('PostEdit', () => {
 
       await user.click(screen.getByRole('button', { name: 'Delete' }))
 
-      // 確認ダイアログが表示されることを確認
+      // Verify confirmation dialog is displayed
       await waitFor(() => {
         expect(screen.getByText('Are you sure you want to delete this post? This action cannot be undone.')).toBeInTheDocument()
       })
 
-      // Deleteボタン（確認ダイアログ内）をクリック
+      // Click Delete button (inside confirmation dialog)
       const dialogDeleteButton = screen.getByRole('dialog').querySelector('button.bg-red-600')
       await user.click(dialogDeleteButton!)
 

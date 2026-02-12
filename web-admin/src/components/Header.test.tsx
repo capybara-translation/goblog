@@ -5,12 +5,12 @@ import { MemoryRouter } from 'react-router-dom'
 import { Header } from './Header'
 import { useAuth } from '../hooks/useAuth'
 
-// useAuth をモック
+// Mock useAuth
 vi.mock('../hooks/useAuth', () => ({
   useAuth: vi.fn(),
 }))
 
-// React Router のナビゲーションをモック
+// Mock React Router navigation
 const mockNavigate = vi.fn()
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom')

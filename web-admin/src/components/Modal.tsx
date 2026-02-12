@@ -10,12 +10,12 @@ interface ModalProps {
 }
 
 /**
- * 汎用モーダルダイアログコンポーネント
- * - オーバーレイ（背景暗転）
- * - 中央配置のダイアログボックス
- * - Escapeキーで閉じる（オプション）
- * - オーバーレイクリックで閉じる（オプション）
- * - フォーカストラップ
+ * Generic modal dialog component
+ * - Overlay (dimmed background)
+ * - Centered dialog box
+ * - Close on Escape key (optional)
+ * - Close on overlay click (optional)
+ * - Focus trap
  */
 export function Modal({
   isOpen,
@@ -28,7 +28,7 @@ export function Modal({
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
 
-  // Escapeキーで閉じる
+  // Close on Escape key
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (closeOnEscape && e.key === 'Escape') {
@@ -38,11 +38,11 @@ export function Modal({
     [closeOnEscape, onClose]
   );
 
-  // モーダルが開いた時にフォーカスを移動、閉じた時に元に戻す
+  // Move focus when modal opens, restore when it closes
   useEffect(() => {
     if (isOpen) {
       previousActiveElement.current = document.activeElement as HTMLElement;
-      // モーダル内の最初のフォーカス可能な要素にフォーカス
+      // Focus the first focusable element inside the modal
       const focusableElements = dialogRef.current?.querySelectorAll<HTMLElement>(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
       );
@@ -50,12 +50,12 @@ export function Modal({
         focusableElements[0]?.focus();
       }
     } else {
-      // モーダルが閉じた時に元のフォーカスに戻す
+      // Restore focus when modal closes
       previousActiveElement.current?.focus();
     }
   }, [isOpen]);
 
-  // キーボードイベントリスナー
+  // Keyboard event listener
   useEffect(() => {
     if (isOpen) {
       document.addEventListener('keydown', handleKeyDown);
@@ -63,7 +63,7 @@ export function Modal({
     }
   }, [isOpen, handleKeyDown]);
 
-  // スクロール禁止
+  // Disable scrolling
   useEffect(() => {
     if (isOpen) {
       const originalOverflow = document.body.style.overflow;
@@ -74,7 +74,7 @@ export function Modal({
     }
   }, [isOpen]);
 
-  // オーバーレイクリック
+  // Overlay click handler
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (closeOnOverlayClick && e.target === e.currentTarget) {
       onClose();

@@ -11,38 +11,38 @@ import (
 	"github.com/capybara-translation/goblog/internal/service"
 )
 
-// contextKey はコンテキストのキーを表す型です
+// contextKey is a type representing context keys
 type contextKey string
 
 const (
-	// contextKeyUserID はコンテキストに格納するユーザーIDのキーです
+	// contextKeyUserID is the key for storing user ID in context
 	contextKeyUserID contextKey = "user_id"
 
-	// csrfCookieName はCSRFトークンを格納するCookieの名前です
+	// csrfCookieName is the name of the cookie that stores the CSRF token
 	csrfCookieName = "csrf_token"
 
-	// csrfHeaderName はCSRFトークンを含むHTTPヘッダーの名前です
+	// csrfHeaderName is the name of the HTTP header containing the CSRF token
 	csrfHeaderName = "X-CSRF-Token"
 
-	// csrfTokenLength はCSRFトークンのバイト長です
+	// csrfTokenLength is the byte length of the CSRF token
 	csrfTokenLength = 32
 )
 
-// AuthMiddleware は認証が必要なエンドポイントを保護するミドルウェアです
+// AuthMiddleware is a middleware that protects endpoints requiring authentication
 func AuthMiddleware(authService service.AuthService) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Cookieからセッション IDを取得
+			// Get session ID from cookie
 			cookie, err := r.Cookie(sessionCookieName)
 			if err != nil {
 				respondJSON(w, http.StatusUnauthorized, ErrorResponse{Error: "Authentication required"})
 				return
 			}
 
-			// セッションからユーザー情報を取得
+			// Get user information from session
 			user, err := authService.GetUserBySession(cookie.Value)
 			if err != nil {
-				// ユーザーが削除された場合は401を返す
+				// Return 401 if user was deleted
 				if errors.Is(err, service.ErrUserNotFound) {
 					respondJSON(w, http.StatusUnauthorized, ErrorResponse{Error: "Session expired or invalid"})
 					return
@@ -57,20 +57,20 @@ func AuthMiddleware(authService service.AuthService) func(http.Handler) http.Han
 				return
 			}
 
-			// ユーザーIDをコンテキストに設定
+			// Set user ID in context
 			ctx := context.WithValue(r.Context(), contextKeyUserID, user.ID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
 
-// GetUserIDFromContext はコンテキストからユーザーIDを取得します
+// GetUserIDFromContext retrieves the user ID from context
 func GetUserIDFromContext(ctx context.Context) (int64, bool) {
 	userID, ok := ctx.Value(contextKeyUserID).(int64)
 	return userID, ok
 }
 
-// generateCSRFToken はランダムなCSRFトークンを生成します
+// generateCSRFToken generates a random CSRF token
 func generateCSRFToken() (string, error) {
 	b := make([]byte, csrfTokenLength)
 	if _, err := rand.Read(b); err != nil {
@@ -79,32 +79,32 @@ func generateCSRFToken() (string, error) {
 	return base64.URLEncoding.EncodeToString(b), nil
 }
 
-// CSRFMiddleware はCSRF攻撃を防ぐミドルウェアです（Double Submit Cookie方式）
-// 状態変更を伴うメソッド（POST、PUT、DELETE、PATCH）に対してCSRFトークンを検証します
+// CSRFMiddleware is a middleware that prevents CSRF attacks (Double Submit Cookie method)
+// Validates CSRF token for state-changing methods (POST, PUT, DELETE, PATCH)
 func CSRFMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// GETとHEADメソッドはCSRFチェックをスキップ（冪等性が保証されている）
+			// Skip CSRF check for GET and HEAD methods (idempotent operations)
 			if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			// CookieからCSRFトークンを取得
+			// Get CSRF token from cookie
 			cookie, err := r.Cookie(csrfCookieName)
 			if err != nil {
 				respondJSON(w, http.StatusForbidden, ErrorResponse{Error: "CSRF token cookie missing"})
 				return
 			}
 
-			// HTTPヘッダーからCSRFトークンを取得
+			// Get CSRF token from HTTP header
 			headerToken := r.Header.Get(csrfHeaderName)
 			if headerToken == "" {
 				respondJSON(w, http.StatusForbidden, ErrorResponse{Error: "CSRF token header missing"})
 				return
 			}
 
-			// Cookieとヘッダーのトークンを比較
+			// Compare cookie and header tokens
 			if cookie.Value != headerToken {
 				respondJSON(w, http.StatusForbidden, ErrorResponse{Error: "CSRF token mismatch"})
 				return

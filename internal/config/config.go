@@ -6,53 +6,53 @@ import (
 	"strings"
 )
 
-// PasswordPolicy はパスワードポリシーの種類を表します
+// PasswordPolicy represents the type of password policy
 type PasswordPolicy string
 
 const (
-	// PasswordPolicyNone は制限なしのパスワードポリシーです（開発/テスト環境用）
+	// PasswordPolicyNone is the unrestricted password policy (for development/test environments)
 	PasswordPolicyNone PasswordPolicy = "NONE"
-	// PasswordPolicyStrong は厳格なパスワードポリシーです（本番環境用）
+	// PasswordPolicyStrong is the strict password policy (for production environments)
 	PasswordPolicyStrong PasswordPolicy = "STRONG"
 )
 
-// Config はアプリケーション設定を保持します
+// Config holds application settings
 type Config struct {
 	// Server settings
 	Port string
 
 	// Security settings
-	SecureCookie   bool           // HTTPSを使用する場合にtrue
-	PasswordPolicy PasswordPolicy // パスワードポリシー
+	SecureCookie   bool           // true when using HTTPS
+	PasswordPolicy PasswordPolicy // Password policy
 
 	// Database settings
 	DatabasePath string
 
 	// Site settings
-	BlogTitle string // ブログのタイトル
-	BaseURL   string // サイトのベースURL（例: https://example.com）
+	BlogTitle string // Blog title
+	BaseURL   string // Site base URL (e.g., https://example.com)
 
 	// Upload settings
-	UploadDir     string // アップロードファイルの保存先ディレクトリ
-	MaxUploadSize int64  // アップロードファイルの最大サイズ（バイト）
+	UploadDir     string // Directory to save uploaded files
+	MaxUploadSize int64  // Maximum upload file size (bytes)
 }
 
-// デフォルトの最大アップロードサイズ（5MB）
+// Default maximum upload size (5MB)
 const DefaultMaxUploadSize int64 = 5 * 1024 * 1024
 
-// Load は環境変数から設定を読み込みます
+// Load loads configuration from environment variables
 func Load() *Config {
 	port := getEnv("PORT", "8080")
 	baseURL := getEnv("BASE_URL", "")
 	if baseURL == "" {
 		baseURL = "http://localhost:" + port
 	}
-	// 末尾スラッシュを除去
+	// Remove trailing slash
 	baseURL = strings.TrimSuffix(baseURL, "/")
 
 	return &Config{
 		Port:           port,
-		SecureCookie:   getEnvAsBool("SECURE_COOKIE", false), // デフォルト: false（開発環境用）
+		SecureCookie:   getEnvAsBool("SECURE_COOKIE", false), // Default: false (for development)
 		PasswordPolicy: getPasswordPolicy("PASSWORD_POLICY", PasswordPolicyNone),
 		DatabasePath:   getEnv("DATABASE_PATH", "data/goblog.db"),
 		BlogTitle:      getEnv("BLOG_TITLE", "goblog"),
@@ -62,7 +62,7 @@ func Load() *Config {
 	}
 }
 
-// getEnv は環境変数を取得し、存在しない場合はデフォルト値を返します
+// getEnv retrieves an environment variable or returns the default value if not set
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -70,7 +70,7 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
-// getEnvAsBool は環境変数をboolとして取得します
+// getEnvAsBool retrieves an environment variable as a bool
 func getEnvAsBool(key string, defaultValue bool) bool {
 	valStr := os.Getenv(key)
 	if valStr == "" {
@@ -83,7 +83,7 @@ func getEnvAsBool(key string, defaultValue bool) bool {
 	return val
 }
 
-// getEnvAsInt64 は環境変数をint64として取得します
+// getEnvAsInt64 retrieves an environment variable as an int64
 func getEnvAsInt64(key string, defaultValue int64) int64 {
 	valStr := os.Getenv(key)
 	if valStr == "" {
@@ -96,18 +96,18 @@ func getEnvAsInt64(key string, defaultValue int64) int64 {
 	return val
 }
 
-// getPasswordPolicy は環境変数からパスワードポリシーを取得します
-// 大文字小文字を区別しません（none/NONE/None、strong/STRONG/Strong すべて有効）
+// getPasswordPolicy retrieves the password policy from environment variable
+// Case-insensitive (none/NONE/None, strong/STRONG/Strong are all valid)
 func getPasswordPolicy(key string, defaultValue PasswordPolicy) PasswordPolicy {
 	valStr := os.Getenv(key)
 	if valStr == "" {
 		return defaultValue
 	}
-	// 大文字小文字を区別しないように大文字に変換
+	// Convert to uppercase for case-insensitive comparison
 	policy := PasswordPolicy(strings.ToUpper(valStr))
 	if policy == PasswordPolicyNone || policy == PasswordPolicyStrong {
 		return policy
 	}
-	// 不正な値の場合はデフォルト値を返す
+	// Return default value for invalid values
 	return defaultValue
 }

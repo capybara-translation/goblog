@@ -6,12 +6,12 @@ import (
 )
 
 func TestLoad_DefaultValues(t *testing.T) {
-	// 環境変数をクリア
+	// Clear environment variables
 	clearEnv(t)
 
 	cfg := Load()
 
-	// デフォルト値を確認
+	// Verify default values
 	if cfg.Port != "8080" {
 		t.Errorf("expected default Port to be %q, got %q", "8080", cfg.Port)
 	}
@@ -42,10 +42,10 @@ func TestLoad_DefaultValues(t *testing.T) {
 }
 
 func TestLoad_WithEnvironmentVariables(t *testing.T) {
-	// 環境変数をクリア
+	// Clear environment variables
 	clearEnv(t)
 
-	// 環境変数を設定
+	// Set environment variables
 	os.Setenv("PORT", "3000")
 	os.Setenv("SECURE_COOKIE", "true")
 	os.Setenv("PASSWORD_POLICY", "STRONG")
@@ -65,7 +65,7 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 
 	cfg := Load()
 
-	// 環境変数の値を確認
+	// Verify environment variable values
 	if cfg.Port != "3000" {
 		t.Errorf("expected Port to be %q, got %q", "3000", cfg.Port)
 	}
@@ -96,10 +96,10 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 }
 
 func TestLoad_SecureCookieFalse(t *testing.T) {
-	// 環境変数をクリア
+	// Clear environment variables
 	clearEnv(t)
 
-	// SECURE_COOKIE=false を設定
+	// Set SECURE_COOKIE=false
 	os.Setenv("SECURE_COOKIE", "false")
 	t.Cleanup(func() {
 		os.Unsetenv("SECURE_COOKIE")
@@ -113,10 +113,10 @@ func TestLoad_SecureCookieFalse(t *testing.T) {
 }
 
 func TestLoad_SecureCookieInvalidValue(t *testing.T) {
-	// 環境変数をクリア
+	// Clear environment variables
 	clearEnv(t)
 
-	// 無効な値を設定
+	// Set invalid value
 	os.Setenv("SECURE_COOKIE", "invalid")
 	t.Cleanup(func() {
 		os.Unsetenv("SECURE_COOKIE")
@@ -124,17 +124,17 @@ func TestLoad_SecureCookieInvalidValue(t *testing.T) {
 
 	cfg := Load()
 
-	// 無効な値の場合はデフォルト値（false）になることを確認
+	// Verify that invalid value defaults to false
 	if cfg.SecureCookie != false {
 		t.Errorf("expected SecureCookie to be false (default) for invalid value, got %v", cfg.SecureCookie)
 	}
 }
 
 func TestLoad_PartialEnvironmentVariables(t *testing.T) {
-	// 環境変数をクリア
+	// Clear environment variables
 	clearEnv(t)
 
-	// 一部の環境変数のみ設定
+	// Set only some environment variables
 	os.Setenv("PORT", "8000")
 	t.Cleanup(func() {
 		os.Unsetenv("PORT")
@@ -142,12 +142,12 @@ func TestLoad_PartialEnvironmentVariables(t *testing.T) {
 
 	cfg := Load()
 
-	// 設定された環境変数
+	// Configured environment variable
 	if cfg.Port != "8000" {
 		t.Errorf("expected Port to be %q, got %q", "8000", cfg.Port)
 	}
 
-	// 未設定の環境変数はデフォルト値
+	// Unset environment variables use default values
 	if cfg.SecureCookie != false {
 		t.Errorf("expected default SecureCookie to be false, got %v", cfg.SecureCookie)
 	}
@@ -166,14 +166,14 @@ func TestGetEnv(t *testing.T) {
 		expected     string
 	}{
 		{
-			name:         "環境変数が設定されている",
+			name:         "Environment variable is set",
 			key:          "TEST_KEY",
 			defaultValue: "default",
 			envValue:     "custom",
 			expected:     "custom",
 		},
 		{
-			name:         "環境変数が設定されていない",
+			name:         "Environment variable is not set",
 			key:          "TEST_KEY",
 			defaultValue: "default",
 			envValue:     "",
@@ -235,14 +235,14 @@ func TestGetEnvAsBool(t *testing.T) {
 			expected:     false,
 		},
 		{
-			name:         "環境変数が設定されていない",
+			name:         "Environment variable is not set",
 			key:          "TEST_BOOL",
 			defaultValue: true,
 			envValue:     "",
 			expected:     true,
 		},
 		{
-			name:         "無効な値（デフォルトを返す）",
+			name:         "Invalid value (returns default)",
 			key:          "TEST_BOOL",
 			defaultValue: false,
 			envValue:     "invalid",
@@ -292,42 +292,42 @@ func TestGetPasswordPolicy(t *testing.T) {
 			expected:     PasswordPolicyStrong,
 		},
 		{
-			name:         "環境変数が設定されていない",
+			name:         "Environment variable is not set",
 			key:          "TEST_PASSWORD_POLICY",
 			defaultValue: PasswordPolicyNone,
 			envValue:     "",
 			expected:     PasswordPolicyNone,
 		},
 		{
-			name:         "無効な値（デフォルトを返す）",
+			name:         "Invalid value (returns default)",
 			key:          "TEST_PASSWORD_POLICY",
 			defaultValue: PasswordPolicyNone,
 			envValue:     "INVALID",
 			expected:     PasswordPolicyNone,
 		},
 		{
-			name:         "小文字のnone",
+			name:         "Lowercase none",
 			key:          "TEST_PASSWORD_POLICY",
 			defaultValue: PasswordPolicyStrong,
 			envValue:     "none",
 			expected:     PasswordPolicyNone,
 		},
 		{
-			name:         "小文字のstrong",
+			name:         "Lowercase strong",
 			key:          "TEST_PASSWORD_POLICY",
 			defaultValue: PasswordPolicyNone,
 			envValue:     "strong",
 			expected:     PasswordPolicyStrong,
 		},
 		{
-			name:         "混在ケース：None",
+			name:         "Mixed case: None",
 			key:          "TEST_PASSWORD_POLICY",
 			defaultValue: PasswordPolicyStrong,
 			envValue:     "None",
 			expected:     PasswordPolicyNone,
 		},
 		{
-			name:         "混在ケース：Strong",
+			name:         "Mixed case: Strong",
 			key:          "TEST_PASSWORD_POLICY",
 			defaultValue: PasswordPolicyNone,
 			envValue:     "Strong",
@@ -363,28 +363,28 @@ func TestGetEnvAsInt64(t *testing.T) {
 		expected     int64
 	}{
 		{
-			name:         "有効な数値",
+			name:         "Valid number",
 			key:          "TEST_INT64",
 			defaultValue: 100,
 			envValue:     "500",
 			expected:     500,
 		},
 		{
-			name:         "環境変数が設定されていない",
+			name:         "Environment variable is not set",
 			key:          "TEST_INT64",
 			defaultValue: 100,
 			envValue:     "",
 			expected:     100,
 		},
 		{
-			name:         "無効な値（デフォルトを返す）",
+			name:         "Invalid value (returns default)",
 			key:          "TEST_INT64",
 			defaultValue: 100,
 			envValue:     "invalid",
 			expected:     100,
 		},
 		{
-			name:         "大きな数値",
+			name:         "Large number",
 			key:          "TEST_INT64",
 			defaultValue: 0,
 			envValue:     "10485760", // 10MB
@@ -411,7 +411,7 @@ func TestGetEnvAsInt64(t *testing.T) {
 	}
 }
 
-// clearEnv はテスト用の環境変数をクリアします
+// clearEnv clears environment variables for testing
 func clearEnv(t *testing.T) {
 	t.Helper()
 	os.Unsetenv("PORT")

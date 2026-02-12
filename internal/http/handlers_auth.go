@@ -15,13 +15,13 @@ const (
 	sessionCookiePath = "/"
 )
 
-// AuthHandlers は認証関連のHTTPハンドラーをまとめた構造体です
+// AuthHandlers is a struct that groups authentication-related HTTP handlers
 type AuthHandlers struct {
 	authService  service.AuthService
-	secureCookie bool // Cookieのsecure属性（HTTPS必須）
+	secureCookie bool // Cookie secure attribute (requires HTTPS)
 }
 
-// NewAuthHandlers は新しいAuthHandlersを作成します
+// NewAuthHandlers creates a new AuthHandlers
 func NewAuthHandlers(authService service.AuthService, secureCookie bool) *AuthHandlers {
 	return &AuthHandlers{
 		authService:  authService,
@@ -29,13 +29,13 @@ func NewAuthHandlers(authService service.AuthService, secureCookie bool) *AuthHa
 	}
 }
 
-// LoginRequest はログインリクエストのボディです
+// LoginRequest is the request body for login
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
-// HandleLogin はログイン処理を行います
+// HandleLogin handles the login process
 func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -43,16 +43,16 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// バリデーション
+	// Validation
 	if req.Username == "" || req.Password == "" {
 		respondJSON(w, http.StatusBadRequest, ErrorResponse{Error: "Username and password are required"})
 		return
 	}
 
-	// クライアントのIPアドレスを取得（ブルートフォース対策用）
+	// Get client IP address (for brute force protection)
 	ipAddress := getClientIP(r)
 
-	// 認証
+	// Authentication
 	sessionID, err := h.authService.Login(req.Username, req.Password, ipAddress)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) {
@@ -64,10 +64,10 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// セッションからユーザー情報を取得
+	// Get user information from session
 	user, err := h.authService.GetUserBySession(sessionID)
 	if err != nil {
-		// ユーザーが削除された場合は認証失敗として扱う
+		// Treat as authentication failure if user was deleted
 		if errors.Is(err, service.ErrUserNotFound) {
 			respondJSON(w, http.StatusUnauthorized, ErrorResponse{Error: "Authentication failed"})
 			return
@@ -82,18 +82,18 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cookieにセッション IDを設定
+	// Set session ID in cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    sessionID,
 		Path:     sessionCookiePath,
-		HttpOnly: true,                 // JavaScriptからアクセス不可
-		SameSite: http.SameSiteLaxMode, // CSRF対策
-		MaxAge:   24 * 60 * 60,         // 24時間
-		Secure:   h.secureCookie,       // HTTPS必須（本番環境ではtrue）
+		HttpOnly: true,                 // Not accessible from JavaScript
+		SameSite: http.SameSiteLaxMode, // CSRF protection
+		MaxAge:   24 * 60 * 60,         // 24 hours
+		Secure:   h.secureCookie,       // Requires HTTPS (true in production)
 	})
 
-	// CSRFトークンを生成してCookieに設定
+	// Generate CSRF token and set in cookie
 	csrfToken, err := generateCSRFToken()
 	if err != nil {
 		log.Printf("failed to generate CSRF token: %v", err)
@@ -105,69 +105,69 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		Name:     csrfCookieName,
 		Value:    csrfToken,
 		Path:     sessionCookiePath,
-		HttpOnly: false,                // JavaScriptからアクセス可能（Double Submit Cookie方式のため）
-		SameSite: http.SameSiteLaxMode, // CSRF対策
-		MaxAge:   24 * 60 * 60,         // 24時間
-		Secure:   h.secureCookie,       // HTTPS必須（本番環境ではtrue）
+		HttpOnly: false,                // Accessible from JavaScript (for Double Submit Cookie method)
+		SameSite: http.SameSiteLaxMode, // CSRF protection
+		MaxAge:   24 * 60 * 60,         // 24 hours
+		Secure:   h.secureCookie,       // Requires HTTPS (true in production)
 	})
 
-	// ユーザー情報を返す（PasswordHashは json:"-" で除外される）
+	// Return user information (PasswordHash is excluded via json:"-")
 	respondJSON(w, http.StatusOK, user)
 }
 
-// HandleLogout はログアウト処理を行います
+// HandleLogout handles the logout process
 func (h *AuthHandlers) HandleLogout(w http.ResponseWriter, r *http.Request) {
-	// Cookieからセッション IDを取得
+	// Get session ID from cookie
 	cookie, err := r.Cookie(sessionCookieName)
 	if err != nil {
-		// セッションCookieがない場合は何もしない
+		// Do nothing if session cookie doesn't exist
 		respondJSON(w, http.StatusOK, map[string]string{"message": "Logout successful"})
 		return
 	}
 
-	// セッションを削除
+	// Delete session
 	if err := h.authService.Logout(cookie.Value); err != nil {
 		log.Printf("logout error: %v", err)
 	}
 
-	// セッションCookieを削除（設定時と同じ属性を指定する必要がある）
+	// Delete session cookie (must specify the same attributes as when it was set)
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    "",
 		Path:     sessionCookiePath,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		MaxAge:   -1,             // 即座に削除
-		Secure:   h.secureCookie, // 設定時と同じ
+		MaxAge:   -1,             // Delete immediately
+		Secure:   h.secureCookie, // Same as when set
 	})
 
-	// CSRFトークンCookieも削除
+	// Also delete CSRF token cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     csrfCookieName,
 		Value:    "",
 		Path:     sessionCookiePath,
 		HttpOnly: false,
 		SameSite: http.SameSiteLaxMode,
-		MaxAge:   -1,             // 即座に削除
-		Secure:   h.secureCookie, // 設定時と同じ
+		MaxAge:   -1,             // Delete immediately
+		Secure:   h.secureCookie, // Same as when set
 	})
 
 	respondJSON(w, http.StatusOK, map[string]string{"message": "Logout successful"})
 }
 
-// HandleMe は現在ログインしているユーザー情報を返します
+// HandleMe returns the currently logged-in user information
 func (h *AuthHandlers) HandleMe(w http.ResponseWriter, r *http.Request) {
-	// Cookieからセッション IDを取得
+	// Get session ID from cookie
 	cookie, err := r.Cookie(sessionCookieName)
 	if err != nil {
 		respondJSON(w, http.StatusUnauthorized, ErrorResponse{Error: "Not authenticated"})
 		return
 	}
 
-	// セッションからユーザー情報を取得
+	// Get user information from session
 	user, err := h.authService.GetUserBySession(cookie.Value)
 	if err != nil {
-		// ユーザーが削除された場合は401を返す
+		// Return 401 if user was deleted
 		if errors.Is(err, service.ErrUserNotFound) {
 			respondJSON(w, http.StatusUnauthorized, ErrorResponse{Error: "Session expired or invalid"})
 			return
@@ -182,30 +182,30 @@ func (h *AuthHandlers) HandleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ユーザー情報を返す（PasswordHashは json:"-" で除外される）
+	// Return user information (PasswordHash is excluded via json:"-")
 	respondJSON(w, http.StatusOK, user)
 }
 
-// getClientIP はリクエストからクライアントのIPアドレスを取得します
-// プロキシ/ロードバランサー経由の場合はX-Forwarded-ForまたはX-Real-IPヘッダーから取得します
+// getClientIP retrieves the client IP address from the request
+// For requests via proxy/load balancer, retrieves from X-Forwarded-For or X-Real-IP headers
 func getClientIP(r *http.Request) string {
-	// X-Forwarded-Forヘッダーをチェック（プロキシ経由の場合）
+	// Check X-Forwarded-For header (for requests via proxy)
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// X-Forwarded-Forは "client, proxy1, proxy2" の形式
-		// 最初のIPアドレスがクライアントのIP
+		// X-Forwarded-For format is "client, proxy1, proxy2"
+		// The first IP address is the client's IP
 		if idx := strings.Index(xff, ","); idx != -1 {
 			return strings.TrimSpace(xff[:idx])
 		}
 		return strings.TrimSpace(xff)
 	}
 
-	// X-Real-IPヘッダーをチェック（代替のプロキシヘッダー）
+	// Check X-Real-IP header (alternative proxy header)
 	if xri := r.Header.Get("X-Real-IP"); xri != "" {
 		return strings.TrimSpace(xri)
 	}
 
-	// RemoteAddrから取得（フォールバック）
-	// RemoteAddrは "IP:port" の形式なのでIPのみを抽出
+	// Get from RemoteAddr (fallback)
+	// RemoteAddr is in "IP:port" format, so extract only the IP
 	ip := r.RemoteAddr
 	if idx := strings.LastIndex(ip, ":"); idx != -1 {
 		return ip[:idx]
@@ -213,7 +213,7 @@ func getClientIP(r *http.Request) string {
 	return ip
 }
 
-// respondJSON はJSONレスポンスを返すヘルパー関数です
+// respondJSON is a helper function that returns a JSON response
 func respondJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

@@ -32,7 +32,7 @@ func TestNewImageHandlers(t *testing.T) {
 }
 
 func TestHandleUploadImage(t *testing.T) {
-	// テスト用の一時ディレクトリを作成
+	// Create a temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "upload_test")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
@@ -142,7 +142,7 @@ func TestHandleUploadImage(t *testing.T) {
 		{
 			name: "content type mismatch (fake JPEG header)",
 			setupRequest: func() (*http.Request, error) {
-				// PNGヘッダーを持つがJPEGとして送信
+				// Has PNG header but sent as JPEG
 				return createMultipartRequest("image", "test.jpg", createPNGData(), "image/jpeg")
 			},
 			expectedStatus: http.StatusBadRequest,
@@ -151,7 +151,7 @@ func TestHandleUploadImage(t *testing.T) {
 		{
 			name: "content type mismatch (fake PNG header)",
 			setupRequest: func() (*http.Request, error) {
-				// JPEGヘッダーを持つがPNGとして送信
+				// Has JPEG header but sent as PNG
 				return createMultipartRequest("image", "test.png", createJPEGData(), "image/png")
 			},
 			expectedStatus: http.StatusBadRequest,
@@ -176,7 +176,7 @@ func TestHandleUploadImage(t *testing.T) {
 				if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
 					t.Fatalf("failed to decode response: %v", err)
 				}
-				// パストラバーサルが無効化されていることを確認
+				// Verify path traversal is neutralized
 				if strings.Contains(response.Filename, "..") {
 					t.Errorf("filename should not contain path traversal: %s", response.Filename)
 				}
@@ -196,7 +196,7 @@ func TestHandleUploadImage(t *testing.T) {
 				if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
 					t.Fatalf("failed to decode response: %v", err)
 				}
-				// 危険な文字が除去されていることを確認
+				// Verify dangerous characters are removed
 				if strings.Contains(response.Filename, "<") || strings.Contains(response.Filename, ">") {
 					t.Errorf("filename should not contain special characters: %s", response.Filename)
 				}
@@ -238,10 +238,10 @@ func TestHandleUploadImage_FileTooLarge(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
-	// 100バイトの制限を設定
+	// Set 100 byte limit
 	handlers := NewImageHandlers(tempDir, 100)
 
-	// 200バイトのファイルを作成
+	// Create 200 byte file
 	largeData := make([]byte, 200)
 	copy(largeData, createJPEGData())
 
@@ -253,7 +253,7 @@ func TestHandleUploadImage_FileTooLarge(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handlers.HandleUploadImage(rr, req)
 
-	// サイズ制限のエラーを期待
+	// Expect size limit error
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400, got %d", rr.Code)
 	}
@@ -286,7 +286,7 @@ func TestHandleUploadImage_FileActuallySaved(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	// ファイルが実際に保存されていることを確認
+	// Verify the file was actually saved
 	filename := strings.TrimPrefix(response.URL, "/uploads/")
 	savedPath := filepath.Join(tempDir, filename)
 
@@ -295,13 +295,13 @@ func TestHandleUploadImage_FileActuallySaved(t *testing.T) {
 		t.Fatalf("failed to read saved file: %v", err)
 	}
 
-	// 保存されたファイルが有効なJPEGであることを確認
-	// （メタデータ削除により元のバイト列とは異なる可能性がある）
+	// Verify the saved file is a valid JPEG
+	// (May differ from original byte sequence due to metadata removal)
 	if !bytes.HasPrefix(savedData, []byte{0xFF, 0xD8, 0xFF}) {
 		t.Error("saved file is not a valid JPEG")
 	}
 
-	// 画像としてデコード可能であることを確認
+	// Verify it can be decoded as an image
 	_, err = jpeg.Decode(bytes.NewReader(savedData))
 	if err != nil {
 		t.Errorf("saved file cannot be decoded as JPEG: %v", err)
@@ -406,12 +406,12 @@ func TestSanitizeFilename(t *testing.T) {
 		{
 			name:     "windows path",
 			input:    "C:\\Users\\test\\image.jpg",
-			expected: "CUserstestimage.jpg", // Unix系ではバックスラッシュはパス区切りではないため、全体がファイル名として扱われ、:と\が除去される
+			expected: "CUserstestimage.jpg", // On Unix, backslash is not a path separator, so the entire string is treated as filename with : and \ removed
 		},
 		{
 			name:     "special characters",
 			input:    "<script>alert('xss')</script>.jpg",
-			expected: "script.jpg", // /がパス区切りとして扱われ、script>.jpgとなり、その後>が除去される
+			expected: "script.jpg", // / is treated as path separator resulting in script>.jpg, then > is removed
 		},
 		{
 			name:     "control characters",
@@ -440,7 +440,7 @@ func TestSanitizeFilename(t *testing.T) {
 	}
 }
 
-// ヘルパー関数
+// Helper functions
 
 func createMultipartRequest(fieldName, filename string, data []byte, contentType string) (*http.Request, error) {
 	body := &bytes.Buffer{}
@@ -467,7 +467,7 @@ func createMultipartRequest(fieldName, filename string, data []byte, contentType
 	return req, nil
 }
 
-// 有効な画像データを生成するヘルパー関数
+// Helper functions to generate valid image data
 
 func createJPEGData() []byte {
 	img := image.NewRGBA(image.Rect(0, 0, 10, 10))

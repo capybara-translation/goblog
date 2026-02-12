@@ -6,7 +6,7 @@ import { PostList } from './PostList'
 import { apiClient } from '../api/client'
 import type { Post, PostsResponse } from '../api/client'
 
-// apiClient をモック
+// Mock apiClient
 vi.mock('../api/client', () => ({
   apiClient: {
     getPosts: vi.fn(),
@@ -196,15 +196,15 @@ describe('PostList', () => {
       await waitFor(() => {
         const table = screen.getByRole('table')
         const cells = within(table).getAllByRole('cell')
-        // 表示: yyyy-MM-dd 形式
+        // Display: yyyy-MM-dd format
         const dateCells = cells.filter(cell => {
           const text = cell.textContent || ''
           return /^\d{4}-\d{2}-\d{2}$/.test(text)
         })
-        // updated_at 3つ + published_at 2つ = 5つの日付セル
+        // updated_at 3 + published_at 2 = 5 date cells
         expect(dateCells.length).toBeGreaterThanOrEqual(5)
 
-        // title属性にタイムゾーン略称が含まれていることを確認
+        // Verify timezone abbreviation is included in title attribute
         const cellsWithTitle = dateCells.filter(cell => {
           const title = cell.getAttribute('title') || ''
           return /\d{4}-\d{2}-\d{2} \d{2}:\d{2} \([A-Z+\-\d:]+\)/.test(title)
@@ -284,7 +284,7 @@ describe('PostList', () => {
 
       await waitFor(() => {
         const table = screen.getByRole('table')
-        // Pinnedされた記事の行には📌が表示される
+        // Pinned posts show 📌 emoji
         expect(within(table).getByText('📌')).toBeInTheDocument()
       })
     })
@@ -386,8 +386,8 @@ describe('PostList', () => {
       const user = userEvent.setup()
       const draftPosts = mockPosts.filter(p => p.status === 'draft')
       vi.mocked(apiClient.getPosts)
-        .mockResolvedValueOnce(mockResponse) // 初回ロード
-        .mockResolvedValueOnce({ posts: draftPosts, total: 1 }) // フィルタ後
+        .mockResolvedValueOnce(mockResponse) // Initial load
+        .mockResolvedValueOnce({ posts: draftPosts, total: 1 }) // After filter
 
       renderPostList()
 
@@ -410,8 +410,8 @@ describe('PostList', () => {
       const user = userEvent.setup()
       const publishedPosts = mockPosts.filter(p => p.status === 'published')
       vi.mocked(apiClient.getPosts)
-        .mockResolvedValueOnce(mockResponse) // 初回ロード
-        .mockResolvedValueOnce({ posts: publishedPosts, total: 2 }) // フィルタ後
+        .mockResolvedValueOnce(mockResponse) // Initial load
+        .mockResolvedValueOnce({ posts: publishedPosts, total: 2 }) // After filter
 
       renderPostList()
 
@@ -434,9 +434,9 @@ describe('PostList', () => {
       const user = userEvent.setup()
       const draftPosts = mockPosts.filter(p => p.status === 'draft')
       vi.mocked(apiClient.getPosts)
-        .mockResolvedValueOnce(mockResponse) // 初回ロード
-        .mockResolvedValueOnce({ posts: draftPosts, total: 1 }) // draft フィルタ
-        .mockResolvedValueOnce(mockResponse) // all に戻す
+        .mockResolvedValueOnce(mockResponse) // Initial load
+        .mockResolvedValueOnce({ posts: draftPosts, total: 1 }) // Draft filter
+        .mockResolvedValueOnce(mockResponse) // Back to all
 
       renderPostList()
 
@@ -536,8 +536,8 @@ describe('PostList', () => {
     it('should call API with offset when "Next" is clicked', async () => {
       const user = userEvent.setup()
       vi.mocked(apiClient.getPosts)
-        .mockResolvedValueOnce(createManyPostsResponse(25, 1)) // 初回ロード (page 1)
-        .mockResolvedValueOnce(createManyPostsResponse(25, 2)) // 次ページ (page 2)
+        .mockResolvedValueOnce(createManyPostsResponse(25, 1)) // Initial load (page 1)
+        .mockResolvedValueOnce(createManyPostsResponse(25, 2)) // Next page (page 2)
 
       renderPostList()
 
@@ -561,9 +561,9 @@ describe('PostList', () => {
     it('should call API with previous offset when "Prev" is clicked', async () => {
       const user = userEvent.setup()
       vi.mocked(apiClient.getPosts)
-        .mockResolvedValueOnce(createManyPostsResponse(25, 1)) // 初回ロード (page 1)
-        .mockResolvedValueOnce(createManyPostsResponse(25, 2)) // 次ページ (page 2)
-        .mockResolvedValueOnce(createManyPostsResponse(25, 1)) // 前ページ (page 1)
+        .mockResolvedValueOnce(createManyPostsResponse(25, 1)) // Initial load (page 1)
+        .mockResolvedValueOnce(createManyPostsResponse(25, 2)) // Next page (page 2)
+        .mockResolvedValueOnce(createManyPostsResponse(25, 1)) // Previous page (page 1)
 
       renderPostList()
 
@@ -592,8 +592,8 @@ describe('PostList', () => {
     it('should disable "Next" button on last page', async () => {
       const user = userEvent.setup()
       vi.mocked(apiClient.getPosts)
-        .mockResolvedValueOnce(createManyPostsResponse(25, 1)) // 初回ロード (page 1)
-        .mockResolvedValueOnce(createManyPostsResponse(25, 2)) // 次ページ (page 2)
+        .mockResolvedValueOnce(createManyPostsResponse(25, 1)) // Initial load (page 1)
+        .mockResolvedValueOnce(createManyPostsResponse(25, 2)) // Next page (page 2)
 
       renderPostList()
 
@@ -612,9 +612,9 @@ describe('PostList', () => {
     it('should reset to page 1 when status filter changes', async () => {
       const user = userEvent.setup()
       vi.mocked(apiClient.getPosts)
-        .mockResolvedValueOnce(createManyPostsResponse(25, 1)) // 初回ロード
-        .mockResolvedValueOnce(createManyPostsResponse(25, 2)) // page 2
-        .mockResolvedValueOnce({ posts: [], total: 0 }) // filter変更後
+        .mockResolvedValueOnce(createManyPostsResponse(25, 1)) // Initial load
+        .mockResolvedValueOnce(createManyPostsResponse(25, 2)) // Page 2
+        .mockResolvedValueOnce({ posts: [], total: 0 }) // After filter change
 
       renderPostList()
 
@@ -629,7 +629,7 @@ describe('PostList', () => {
 
       await user.selectOptions(screen.getByLabelText('Status'), 'draft')
 
-      // Status変更時にoffset: 0でAPIが呼ばれることを確認
+      // Verify API is called with offset: 0 when status changes
       await waitFor(() => {
         expect(apiClient.getPosts).toHaveBeenLastCalledWith({
           status: 'draft',
@@ -670,8 +670,8 @@ describe('PostList', () => {
       }
 
       vi.mocked(apiClient.getPosts)
-        .mockResolvedValueOnce(mockResponse) // 初回ロード
-        .mockResolvedValue(searchResults) // Search後
+        .mockResolvedValueOnce(mockResponse) // Initial load
+        .mockResolvedValue(searchResults) // After search
 
       renderPostList()
 
@@ -682,7 +682,7 @@ describe('PostList', () => {
       const searchInput = screen.getByLabelText('Search')
       await user.type(searchInput, 'First')
 
-      // デバウンス後にAPIが呼ばれる（300ms + α 待つ）
+      // API is called after debounce (wait 300ms + extra)
       await waitFor(() => {
         expect(apiClient.getPosts).toHaveBeenLastCalledWith({
           status: undefined,
@@ -729,13 +729,13 @@ describe('PostList', () => {
         expect(screen.getByText('First Published Post')).toBeInTheDocument()
       })
 
-      // クリアボタンは最初は表示されない
+      // Clear button is not displayed initially
       expect(screen.queryByTitle('Clear search')).not.toBeInTheDocument()
 
       const searchInput = screen.getByLabelText('Search')
       await user.type(searchInput, 'test')
 
-      // クリアボタンが表示される
+      // Clear button is displayed
       expect(screen.getByTitle('Clear search')).toBeInTheDocument()
     })
 
@@ -748,9 +748,9 @@ describe('PostList', () => {
       }
 
       vi.mocked(apiClient.getPosts)
-        .mockResolvedValueOnce(mockResponse) // 初回ロード
-        .mockResolvedValueOnce(searchResults) // Search後
-        .mockResolvedValue(mockResponse) // クリア後
+        .mockResolvedValueOnce(mockResponse) // Initial load
+        .mockResolvedValueOnce(searchResults) // After search
+        .mockResolvedValue(mockResponse) // After clear
 
       renderPostList()
 
@@ -776,7 +776,7 @@ describe('PostList', () => {
         })
       }, { timeout: 2000 })
 
-      // Search入力がクリアされていることを確認
+      // Verify search input is cleared
       expect(searchInput).toHaveValue('')
     })
 
@@ -800,9 +800,9 @@ describe('PostList', () => {
       }
 
       vi.mocked(apiClient.getPosts)
-        .mockResolvedValueOnce(createManyPostsResponse(25)) // 初回ロード
-        .mockResolvedValueOnce(createManyPostsResponse(25)) // page 2
-        .mockResolvedValue({ posts: [mockPosts[0]!], total: 1 }) // Search後
+        .mockResolvedValueOnce(createManyPostsResponse(25)) // Initial load
+        .mockResolvedValueOnce(createManyPostsResponse(25)) // Page 2
+        .mockResolvedValue({ posts: [mockPosts[0]!], total: 1 }) // After search
 
       renderPostList()
 
@@ -810,17 +810,17 @@ describe('PostList', () => {
         expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
       })
 
-      // 2ページ目に移動
+      // Move to page 2
       await user.click(screen.getByRole('button', { name: 'Next' }))
       await waitFor(() => {
         expect(screen.getByText('2 / 2')).toBeInTheDocument()
       })
 
-      // Searchを実行
+      // Execute search
       const searchInput = screen.getByLabelText('Search')
       await user.type(searchInput, 'First')
 
-      // offset: 0 でAPIが呼ばれることを確認（1ページ目にリセット）
+      // Verify API is called with offset: 0 (reset to page 1)
       await waitFor(() => {
         expect(apiClient.getPosts).toHaveBeenLastCalledWith({
           status: undefined,
@@ -840,9 +840,9 @@ describe('PostList', () => {
       }
 
       vi.mocked(apiClient.getPosts)
-        .mockResolvedValueOnce(mockResponse) // 初回ロード
-        .mockResolvedValueOnce(searchResults) // Status変更後
-        .mockResolvedValue(searchResults) // Search後
+        .mockResolvedValueOnce(mockResponse) // Initial load
+        .mockResolvedValueOnce(searchResults) // After status change
+        .mockResolvedValue(searchResults) // After search
 
       renderPostList()
 
@@ -850,7 +850,7 @@ describe('PostList', () => {
         expect(screen.getByText('First Published Post')).toBeInTheDocument()
       })
 
-      // Statusフィルタを変更
+      // Change status filter
       await user.selectOptions(screen.getByLabelText('Status'), 'published')
       await waitFor(() => {
         expect(apiClient.getPosts).toHaveBeenCalledWith({
@@ -860,7 +860,7 @@ describe('PostList', () => {
         })
       })
 
-      // Searchを実行
+      // Execute search
       const searchInput = screen.getByLabelText('Search')
       await user.type(searchInput, 'First')
 
@@ -878,8 +878,8 @@ describe('PostList', () => {
       const user = userEvent.setup()
 
       vi.mocked(apiClient.getPosts)
-        .mockResolvedValueOnce(mockResponse) // 初回ロード
-        .mockResolvedValue({ posts: [], total: 0 }) // Search後（0件）
+        .mockResolvedValueOnce(mockResponse) // Initial load
+        .mockResolvedValue({ posts: [], total: 0 }) // After search (0 results)
 
       renderPostList()
 
@@ -903,7 +903,7 @@ describe('PostList', () => {
         expect(screen.getByText('First Published Post')).toBeInTheDocument()
       })
 
-      // 初回ロード時は q パラメータがundefined
+      // On initial load, q parameter is undefined
       const calls = vi.mocked(apiClient.getPosts).mock.calls
       expect(calls[0]![0]!.q).toBeUndefined()
     })
@@ -932,14 +932,14 @@ describe('PostList', () => {
       await waitFor(() => {
         const table = screen.getByRole('table')
         const cells = within(table).getAllByRole('cell')
-        // 表示: yyyy-MM-dd 形式
+        // Display: yyyy-MM-dd format
         const hasDate = cells.some(cell => {
           const text = cell.textContent || ''
           return /^\d{4}-\d{2}-\d{2}$/.test(text)
         })
         expect(hasDate).toBe(true)
 
-        // title属性にタイムゾーン略称が含まれていることを確認
+        // Verify timezone abbreviation is included in title attribute
         const hasDateWithTimezoneInTitle = cells.some(cell => {
           const title = cell.getAttribute('title') || ''
           return /\d{4}-\d{2}-\d{2} \d{2}:\d{2} \([A-Z+\-\d:]+\)/.test(title)

@@ -12,7 +12,7 @@ import (
 )
 
 // ========================================
-// lineIndex のテスト
+// lineIndex tests
 // ========================================
 
 func TestNewLineIndex(t *testing.T) {
@@ -21,14 +21,14 @@ func TestNewLineIndex(t *testing.T) {
 		src      string
 		expected []int
 	}{
-		{"空", "", []int{0}},
-		{"1行", "hello", []int{0}},
-		{"2行", "hello\nworld", []int{0, 6}},
-		{"3行", "a\nb\nc", []int{0, 2, 4}},
-		{"末尾改行のみ", "hello\n", []int{0}},
-		{"複数行末尾改行", "a\nb\n", []int{0, 2}},
-		{"日本語2行", "あ\nい", []int{0, 4}}, // UTF-8: 3bytes + 1newline
-		{"空行を含む", "a\n\nb", []int{0, 2, 3}},
+		{"Empty", "", []int{0}},
+		{"1 line", "hello", []int{0}},
+		{"2 lines", "hello\nworld", []int{0, 6}},
+		{"3 lines", "a\nb\nc", []int{0, 2, 4}},
+		{"Trailing newline only", "hello\n", []int{0}},
+		{"Multiple lines trailing newline", "a\nb\n", []int{0, 2}},
+		{"Japanese 2 lines", "あ\nい", []int{0, 4}}, // UTF-8: 3bytes + 1newline
+		{"Contains empty line", "a\n\nb", []int{0, 2, 3}},
 	}
 
 	for _, tt := range tests {
@@ -49,13 +49,13 @@ func TestLineFromOffset(t *testing.T) {
 		expected int
 	}{
 		{"offset 0", "a\nb\nc", 0, 0},
-		{"行0の途中", "hello\nworld", 3, 0},
-		{"行0の末尾", "hello\nworld", 5, 0},
-		{"行1の開始", "hello\nworld", 6, 1},
-		{"行1の途中", "hello\nworld", 8, 1},
-		{"負のoffset", "a\nb", -1, 0},
-		{"範囲外offset", "a\nb", 100, 1},
-		{"3行目", "a\nb\nc", 4, 2},
+		{"Middle of line 0", "hello\nworld", 3, 0},
+		{"End of line 0", "hello\nworld", 5, 0},
+		{"Start of line 1", "hello\nworld", 6, 1},
+		{"Middle of line 1", "hello\nworld", 8, 1},
+		{"Negative offset", "a\nb", -1, 0},
+		{"Out of range offset", "a\nb", 100, 1},
+		{"Line 3", "a\nb\nc", 4, 2},
 	}
 
 	for _, tt := range tests {
@@ -71,10 +71,10 @@ func TestLineFromOffset(t *testing.T) {
 }
 
 // ========================================
-// ヘルパー関数
+// Helper functions
 // ========================================
 
-// renderWithDataLine はdataline extensionを使ってMarkdownをHTMLに変換する
+// renderWithDataLine converts Markdown to HTML using the dataline extension
 func renderWithDataLine(src string) string {
 	srcBytes := []byte(src)
 	md := goldmark.New(
@@ -96,7 +96,7 @@ func renderWithDataLine(src string) string {
 }
 
 // ========================================
-// ブロック要素のテスト
+// Block element tests
 // ========================================
 
 func TestDataLineRenderer_Heading(t *testing.T) {
@@ -154,7 +154,7 @@ func TestDataLineRenderer_Paragraph(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "単一段落",
+			name:     "Single paragraph",
 			input:    "Hello World",
 			expected: `<p data-line="0">Hello World</p>`,
 		},
@@ -171,15 +171,15 @@ func TestDataLineRenderer_Paragraph(t *testing.T) {
 }
 
 func TestDataLineRenderer_Blockquote(t *testing.T) {
-	// Note: blockquote自体は node.Lines() が空のため data-line="0" になる
-	// 内部の段落は正しい行番号を持つ
+	// Note: blockquote itself has data-line="0" because node.Lines() is empty
+	// Inner paragraphs have correct line numbers
 	tests := []struct {
 		name     string
 		input    string
 		expected string
 	}{
 		{
-			name:     "単一引用",
+			name:     "Single quote",
 			input:    "> Quote text",
 			expected: `<blockquote data-line="0"><p data-line="0">Quote text</p></blockquote>`,
 		},
@@ -196,7 +196,7 @@ func TestDataLineRenderer_Blockquote(t *testing.T) {
 }
 
 func TestDataLineRenderer_List(t *testing.T) {
-	// Note: リストとリスト項目は node.Lines() が空のため data-line="0" になる
+	// Note: List and list items have data-line="0" because node.Lines() is empty
 	tests := []struct {
 		name     string
 		input    string
@@ -225,7 +225,7 @@ func TestDataLineRenderer_List(t *testing.T) {
 }
 
 func TestDataLineRenderer_ThematicBreak(t *testing.T) {
-	// Note: ThematicBreak は node.Lines() が空のため data-line="0" になる
+	// Note: ThematicBreak has data-line="0" because node.Lines() is empty
 	tests := []struct {
 		name     string
 		input    string
@@ -249,14 +249,14 @@ func TestDataLineRenderer_ThematicBreak(t *testing.T) {
 }
 
 func TestDataLineRenderer_CodeBlock(t *testing.T) {
-	// Note: FencedCodeBlockはhighlighting拡張に任せるため、ここではインデントコードのみテスト
+	// Note: FencedCodeBlock is handled by highlighting extension, so only test indented code here
 	tests := []struct {
 		name     string
 		input    string
 		expected string
 	}{
 		{
-			name:     "インデントコードブロック",
+			name:     "Indented code block",
 			input:    "    code line",
 			expected: "<pre data-line=\"0\"><code>code line\n</code></pre>",
 		},
@@ -296,11 +296,11 @@ func TestDataLineRenderer_Table(t *testing.T) {
 }
 
 // ========================================
-// 複合ドキュメントのテスト
+// Complex document tests
 // ========================================
 
 func TestDataLineRenderer_ComplexDocument(t *testing.T) {
-	// FencedCodeBlockはhighlighting拡張に任せるため、このテストではインデントコードを使用
+	// FencedCodeBlock is handled by highlighting extension, so this test uses indented code
 	input := `# Title
 
 Paragraph text.
@@ -312,8 +312,8 @@ Paragraph text.
 
     code`
 
-	// コンテナノード（ul, blockquote等）は node.Lines() が空のため data-line="0" になる
-	// 子要素（p等）は正しい行番号を持つ
+	// Container nodes (ul, blockquote, etc.) have data-line="0" because node.Lines() is empty
+	// Child elements (p, etc.) have correct line numbers
 	expected := `<h1 data-line="0">Title</h1>` +
 		`<p data-line="2">Paragraph text.</p>` +
 		`<ul data-line="0"><li data-line="0">List item 1</li><li data-line="0">List item 2</li></ul>` +
@@ -333,17 +333,17 @@ func TestDataLineRenderer_MultibyteCharacters(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "日本語見出し",
+			name:     "Japanese heading",
 			input:    "# こんにちは",
 			expected: `<h1 data-line="0">こんにちは</h1>`,
 		},
 		{
-			name:     "日本語複数行",
+			name:     "Japanese multiple lines",
 			input:    "あいうえお\n\nかきくけこ",
 			expected: `<p data-line="0">あいうえお</p><p data-line="2">かきくけこ</p>`,
 		},
 		{
-			name:     "日中混在",
+			name:     "Japanese and Chinese mixed",
 			input:    "# 日本語タイトル\n\n这是中文段落",
 			expected: `<h1 data-line="0">日本語タイトル</h1><p data-line="2">这是中文段落</p>`,
 		},
@@ -360,7 +360,7 @@ func TestDataLineRenderer_MultibyteCharacters(t *testing.T) {
 }
 
 // ========================================
-// エッジケースのテスト
+// Edge case tests
 // ========================================
 
 func TestDataLineRenderer_EdgeCases(t *testing.T) {
@@ -370,17 +370,17 @@ func TestDataLineRenderer_EdgeCases(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "空のドキュメント",
+			name:     "Empty document",
 			input:    "",
 			expected: "",
 		},
 		{
-			name:     "空行のみ",
+			name:     "Empty lines only",
 			input:    "\n\n\n",
 			expected: "",
 		},
 		{
-			name:     "連続する空行後のコンテンツ",
+			name:     "Content after consecutive empty lines",
 			input:    "\n\n\n# Title",
 			expected: `<h1 data-line="3">Title</h1>`,
 		},

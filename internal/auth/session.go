@@ -8,40 +8,40 @@ import (
 	"time"
 )
 
-// Session はセッション情報を表します
+// Session represents session information
 type Session struct {
 	UserID    int64
 	ExpiresAt time.Time
 }
 
-// SessionStore はセッションを管理するインターフェースです
+// SessionStore is an interface for managing sessions
 type SessionStore interface {
-	// Create は新しいセッションを作成し、セッションIDを返します
+	// Create creates a new session and returns the session ID
 	Create(userID int64, ttl time.Duration) (string, error)
 
-	// Get はセッションIDからセッション情報を取得します
+	// Get retrieves session information from the session ID
 	Get(sessionID string) (*Session, error)
 
-	// Delete はセッションを削除します
+	// Delete deletes a session
 	Delete(sessionID string) error
 
-	// CleanupExpired は期限切れのセッションを削除します
+	// CleanupExpired deletes expired sessions
 	CleanupExpired()
 }
 
-// inMemorySessionStore はインメモリでセッションを管理する実装です
+// inMemorySessionStore is an implementation that manages sessions in memory
 type inMemorySessionStore struct {
 	sessions map[string]*Session
 	mu       sync.RWMutex
 }
 
-// NewInMemorySessionStore は新しいインメモリセッションストアを作成します
+// NewInMemorySessionStore creates a new in-memory session store
 func NewInMemorySessionStore() SessionStore {
 	store := &inMemorySessionStore{
 		sessions: make(map[string]*Session),
 	}
 
-	// 定期的に期限切れセッションをクリーンアップ
+	// Periodically clean up expired sessions
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
@@ -53,7 +53,7 @@ func NewInMemorySessionStore() SessionStore {
 	return store
 }
 
-// Create は新しいセッションを作成し、セッションIDを返します
+// Create creates a new session and returns the session ID
 func (s *inMemorySessionStore) Create(userID int64, ttl time.Duration) (string, error) {
 	sessionID, err := generateSessionID()
 	if err != nil {
@@ -72,7 +72,7 @@ func (s *inMemorySessionStore) Create(userID int64, ttl time.Duration) (string, 
 	return sessionID, nil
 }
 
-// Get はセッションIDからセッション情報を取得します
+// Get retrieves session information from the session ID
 func (s *inMemorySessionStore) Get(sessionID string) (*Session, error) {
 	s.mu.RLock()
 	session, exists := s.sessions[sessionID]
@@ -82,9 +82,9 @@ func (s *inMemorySessionStore) Get(sessionID string) (*Session, error) {
 		return nil, nil
 	}
 
-	// 期限切れチェック
+	// Check for expiration
 	if time.Now().After(session.ExpiresAt) {
-		// 期限切れセッションを削除
+		// Delete expired session
 		s.mu.Lock()
 		delete(s.sessions, sessionID)
 		s.mu.Unlock()
@@ -94,7 +94,7 @@ func (s *inMemorySessionStore) Get(sessionID string) (*Session, error) {
 	return session, nil
 }
 
-// Delete はセッションを削除します
+// Delete deletes a session
 func (s *inMemorySessionStore) Delete(sessionID string) error {
 	s.mu.Lock()
 	delete(s.sessions, sessionID)
@@ -102,7 +102,7 @@ func (s *inMemorySessionStore) Delete(sessionID string) error {
 	return nil
 }
 
-// CleanupExpired は期限切れのセッションを削除します
+// CleanupExpired deletes expired sessions
 func (s *inMemorySessionStore) CleanupExpired() {
 	now := time.Now()
 
@@ -116,8 +116,8 @@ func (s *inMemorySessionStore) CleanupExpired() {
 	}
 }
 
-// generateSessionID はランダムなセッションIDを生成します
-// 32バイト（256ビット）のランダムデータをBase64エンコードして返します
+// generateSessionID generates a random session ID
+// Returns Base64-encoded 32 bytes (256 bits) of random data
 func generateSessionID() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {

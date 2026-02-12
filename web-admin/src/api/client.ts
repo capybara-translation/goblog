@@ -2,7 +2,7 @@ import { getCsrfToken } from '../utils/cookies';
 
 const API_BASE = '/api/v1';
 
-// 型定義
+// Type definitions
 export interface User {
   id: number;
   username: string;
@@ -224,7 +224,7 @@ class ApiClient {
   }
 
   // Markdown preview endpoint
-  // 各ブロック要素にdata-line属性が付与され、プレビュー同期スクロールに使用される
+  // Each block element gets a data-line attribute for synchronized preview scrolling
   async previewMarkdown(content: string): Promise<string> {
     const response = await this.request<{ html: string }>('/markdown/preview', {
       method: 'POST',
@@ -246,7 +246,7 @@ class ApiClient {
       headers['X-CSRF-Token'] = csrfToken;
     }
 
-    // Content-Typeは設定しない（ブラウザがmultipart/form-dataのboundaryを自動設定）
+    // Don't set Content-Type (browser auto-sets multipart/form-data boundary)
     const response = await fetch(`${this.baseUrl}/images`, {
       method: 'POST',
       headers,

@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 
 const API_BASE = '/api/v1';
 
-// 型定義
+// Type definitions
 interface User {
   id: number;
   username: string;
@@ -47,7 +47,7 @@ interface PostUpdateRequest {
   tags?: string;
 }
 
-// テスト用のモックデータ
+// Mock data for testing
 const mockUser: User = {
   id: 1,
   username: 'testuser',
@@ -331,13 +331,13 @@ export const handlers = [
   http.post(`${API_BASE}/markdown/preview`, async ({ request }) => {
     const { content } = await request.json() as { content: string };
 
-    // 空のコンテンツは空文字を返す
+    // Return empty string for empty content
     if (!content || content.trim() === '') {
       return HttpResponse.json({ html: '' });
     }
 
-    // 簡易的なMarkdown→HTML変換（テスト用）
-    // 行番号を計算してdata-line属性を付与
+    // Simple Markdown to HTML conversion (for testing)
+    // Calculate line numbers and add data-line attributes
     const lines = content.split('\n');
     const htmlParts: string[] = [];
     let lineNum = 0;
@@ -345,7 +345,7 @@ export const handlers = [
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i] ?? '';
 
-      // 見出し
+      // Headings
       const h1Match = line.match(/^# (.+)$/);
       if (h1Match) {
         htmlParts.push(`<h1 data-line="${lineNum}">${h1Match[1]}</h1>`);
@@ -367,13 +367,13 @@ export const handlers = [
         continue;
       }
 
-      // 空行は段落区切り
+      // Empty lines are paragraph separators
       if (line.trim() === '') {
         lineNum++;
         continue;
       }
 
-      // それ以外は段落
+      // Everything else is a paragraph
       htmlParts.push(`<p data-line="${lineNum}">${line}</p>`);
       lineNum++;
     }

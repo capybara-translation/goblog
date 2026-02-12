@@ -11,21 +11,21 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// Open はSQLiteデータベースへの接続を開きます
+// Open opens a connection to SQLite database
 func Open(dbPath string) (*sqlx.DB, error) {
-	// データベースファイルのディレクトリが存在することを確認
+	// Ensure the database file directory exists
 	dir := filepath.Dir(dbPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create database directory: %w", err)
 	}
 
-	// データベースを開く
+	// Open the database
 	db, err := sqlx.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// 接続確認
+	// Verify connection
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
@@ -33,19 +33,19 @@ func Open(dbPath string) (*sqlx.DB, error) {
 	return db, nil
 }
 
-// RunMigrations は埋め込まれたマイグレーションを実行します
+// RunMigrations executes the embedded migrations
 func RunMigrations(db *sqlx.DB, migrationsFS embed.FS, migrationPaths ...string) error {
 	for _, migrationPath := range migrationPaths {
-		// 埋め込まれたマイグレーションファイルを読み込む
+		// Read the embedded migration file
 		content, err := migrationsFS.ReadFile(migrationPath)
 		if err != nil {
 			return fmt.Errorf("failed to read migration file %s: %w", migrationPath, err)
 		}
 
-		// マイグレーションを実行
+		// Execute the migration
 		if _, err := db.Exec(string(content)); err != nil {
-			// SQLiteはALTER TABLE ADD COLUMN IF NOT EXISTSをサポートしていないため、
-			// 重複カラムエラーは無視する（マイグレーションが既に適用済みの場合）
+			// SQLite does not support ALTER TABLE ADD COLUMN IF NOT EXISTS,
+			// so we ignore duplicate column errors (when migration is already applied)
 			if isDuplicateColumnError(err) {
 				continue
 			}
@@ -56,7 +56,7 @@ func RunMigrations(db *sqlx.DB, migrationsFS embed.FS, migrationPaths ...string)
 	return nil
 }
 
-// isDuplicateColumnError は重複カラムエラーかどうかを判定します
+// isDuplicateColumnError checks if the error is a duplicate column error
 func isDuplicateColumnError(err error) bool {
 	if err == nil {
 		return false

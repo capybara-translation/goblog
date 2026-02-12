@@ -3,7 +3,7 @@ import { render, screen, act, fireEvent, waitFor } from '@testing-library/react'
 import { MarkdownEditor } from './MarkdownEditor';
 import { apiClient } from '../api/client';
 
-// apiClient をモック
+// Mock apiClient
 vi.mock('../api/client', () => ({
   apiClient: {
     previewMarkdown: vi.fn(),
@@ -14,11 +14,11 @@ vi.mock('../api/client', () => ({
 const mockPreviewMarkdown = vi.mocked(apiClient.previewMarkdown);
 const mockUploadImage = vi.mocked(apiClient.uploadImage);
 
-// タイマーを進めて非同期処理を完了させるヘルパー
+// Helper to advance timers and flush async operations
 async function advanceTimersAndFlush(ms: number) {
   await act(async () => {
     vi.advanceTimersByTime(ms);
-    // マイクロタスクをフラッシュ
+    // Flush microtasks
     await Promise.resolve();
   });
 }
@@ -34,57 +34,57 @@ describe('MarkdownEditor', () => {
     vi.useRealTimers();
   });
 
-  describe('レンダリング', () => {
-    it('EditとPreviewのラベルが表示される', () => {
+  describe('Rendering', () => {
+    it('displays Edit and Preview labels', () => {
       render(<MarkdownEditor value="" onChange={() => {}} />);
 
       expect(screen.getByText('Edit')).toBeInTheDocument();
       expect(screen.getByText('Preview')).toBeInTheDocument();
     });
 
-    it('MDEditorが表示される', () => {
+    it('displays MDEditor', () => {
       render(<MarkdownEditor value="# Test" onChange={() => {}} />);
 
-      // MDEditorのコンテナが存在することを確認
+      // Verify MDEditor container exists
       expect(document.querySelector('.w-md-editor')).toBeInTheDocument();
     });
 
-    it('Previewエリアが表示される', () => {
+    it('displays Preview area', () => {
       render(<MarkdownEditor value="" onChange={() => {}} />);
 
       expect(document.querySelector('.article-content')).toBeInTheDocument();
     });
   });
 
-  describe('Preview機能', () => {
-    it('値が変更されると300ms後にPreviewAPIが呼ばれる', async () => {
+  describe('Preview functionality', () => {
+    it('calls Preview API 300ms after value changes', async () => {
       mockPreviewMarkdown.mockResolvedValue('<h1>Test</h1>');
 
       render(<MarkdownEditor value="# Test" onChange={() => {}} />);
 
-      // デバウンス前はAPIが呼ばれない
+      // API should not be called before debounce
       expect(mockPreviewMarkdown).not.toHaveBeenCalled();
 
-      // 300ms進める
+      // Advance 300ms
       await advanceTimersAndFlush(300);
 
-      // コンテンツ（カーソルマーカー付き）がパラメータとして送信される
+      // Content is sent as parameter
       expect(mockPreviewMarkdown).toHaveBeenCalledWith(expect.stringContaining('# Test'));
     });
 
-    it('Preview結果がHTMLとして表示される', async () => {
+    it('displays Preview result as HTML', async () => {
       mockPreviewMarkdown.mockResolvedValue('<h1>Hello World</h1>');
 
       render(<MarkdownEditor value="# Hello World" onChange={() => {}} />);
 
-      // タイマーを進めてPromiseを解決
+      // Advance timer to resolve Promise
       await advanceTimersAndFlush(300);
 
       const previewArea = document.querySelector('.article-content');
       expect(previewArea?.innerHTML).toBe('<h1>Hello World</h1>');
     });
 
-    it('空の値ではPreviewAPIが呼ばれない', async () => {
+    it('does not call Preview API for empty value', async () => {
       render(<MarkdownEditor value="" onChange={() => {}} />);
 
       await advanceTimersAndFlush(300);
@@ -92,7 +92,7 @@ describe('MarkdownEditor', () => {
       expect(mockPreviewMarkdown).not.toHaveBeenCalled();
     });
 
-    it('空白のみの値ではPreviewAPIが呼ばれない', async () => {
+    it('does not call Preview API for whitespace-only value', async () => {
       render(<MarkdownEditor value="   " onChange={() => {}} />);
 
       await advanceTimersAndFlush(300);
@@ -100,38 +100,38 @@ describe('MarkdownEditor', () => {
       expect(mockPreviewMarkdown).not.toHaveBeenCalled();
     });
 
-    it('値が変更されるとデバウンスタイマーがリセットされる', async () => {
+    it('resets debounce timer when value changes', async () => {
       mockPreviewMarkdown.mockResolvedValue('<p>Result</p>');
 
       const { rerender } = render(<MarkdownEditor value="First" onChange={() => {}} />);
 
-      // 200ms経過
+      // 200ms elapsed
       await advanceTimersAndFlush(200);
 
-      // まだAPIは呼ばれていない
+      // API not called yet
       expect(mockPreviewMarkdown).not.toHaveBeenCalled();
 
-      // 値を変更
+      // Change value
       rerender(<MarkdownEditor value="Second" onChange={() => {}} />);
 
-      // さらに200ms経過（合計400ms）
+      // Another 200ms elapsed (total 400ms)
       await advanceTimersAndFlush(200);
 
-      // まだAPIは呼ばれていない（デバウンスがリセットされたため）
+      // API still not called (debounce was reset)
       expect(mockPreviewMarkdown).not.toHaveBeenCalled();
 
-      // さらに100ms経過（値変更から300ms）
+      // Another 100ms elapsed (300ms from value change)
       await advanceTimersAndFlush(100);
 
-      // コンテンツ（カーソルマーカー付き）がパラメータとして送信される
+      // Content is sent as parameter
       expect(mockPreviewMarkdown).toHaveBeenCalledWith(expect.stringContaining('Second'));
       expect(mockPreviewMarkdown).toHaveBeenCalledTimes(1);
     });
   });
 
-  describe('ローディング状態', () => {
-    it('Preview取得中はローディング表示される', async () => {
-      // Promiseを保留状態にする
+  describe('Loading state', () => {
+    it('displays loading indicator while fetching Preview', async () => {
+      // Keep Promise pending
       let resolvePromise: (value: string) => void;
       mockPreviewMarkdown.mockImplementation(
         () => new Promise((resolve) => { resolvePromise = resolve; })
@@ -139,32 +139,32 @@ describe('MarkdownEditor', () => {
 
       render(<MarkdownEditor value="# Test" onChange={() => {}} />);
 
-      // タイマーを進める（APIコールがトリガーされる）
+      // Advance timer (triggers API call)
       await act(async () => {
         vi.advanceTimersByTime(300);
       });
 
-      // ローディング表示を確認
+      // Verify loading indicator
       expect(screen.getByText('(Loading...)')).toBeInTheDocument();
 
-      // Promiseを解決して状態を更新
+      // Resolve Promise and update state
       await act(async () => {
         resolvePromise!('<h1>Test</h1>');
       });
 
-      // ローディング表示が消える
+      // Loading indicator disappears
       expect(screen.queryByText('(Loading...)')).not.toBeInTheDocument();
     });
   });
 
-  describe('エラーハンドリング', () => {
-    it('API エラー時はエラーメッセージが表示される', async () => {
+  describe('Error handling', () => {
+    it('displays error message on API error', async () => {
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
       mockPreviewMarkdown.mockRejectedValue(new Error('API Error'));
 
       render(<MarkdownEditor value="# Test" onChange={() => {}} />);
 
-      // タイマーを進めてPromiseを解決（reject）
+      // Advance timer to resolve (reject) Promise
       await advanceTimersAndFlush(300);
 
       const previewArea = document.querySelector('.article-content');
@@ -175,26 +175,26 @@ describe('MarkdownEditor', () => {
   });
 
   describe('onChange', () => {
-    it('エディタの値が変更されるとonChangeが呼ばれる', async () => {
+    it('calls onChange when editor value changes', async () => {
       const handleChange = vi.fn();
       render(<MarkdownEditor value="" onChange={handleChange} />);
 
-      // MDEditorの内部実装をシミュレート
-      // MDEditorのonChangeは直接テストしにくいので、propsが正しく渡されていることを確認
+      // Simulate MDEditor internal implementation
+      // MDEditor's onChange is hard to test directly, so verify props are passed correctly
       const editor = document.querySelector('.w-md-editor');
       expect(editor).toBeInTheDocument();
     });
   });
 
-  describe('disabled状態', () => {
-    it('disabled=trueの場合、textareaがdisabledになる', () => {
+  describe('Disabled state', () => {
+    it('disables textarea when disabled=true', () => {
       render(<MarkdownEditor value="# Test" onChange={() => {}} disabled={true} />);
 
       const textarea = document.querySelector('textarea');
       expect(textarea).toHaveAttribute('disabled');
     });
 
-    it('disabled=falseの場合、textareaはdisabledにならない', () => {
+    it('does not disable textarea when disabled=false', () => {
       render(<MarkdownEditor value="# Test" onChange={() => {}} disabled={false} />);
 
       const textarea = document.querySelector('textarea');
@@ -202,27 +202,27 @@ describe('MarkdownEditor', () => {
     });
   });
 
-  describe('クリーンアップ', () => {
-    it('アンマウント時にタイマーがクリアされる', async () => {
+  describe('Cleanup', () => {
+    it('clears timer on unmount', async () => {
       mockPreviewMarkdown.mockResolvedValue('<h1>Test</h1>');
 
       const { unmount } = render(<MarkdownEditor value="# Test" onChange={() => {}} />);
 
-      // 100ms経過後にアンマウント
+      // 100ms elapsed then unmount
       await advanceTimersAndFlush(100);
 
       unmount();
 
-      // 残りの200ms経過
+      // Remaining 200ms elapsed
       await advanceTimersAndFlush(200);
 
-      // アンマウント後はAPIが呼ばれない
+      // API not called after unmount
       expect(mockPreviewMarkdown).not.toHaveBeenCalled();
     });
   });
 
-  describe('保存ショートカット', () => {
-    it('Cmd+Enter でonSaveが呼ばれる（Mac）', () => {
+  describe('Save shortcut', () => {
+    it('calls onSave on Cmd+Enter (Mac)', () => {
       const handleSave = vi.fn();
       render(<MarkdownEditor value="# Test" onChange={() => {}} onSave={handleSave} />);
 
@@ -234,7 +234,7 @@ describe('MarkdownEditor', () => {
       expect(handleSave).toHaveBeenCalledTimes(1);
     });
 
-    it('Ctrl+Enter でonSaveが呼ばれる（Windows/Linux）', () => {
+    it('calls onSave on Ctrl+Enter (Windows/Linux)', () => {
       const handleSave = vi.fn();
       render(<MarkdownEditor value="# Test" onChange={() => {}} onSave={handleSave} />);
 
@@ -246,7 +246,7 @@ describe('MarkdownEditor', () => {
       expect(handleSave).toHaveBeenCalledTimes(1);
     });
 
-    it('修飾キーなしのEnterではonSaveが呼ばれない', () => {
+    it('does not call onSave on Enter without modifier keys', () => {
       const handleSave = vi.fn();
       render(<MarkdownEditor value="# Test" onChange={() => {}} onSave={handleSave} />);
 
@@ -258,19 +258,19 @@ describe('MarkdownEditor', () => {
       expect(handleSave).not.toHaveBeenCalled();
     });
 
-    it('onSaveが未設定の場合でもエラーにならない', () => {
+    it('does not throw error when onSave is not provided', () => {
       render(<MarkdownEditor value="# Test" onChange={() => {}} />);
 
       const textarea = document.querySelector('textarea');
       expect(textarea).toBeInTheDocument();
 
-      // エラーが発生しないことを確認
+      // Verify no error is thrown
       expect(() => {
         fireEvent.keyDown(textarea!, { key: 'Enter', metaKey: true });
       }).not.toThrow();
     });
 
-    it('Cmd+他のキーではonSaveが呼ばれない', () => {
+    it('does not call onSave on Cmd+other keys', () => {
       const handleSave = vi.fn();
       render(<MarkdownEditor value="# Test" onChange={() => {}} onSave={handleSave} />);
 
@@ -283,8 +283,8 @@ describe('MarkdownEditor', () => {
     });
   });
 
-  describe('画像アップロード', () => {
-    it('非表示のファイル入力が存在する', () => {
+  describe('Image upload', () => {
+    it('has hidden file input', () => {
       render(<MarkdownEditor value="" onChange={() => {}} />);
 
       const fileInput = screen.getByTestId('image-file-input');
@@ -293,8 +293,8 @@ describe('MarkdownEditor', () => {
       expect(fileInput).toHaveAttribute('accept', 'image/jpeg,image/png,image/gif,image/webp');
     });
 
-    it('画像をアップロードするとonChangeが呼ばれる', async () => {
-      vi.useRealTimers(); // 非同期処理のためにリアルタイマーを使用
+    it('calls onChange when image is uploaded', async () => {
+      vi.useRealTimers(); // Use real timers for async operations
       const handleChange = vi.fn();
       mockUploadImage.mockResolvedValue({
         url: '/uploads/test-uuid.jpg',
@@ -314,13 +314,13 @@ describe('MarkdownEditor', () => {
         expect(mockUploadImage).toHaveBeenCalledWith(file);
       });
 
-      // textApiRef.currentがnullの場合、onChangeが呼ばれる
+      // When textApiRef.current is null, onChange is called
       await waitFor(() => {
         expect(handleChange).toHaveBeenCalledWith(expect.stringContaining('![test.jpg](/uploads/test-uuid.jpg)'));
       });
     });
 
-    it('無効なファイル形式でエラーが表示される', async () => {
+    it('displays error for invalid file type', async () => {
       vi.useRealTimers();
       render(<MarkdownEditor value="" onChange={() => {}} />);
 
@@ -331,21 +331,21 @@ describe('MarkdownEditor', () => {
         fireEvent.change(fileInput, { target: { files: [file] } });
       });
 
-      // アップロードAPIは呼ばれない
+      // Upload API should not be called
       expect(mockUploadImage).not.toHaveBeenCalled();
 
-      // エラーメッセージが表示される
+      // Error message is displayed
       await waitFor(() => {
         expect(screen.getByText('Supported formats: JPEG, PNG, GIF, WebP only')).toBeInTheDocument();
       });
     });
 
-    it('ファイルサイズが大きすぎるとエラーが表示される', async () => {
+    it('displays error for file too large', async () => {
       vi.useRealTimers();
       render(<MarkdownEditor value="" onChange={() => {}} />);
 
       const fileInput = screen.getByTestId('image-file-input');
-      // 6MBのファイルを作成
+      // Create 6MB file
       const largeContent = new Array(6 * 1024 * 1024).fill('a').join('');
       const file = new File([largeContent], 'large.jpg', { type: 'image/jpeg' });
 
@@ -353,16 +353,16 @@ describe('MarkdownEditor', () => {
         fireEvent.change(fileInput, { target: { files: [file] } });
       });
 
-      // アップロードAPIは呼ばれない
+      // Upload API should not be called
       expect(mockUploadImage).not.toHaveBeenCalled();
 
-      // エラーメッセージが表示される
+      // Error message is displayed
       await waitFor(() => {
         expect(screen.getByText('File size must be less than 5MB')).toBeInTheDocument();
       });
     });
 
-    it('アップロード中はローディング表示される', async () => {
+    it('displays loading indicator during upload', async () => {
       vi.useRealTimers();
       let resolveUpload: (value: { url: string; filename: string }) => void;
       mockUploadImage.mockImplementation(
@@ -376,23 +376,23 @@ describe('MarkdownEditor', () => {
 
       fireEvent.change(fileInput, { target: { files: [file] } });
 
-      // ローディング表示を確認
+      // Verify loading indicator
       await waitFor(() => {
         expect(screen.getByText('(Uploading...)')).toBeInTheDocument();
       });
 
-      // アップロードを完了
+      // Complete upload
       await act(async () => {
         resolveUpload!({ url: '/uploads/test.jpg', filename: 'test.jpg' });
       });
 
-      // ローディング表示が消える
+      // Loading indicator disappears
       await waitFor(() => {
         expect(screen.queryByText('(Uploading...)')).not.toBeInTheDocument();
       });
     });
 
-    it('アップロードAPIエラー時はエラーメッセージが表示される', async () => {
+    it('displays error message on upload API error', async () => {
       vi.useRealTimers();
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
       mockUploadImage.mockRejectedValue(new Error('Upload failed'));
@@ -413,7 +413,7 @@ describe('MarkdownEditor', () => {
       consoleError.mockRestore();
     });
 
-    it('アップロード中はtextareaがdisabledになる', async () => {
+    it('disables textarea during upload', async () => {
       vi.useRealTimers();
       let resolveUpload: (value: { url: string; filename: string }) => void;
       mockUploadImage.mockImplementation(
@@ -427,18 +427,18 @@ describe('MarkdownEditor', () => {
 
       fireEvent.change(fileInput, { target: { files: [file] } });
 
-      // テキストエリアがdisabledになることを確認
+      // Verify textarea is disabled
       await waitFor(() => {
         const textarea = document.querySelector('textarea');
         expect(textarea).toHaveAttribute('disabled');
       });
 
-      // アップロードを完了
+      // Complete upload
       await act(async () => {
         resolveUpload!({ url: '/uploads/test.jpg', filename: 'test.jpg' });
       });
 
-      // disabledが解除される
+      // Disabled is removed
       await waitFor(() => {
         const textarea = document.querySelector('textarea');
         expect(textarea).not.toHaveAttribute('disabled');
@@ -446,12 +446,12 @@ describe('MarkdownEditor', () => {
     });
   });
 
-  describe('data-lineスクロール機能', () => {
+  describe('data-line scroll functionality', () => {
     let scrollToMock: ReturnType<typeof vi.fn>;
     let originalScrollTo: typeof Element.prototype.scrollTo;
 
     beforeEach(() => {
-      // scrollTo をモック
+      // Mock scrollTo
       originalScrollTo = Element.prototype.scrollTo;
       scrollToMock = vi.fn();
       Element.prototype.scrollTo = scrollToMock as unknown as typeof Element.prototype.scrollTo;
@@ -461,21 +461,21 @@ describe('MarkdownEditor', () => {
       Element.prototype.scrollTo = originalScrollTo;
     });
 
-    it('PreviewAPIにコンテンツがそのまま送信される（マーカーなし）', async () => {
+    it('sends content as-is to Preview API (no marker)', async () => {
       mockPreviewMarkdown.mockResolvedValue('<p data-line="0">Test</p>');
 
       render(<MarkdownEditor value="Test content" onChange={() => {}} />);
 
       await advanceTimersAndFlush(300);
 
-      // API呼び出しの引数を確認
+      // Verify API call arguments
       expect(mockPreviewMarkdown).toHaveBeenCalledTimes(1);
       const calledWith = mockPreviewMarkdown.mock.calls[0]?.[0] as string | undefined;
-      // コンテンツがそのまま送信される（マーカーなし）
+      // Content is sent as-is (no marker)
       expect(calledWith).toBe('Test content');
     });
 
-    it('Preview更新後にdata-line要素にスクロールされる', async () => {
+    it('scrolls to data-line element after Preview update', async () => {
       const htmlWithDataLine = '<h1 data-line="0">Title</h1><p data-line="2">Content</p>';
       mockPreviewMarkdown.mockResolvedValue(htmlWithDataLine);
 
@@ -483,53 +483,53 @@ describe('MarkdownEditor', () => {
 
       await advanceTimersAndFlush(300);
 
-      // Previewエリアにdata-line属性が含まれることを確認
+      // Verify Preview area contains data-line attribute
       const previewArea = document.querySelector('.article-content');
       expect(previewArea?.innerHTML).toContain('data-line=');
 
-      // scrollToが呼ばれることを確認
+      // Verify scrollTo was called
       expect(scrollToMock).toHaveBeenCalled();
     });
 
-    it('コンテンツ変更時のみPreviewが再取得される（カーソル移動では再取得しない）', async () => {
+    it('only refetches Preview on content change (not on cursor movement)', async () => {
       const htmlWithDataLine = '<h1 data-line="0">Title</h1><p data-line="2">Content</p>';
       mockPreviewMarkdown.mockResolvedValue(htmlWithDataLine);
 
       const { rerender } = render(<MarkdownEditor value="# Title\n\nContent" onChange={() => {}} />);
 
-      // 初回のデバウンスを待つ
+      // Wait for initial debounce
       await advanceTimersAndFlush(300);
       expect(mockPreviewMarkdown).toHaveBeenCalledTimes(1);
 
-      // カーソル移動をシミュレート（同じコンテンツで再レンダリング）
+      // Simulate cursor movement (rerender with same content)
       rerender(<MarkdownEditor value="# Title\n\nContent" onChange={() => {}} />);
 
-      // 追加のデバウンスを待つ
+      // Wait for additional debounce
       await advanceTimersAndFlush(300);
 
-      // コンテンツが変わっていないので、Previewは再取得されない
+      // Preview should not be refetched (content unchanged)
       expect(mockPreviewMarkdown).toHaveBeenCalledTimes(1);
 
-      // コンテンツを変更
+      // Change content
       rerender(<MarkdownEditor value="# Title\n\nNew Content" onChange={() => {}} />);
 
-      // デバウンスを待つ
+      // Wait for debounce
       await advanceTimersAndFlush(300);
 
-      // コンテンツが変わったので、Previewが再取得される
+      // Preview should be refetched (content changed)
       expect(mockPreviewMarkdown).toHaveBeenCalledTimes(2);
     });
   });
 
-  describe('スクロール同期', () => {
-    // MDEditorの内部実装により、テスト環境でのスクロールイベント発火が困難なためスキップ
-    // 手動テストで動作確認済み
-    it.skip('エディターのスクロールに合わせてPreviewがスクロールする', async () => {
+  describe('Scroll sync', () => {
+    // Skipped due to difficulty firing scroll events in test environment with MDEditor's internal implementation
+    // Verified working via manual testing
+    it.skip('syncs Preview scroll with editor scroll', async () => {
       mockPreviewMarkdown.mockResolvedValue('<p>Preview content</p>');
 
       render(<MarkdownEditor value="# Test" onChange={() => {}} />);
 
-      // タイマーを進めてPreviewを表示
+      // Advance timer to display Preview
       await advanceTimersAndFlush(300);
 
       const textarea = document.querySelector('textarea');
@@ -538,23 +538,23 @@ describe('MarkdownEditor', () => {
       expect(textarea).toBeInTheDocument();
       expect(previewArea).toBeInTheDocument();
 
-      // スクロール可能な状態をシミュレート
+      // Simulate scrollable state
       Object.defineProperty(textarea!, 'scrollHeight', { value: 1000, configurable: true });
       Object.defineProperty(textarea!, 'clientHeight', { value: 500, configurable: true });
       Object.defineProperty(textarea!, 'scrollTop', { value: 250, configurable: true });
       Object.defineProperty(previewArea!, 'scrollHeight', { value: 800, configurable: true });
       Object.defineProperty(previewArea!, 'clientHeight', { value: 500, configurable: true });
 
-      // textareaのスクロールイベントを発火
+      // Fire textarea scroll event
       fireEvent.scroll(textarea!);
 
-      // PreviewのscrollTopが更新されることを確認
+      // Verify Preview scrollTop is updated
       // ratio = 250 / (1000 - 500) = 0.5
       // expected scrollTop = 0.5 * (800 - 500) = 150
       expect(previewArea!.scrollTop).toBe(150);
     });
 
-    it.skip('スクロール不可能な場合は何も起きない', async () => {
+    it.skip('does nothing when not scrollable', async () => {
       mockPreviewMarkdown.mockResolvedValue('<p>Short</p>');
 
       render(<MarkdownEditor value="# Test" onChange={() => {}} />);
@@ -564,14 +564,14 @@ describe('MarkdownEditor', () => {
       const textarea = document.querySelector('textarea');
       const previewArea = document.querySelector('.article-content');
 
-      // スクロール不可能な状態をシミュレート
+      // Simulate non-scrollable state
       Object.defineProperty(textarea!, 'scrollHeight', { value: 100, configurable: true });
       Object.defineProperty(textarea!, 'clientHeight', { value: 500, configurable: true });
 
-      // textareaのスクロールイベントを発火
+      // Fire textarea scroll event
       fireEvent.scroll(textarea!);
 
-      // PreviewのscrollTopは変更されない
+      // Preview scrollTop remains unchanged
       expect(previewArea!.scrollTop).toBe(0);
     });
   });

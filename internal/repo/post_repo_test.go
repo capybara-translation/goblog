@@ -10,17 +10,17 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// setupTestDB はテスト用のインメモリSQLiteデータベースをセットアップします
+// setupTestDB sets up an in-memory SQLite database for testing
 func setupTestDB(t *testing.T) *sqlx.DB {
 	t.Helper()
 
-	// インメモリSQLiteを開く
+	// Open in-memory SQLite
 	db, err := sqlx.Open("sqlite3", ":memory:")
 	if err != nil {
 		t.Fatalf("failed to open test database: %v", err)
 	}
 
-	// マイグレーションファイルを読み込んで実行
+	// Read and execute migration files
 	migrations := []string{
 		"../../migrations/001_create_posts.sql",
 		"../../migrations/003_add_is_pinned.sql",
@@ -62,12 +62,12 @@ func TestPostRepository_Create(t *testing.T) {
 		t.Fatalf("failed to create post: %v", err)
 	}
 
-	// IDが設定されているか確認
+	// Verify ID is set
 	if post.ID == 0 {
 		t.Error("expected post ID to be set, got 0")
 	}
 
-	// データベースから取得して確認
+	// Retrieve from database and verify
 	retrieved, err := repo.FindByID(post.ID)
 	if err != nil {
 		t.Fatalf("failed to retrieve post: %v", err)
@@ -93,7 +93,7 @@ func TestPostRepository_FindBySlug(t *testing.T) {
 
 	repo := NewPostRepository(db)
 
-	// テストデータを作成
+	// Create test data
 	now := time.Now()
 	post := &domain.Post{
 		Title:     "Find By Slug Test",
@@ -110,7 +110,7 @@ func TestPostRepository_FindBySlug(t *testing.T) {
 		t.Fatalf("failed to create post: %v", err)
 	}
 
-	// スラッグで取得
+	// Retrieve by slug
 	found, err := repo.FindBySlug("find-by-slug")
 	if err != nil {
 		t.Fatalf("failed to find post by slug: %v", err)
@@ -127,7 +127,7 @@ func TestPostRepository_FindBySlug(t *testing.T) {
 		t.Errorf("expected title %q, got %q", post.Title, found.Title)
 	}
 
-	// 存在しないスラッグで取得
+	// Retrieve with non-existent slug
 	notFound, err := repo.FindBySlug("non-existent")
 	if err != nil {
 		t.Fatalf("expected no error for non-existent slug, got: %v", err)
@@ -143,7 +143,7 @@ func TestPostRepository_FindByID(t *testing.T) {
 
 	repo := NewPostRepository(db)
 
-	// テストデータを作成
+	// Create test data
 	now := time.Now()
 	post := &domain.Post{
 		Title:     "Find By ID Test",
@@ -160,7 +160,7 @@ func TestPostRepository_FindByID(t *testing.T) {
 		t.Fatalf("failed to create post: %v", err)
 	}
 
-	// IDで取得
+	// Retrieve by ID
 	found, err := repo.FindByID(post.ID)
 	if err != nil {
 		t.Fatalf("failed to find post by ID: %v", err)
@@ -174,7 +174,7 @@ func TestPostRepository_FindByID(t *testing.T) {
 		t.Errorf("expected title %q, got %q", post.Title, found.Title)
 	}
 
-	// 存在しないIDで取得
+	// Retrieve with non-existent ID
 	notFound, err := repo.FindByID(99999)
 	if err != nil {
 		t.Fatalf("expected no error for non-existent ID, got: %v", err)
@@ -190,7 +190,7 @@ func TestPostRepository_FindAll(t *testing.T) {
 
 	repo := NewPostRepository(db)
 
-	// 複数のテストデータを作成
+	// Create multiple test data entries
 	now := time.Now()
 	posts := []*domain.Post{
 		{
@@ -225,7 +225,7 @@ func TestPostRepository_FindAll(t *testing.T) {
 		}
 	}
 
-	// すべての記事を取得
+	// Retrieve all posts
 	allPosts, err := repo.FindAll(nil, 10, 0)
 	if err != nil {
 		t.Fatalf("failed to find all posts: %v", err)
@@ -235,7 +235,7 @@ func TestPostRepository_FindAll(t *testing.T) {
 		t.Errorf("expected 3 posts, got %d", len(allPosts))
 	}
 
-	// 公開済み記事のみを取得
+	// Retrieve only published posts
 	publishedStatus := domain.PostStatusPublished
 	publishedPosts, err := repo.FindAll(&publishedStatus, 10, 0)
 	if err != nil {
@@ -246,7 +246,7 @@ func TestPostRepository_FindAll(t *testing.T) {
 		t.Errorf("expected 2 published posts, got %d", len(publishedPosts))
 	}
 
-	// 下書き記事のみを取得
+	// Retrieve only draft posts
 	draftStatus := domain.PostStatusDraft
 	draftPosts, err := repo.FindAll(&draftStatus, 10, 0)
 	if err != nil {
@@ -257,7 +257,7 @@ func TestPostRepository_FindAll(t *testing.T) {
 		t.Errorf("expected 1 draft post, got %d", len(draftPosts))
 	}
 
-	// LIMIT/OFFSETのテスト
+	// Test LIMIT/OFFSET
 	limitedPosts, err := repo.FindAll(nil, 2, 0)
 	if err != nil {
 		t.Fatalf("failed to find limited posts: %v", err)
@@ -274,7 +274,7 @@ func TestPostRepository_Update(t *testing.T) {
 
 	repo := NewPostRepository(db)
 
-	// テストデータを作成
+	// Create test data
 	now := time.Now()
 	post := &domain.Post{
 		Title:     "Original Title",
@@ -291,7 +291,7 @@ func TestPostRepository_Update(t *testing.T) {
 		t.Fatalf("failed to create post: %v", err)
 	}
 
-	// 記事を更新
+	// Update post
 	post.Title = "Updated Title"
 	post.Content = "Updated content"
 	post.Status = domain.PostStatusPublished
@@ -304,7 +304,7 @@ func TestPostRepository_Update(t *testing.T) {
 		t.Fatalf("failed to update post: %v", err)
 	}
 
-	// 更新された内容を確認
+	// Verify updated content
 	updated, err := repo.FindByID(post.ID)
 	if err != nil {
 		t.Fatalf("failed to retrieve updated post: %v", err)
@@ -330,7 +330,7 @@ func TestPostRepository_Delete(t *testing.T) {
 
 	repo := NewPostRepository(db)
 
-	// テストデータを作成
+	// Create test data
 	now := time.Now()
 	post := &domain.Post{
 		Title:     "To Be Deleted",
@@ -352,7 +352,7 @@ func TestPostRepository_Delete(t *testing.T) {
 		t.Fatalf("failed to delete post: %v", err)
 	}
 
-	// 削除されたことを確認
+	// Verify deletion
 	deleted, err := repo.FindByID(post.ID)
 	if err != nil {
 		t.Fatalf("unexpected error when finding deleted post: %v", err)
@@ -368,7 +368,7 @@ func TestPostRepository_FindAllByTag(t *testing.T) {
 
 	repo := NewPostRepository(db)
 
-	// テストデータを作成
+	// Create test data
 	now := time.Now()
 	posts := []*domain.Post{
 		{
@@ -433,18 +433,18 @@ func TestPostRepository_FindAllByTag(t *testing.T) {
 		}
 	}
 
-	t.Run("タグ'Go'で検索（全ステータス）", func(t *testing.T) {
+	t.Run("Search by tag 'Go' (all statuses)", func(t *testing.T) {
 		results, err := repo.FindAllByTag("Go", nil, 10, 0)
 		if err != nil {
 			t.Fatalf("failed to find posts by tag: %v", err)
 		}
 
-		// "Go"タグを含む記事は4件（"Golang"は含まない）
+		// 4 posts contain "Go" tag (excluding "Golang")
 		if len(results) != 4 {
 			t.Errorf("expected 4 posts, got %d", len(results))
 		}
 
-		// 新しい順にソートされていることを確認
+		// Verify sorted in descending order (newest first)
 		for i := 1; i < len(results); i++ {
 			if results[i-1].CreatedAt.Before(results[i].CreatedAt) {
 				t.Errorf("posts not sorted in descending order")
@@ -452,19 +452,19 @@ func TestPostRepository_FindAllByTag(t *testing.T) {
 		}
 	})
 
-	t.Run("タグ'Go'で検索（公開のみ）", func(t *testing.T) {
+	t.Run("Search by tag 'Go' (published only)", func(t *testing.T) {
 		publishedStatus := domain.PostStatusPublished
 		results, err := repo.FindAllByTag("Go", &publishedStatus, 10, 0)
 		if err != nil {
 			t.Fatalf("failed to find posts by tag: %v", err)
 		}
 
-		// 公開済みの"Go"タグを含む記事は3件
+		// 3 published posts contain "Go" tag
 		if len(results) != 3 {
 			t.Errorf("expected 3 published posts, got %d", len(results))
 		}
 
-		// すべて公開ステータスであることを確認
+		// Verify all have published status
 		for _, post := range results {
 			if post.Status != domain.PostStatusPublished {
 				t.Errorf("expected published status, got %s", post.Status)
@@ -472,14 +472,14 @@ func TestPostRepository_FindAllByTag(t *testing.T) {
 		}
 	})
 
-	t.Run("タグ'Go'で検索（下書きのみ）", func(t *testing.T) {
+	t.Run("Search by tag 'Go' (drafts only)", func(t *testing.T) {
 		draftStatus := domain.PostStatusDraft
 		results, err := repo.FindAllByTag("Go", &draftStatus, 10, 0)
 		if err != nil {
 			t.Fatalf("failed to find posts by tag: %v", err)
 		}
 
-		// 下書きの"Go"タグを含む記事は1件
+		// 1 draft post contains "Go" tag
 		if len(results) != 1 {
 			t.Errorf("expected 1 draft post, got %d", len(results))
 		}
@@ -489,19 +489,19 @@ func TestPostRepository_FindAllByTag(t *testing.T) {
 		}
 	})
 
-	t.Run("タグ'React'で検索", func(t *testing.T) {
+	t.Run("Search by tag 'React'", func(t *testing.T) {
 		results, err := repo.FindAllByTag("React", nil, 10, 0)
 		if err != nil {
 			t.Fatalf("failed to find posts by tag: %v", err)
 		}
 
-		// "React"タグを含む記事は4件
+		// 4 posts contain "React" tag
 		if len(results) != 4 {
 			t.Errorf("expected 4 posts, got %d", len(results))
 		}
 	})
 
-	t.Run("存在しないタグで検索", func(t *testing.T) {
+	t.Run("Search by non-existent tag", func(t *testing.T) {
 		results, err := repo.FindAllByTag("NonExistent", nil, 10, 0)
 		if err != nil {
 			t.Fatalf("failed to find posts by tag: %v", err)
@@ -512,8 +512,8 @@ func TestPostRepository_FindAllByTag(t *testing.T) {
 		}
 	})
 
-	t.Run("部分一致しないことを確認", func(t *testing.T) {
-		// "Go"で検索しても"Golang"は含まれない
+	t.Run("Verify no partial matching", func(t *testing.T) {
+		// Searching for "Go" should not include "Golang"
 		results, err := repo.FindAllByTag("Go", nil, 10, 0)
 		if err != nil {
 			t.Fatalf("failed to find posts by tag: %v", err)
@@ -526,8 +526,8 @@ func TestPostRepository_FindAllByTag(t *testing.T) {
 		}
 	})
 
-	t.Run("LIMIT/OFFSETのテスト", func(t *testing.T) {
-		// 最初の2件を取得
+	t.Run("Test LIMIT/OFFSET", func(t *testing.T) {
+		// Retrieve first 2 posts
 		results, err := repo.FindAllByTag("Go", nil, 2, 0)
 		if err != nil {
 			t.Fatalf("failed to find posts with limit: %v", err)
@@ -537,7 +537,7 @@ func TestPostRepository_FindAllByTag(t *testing.T) {
 			t.Errorf("expected 2 posts with limit, got %d", len(results))
 		}
 
-		// 次の2件を取得
+		// Retrieve next 2 posts
 		nextResults, err := repo.FindAllByTag("Go", nil, 2, 2)
 		if err != nil {
 			t.Fatalf("failed to find posts with offset: %v", err)
@@ -547,7 +547,7 @@ func TestPostRepository_FindAllByTag(t *testing.T) {
 			t.Errorf("expected 2 posts with offset, got %d", len(nextResults))
 		}
 
-		// 重複していないことを確認
+		// Verify no duplicates
 		if results[0].ID == nextResults[0].ID {
 			t.Errorf("offset results should be different from first page")
 		}
@@ -560,7 +560,7 @@ func TestPostRepository_GetAllTags(t *testing.T) {
 
 	repo := NewPostRepository(db)
 
-	// テストデータを作成
+	// Create test data
 	now := time.Now()
 	posts := []*domain.Post{
 		{
@@ -616,13 +616,13 @@ func TestPostRepository_GetAllTags(t *testing.T) {
 		}
 	}
 
-	t.Run("全記事のタグをカウント", func(t *testing.T) {
+	t.Run("Count tags from all posts", func(t *testing.T) {
 		tagCounts, err := repo.GetAllTags(nil)
 		if err != nil {
 			t.Fatalf("failed to get all tags: %v", err)
 		}
 
-		// 期待されるタグ数
+		// Expected tag counts
 		expectedCounts := map[string]int{
 			"Go":         3, // Post 1, 2, 3
 			"React":      2, // Post 1, 4
@@ -645,21 +645,21 @@ func TestPostRepository_GetAllTags(t *testing.T) {
 		}
 	})
 
-	t.Run("公開記事のみのタグをカウント", func(t *testing.T) {
+	t.Run("Count tags from published posts only", func(t *testing.T) {
 		publishedStatus := domain.PostStatusPublished
 		tagCounts, err := repo.GetAllTags(&publishedStatus)
 		if err != nil {
 			t.Fatalf("failed to get published tags: %v", err)
 		}
 
-		// 公開記事のみの期待されるタグ数
+		// Expected tag counts from published posts only
 		expectedCounts := map[string]int{
 			"Go":         2, // Post 1, 2
 			"React":      2, // Post 1, 4
 			"Docker":     1, // Post 1
 			"JavaScript": 1, // Post 2
 			"TypeScript": 1, // Post 4
-			// "Python"は下書きのPost 3にのみあるので含まれない
+			// "Python" is only in draft Post 3, so not included
 		}
 
 		if len(tagCounts) != len(expectedCounts) {
@@ -674,20 +674,20 @@ func TestPostRepository_GetAllTags(t *testing.T) {
 			}
 		}
 
-		// "Python"が含まれていないことを確認
+		// Verify "Python" is not included
 		if _, exists := tagCounts["Python"]; exists {
 			t.Errorf("expected 'Python' tag to not exist in published posts")
 		}
 	})
 
-	t.Run("下書き記事のみのタグをカウント", func(t *testing.T) {
+	t.Run("Count tags from draft posts only", func(t *testing.T) {
 		draftStatus := domain.PostStatusDraft
 		tagCounts, err := repo.GetAllTags(&draftStatus)
 		if err != nil {
 			t.Fatalf("failed to get draft tags: %v", err)
 		}
 
-		// 下書き記事のみの期待されるタグ数
+		// Expected tag counts from draft posts only
 		expectedCounts := map[string]int{
 			"Go":     1, // Post 3
 			"Python": 1, // Post 3
@@ -706,8 +706,8 @@ func TestPostRepository_GetAllTags(t *testing.T) {
 		}
 	})
 
-	t.Run("タグがない場合", func(t *testing.T) {
-		// すべての記事を削除
+	t.Run("When there are no tags", func(t *testing.T) {
+		// Delete all posts
 		allPosts, _ := repo.FindAll(nil, 100, 0)
 		for _, p := range allPosts {
 			repo.Delete(p.ID)
@@ -731,7 +731,7 @@ func TestPostRepository_Search(t *testing.T) {
 	repo := NewPostRepository(db)
 	now := time.Now()
 
-	// テストデータを作成
+	// Create test data
 	posts := []*domain.Post{
 		{
 			Title:       "Go言語入門",
@@ -770,7 +770,7 @@ func TestPostRepository_Search(t *testing.T) {
 		}
 	}
 
-	t.Run("タイトルで検索", func(t *testing.T) {
+	t.Run("Search by title", func(t *testing.T) {
 		results, err := repo.Search("入門", nil, 10, 0)
 		if err != nil {
 			t.Fatalf("failed to search: %v", err)
@@ -781,7 +781,7 @@ func TestPostRepository_Search(t *testing.T) {
 		}
 	})
 
-	t.Run("本文で検索", func(t *testing.T) {
+	t.Run("Search by content", func(t *testing.T) {
 		results, err := repo.Search("フロントエンド", nil, 10, 0)
 		if err != nil {
 			t.Fatalf("failed to search: %v", err)
@@ -795,19 +795,19 @@ func TestPostRepository_Search(t *testing.T) {
 		}
 	})
 
-	t.Run("大文字小文字を区別しない", func(t *testing.T) {
+	t.Run("Case insensitive search", func(t *testing.T) {
 		results, err := repo.Search("GO", nil, 10, 0)
 		if err != nil {
 			t.Fatalf("failed to search: %v", err)
 		}
 
-		// "Go言語入門" と "データベース設計"（本文にGoを含む）
+		// "Go Introduction" and "Database Design" (contains Go in content)
 		if len(results) != 2 {
 			t.Errorf("expected 2 posts, got %d", len(results))
 		}
 	})
 
-	t.Run("ステータスでフィルタリング", func(t *testing.T) {
+	t.Run("Filter by status", func(t *testing.T) {
 		publishedStatus := domain.PostStatusPublished
 		results, err := repo.Search("入門", &publishedStatus, 10, 0)
 		if err != nil {
@@ -819,7 +819,7 @@ func TestPostRepository_Search(t *testing.T) {
 		}
 	})
 
-	t.Run("下書きのみ検索", func(t *testing.T) {
+	t.Run("Search drafts only", func(t *testing.T) {
 		draftStatus := domain.PostStatusDraft
 		results, err := repo.Search("Go", &draftStatus, 10, 0)
 		if err != nil {
@@ -831,7 +831,7 @@ func TestPostRepository_Search(t *testing.T) {
 		}
 	})
 
-	t.Run("検索結果が0件", func(t *testing.T) {
+	t.Run("Zero search results", func(t *testing.T) {
 		results, err := repo.Search("存在しない", nil, 10, 0)
 		if err != nil {
 			t.Fatalf("failed to search: %v", err)
@@ -842,7 +842,7 @@ func TestPostRepository_Search(t *testing.T) {
 		}
 	})
 
-	t.Run("ページネーション", func(t *testing.T) {
+	t.Run("Pagination", func(t *testing.T) {
 		results, err := repo.Search("入門", nil, 1, 0)
 		if err != nil {
 			t.Fatalf("failed to search: %v", err)
@@ -870,7 +870,7 @@ func TestPostRepository_CountSearch(t *testing.T) {
 	repo := NewPostRepository(db)
 	now := time.Now()
 
-	// テストデータを作成
+	// Create test data
 	posts := []*domain.Post{
 		{
 			Title:       "Go言語入門",
@@ -906,7 +906,7 @@ func TestPostRepository_CountSearch(t *testing.T) {
 		}
 	}
 
-	t.Run("全件カウント", func(t *testing.T) {
+	t.Run("Count all results", func(t *testing.T) {
 		count, err := repo.CountSearch("入門", nil)
 		if err != nil {
 			t.Fatalf("failed to count: %v", err)
@@ -917,7 +917,7 @@ func TestPostRepository_CountSearch(t *testing.T) {
 		}
 	})
 
-	t.Run("ステータスでフィルタリング", func(t *testing.T) {
+	t.Run("Filter by status", func(t *testing.T) {
 		publishedStatus := domain.PostStatusPublished
 		count, err := repo.CountSearch("Go", &publishedStatus)
 		if err != nil {
@@ -929,7 +929,7 @@ func TestPostRepository_CountSearch(t *testing.T) {
 		}
 	})
 
-	t.Run("検索結果が0件", func(t *testing.T) {
+	t.Run("Zero search results", func(t *testing.T) {
 		count, err := repo.CountSearch("存在しない", nil)
 		if err != nil {
 			t.Fatalf("failed to count: %v", err)
@@ -948,7 +948,7 @@ func TestPostRepository_FindPinnedPublished(t *testing.T) {
 	repo := NewPostRepository(db)
 	now := time.Now()
 
-	// テストデータを作成
+	// Create test data
 	posts := []*domain.Post{
 		{
 			Title:       "ピン留め＆公開",
@@ -997,18 +997,18 @@ func TestPostRepository_FindPinnedPublished(t *testing.T) {
 		}
 	}
 
-	t.Run("ピン留めされた公開記事のみ取得", func(t *testing.T) {
+	t.Run("Retrieve only pinned published posts", func(t *testing.T) {
 		results, err := repo.FindPinnedPublished()
 		if err != nil {
 			t.Fatalf("failed to find pinned published posts: %v", err)
 		}
 
-		// ピン留め＆公開の記事は2件
+		// 2 posts are pinned and published
 		if len(results) != 2 {
 			t.Errorf("expected 2 pinned published posts, got %d", len(results))
 		}
 
-		// すべてピン留めかつ公開であることを確認
+		// Verify all are pinned and published
 		for _, post := range results {
 			if !post.IsPinned {
 				t.Errorf("expected post to be pinned, got is_pinned=false for %q", post.Title)
@@ -1019,13 +1019,13 @@ func TestPostRepository_FindPinnedPublished(t *testing.T) {
 		}
 	})
 
-	t.Run("タイトル順にソートされている", func(t *testing.T) {
+	t.Run("Sorted by title", func(t *testing.T) {
 		results, err := repo.FindPinnedPublished()
 		if err != nil {
 			t.Fatalf("failed to find pinned published posts: %v", err)
 		}
 
-		// タイトル昇順でソートされていることを確認
+		// Verify sorted in ascending order by title
 		for i := 1; i < len(results); i++ {
 			if results[i-1].Title > results[i].Title {
 				t.Errorf("posts not sorted by title: %q > %q", results[i-1].Title, results[i].Title)
@@ -1033,8 +1033,8 @@ func TestPostRepository_FindPinnedPublished(t *testing.T) {
 		}
 	})
 
-	t.Run("ピン留め記事がない場合", func(t *testing.T) {
-		// すべての記事を削除
+	t.Run("When there are no pinned posts", func(t *testing.T) {
+		// Delete all posts
 		allPosts, _ := repo.FindAll(nil, 100, 0)
 		for _, p := range allPosts {
 			repo.Delete(p.ID)

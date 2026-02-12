@@ -13,13 +13,13 @@ import (
 	"github.com/google/uuid"
 )
 
-// ImageHandlers は画像アップロードを処理するハンドラーです
+// ImageHandlers is a handler that processes image uploads
 type ImageHandlers struct {
 	uploadDir     string
 	maxUploadSize int64
 }
 
-// NewImageHandlers は新しいImageHandlersを作成します
+// NewImageHandlers creates a new ImageHandlers
 func NewImageHandlers(uploadDir string, maxUploadSize int64) *ImageHandlers {
 	return &ImageHandlers{
 		uploadDir:     uploadDir,
@@ -27,13 +27,13 @@ func NewImageHandlers(uploadDir string, maxUploadSize int64) *ImageHandlers {
 	}
 }
 
-// ImageUploadResponse は画像アップロード成功時のレスポンスです
+// ImageUploadResponse is the response when image upload succeeds
 type ImageUploadResponse struct {
-	URL      string `json:"url"`      // 画像のURL（例: /uploads/abc123.jpg）
-	Filename string `json:"filename"` // 元のファイル名
+	URL      string `json:"url"`      // Image URL (e.g., /uploads/abc123.jpg)
+	Filename string `json:"filename"` // Original filename
 }
 
-// 許可されるMIMEタイプとその拡張子
+// Allowed MIME types and their extensions
 var allowedMimeTypes = map[string]string{
 	"image/jpeg": ".jpg",
 	"image/png":  ".png",
@@ -41,7 +41,7 @@ var allowedMimeTypes = map[string]string{
 	"image/webp": ".webp",
 }
 
-// 許可されるファイルのマジックバイト（ファイルシグネチャ）
+// Allowed file magic bytes (file signatures)
 var allowedMagicBytes = map[string][]byte{
 	"image/jpeg": {0xFF, 0xD8, 0xFF},
 	"image/png":  {0x89, 0x50, 0x4E, 0x47},
@@ -49,13 +49,13 @@ var allowedMagicBytes = map[string][]byte{
 	"image/webp": {0x52, 0x49, 0x46, 0x46}, // RIFF header
 }
 
-// HandleUploadImage は画像アップロードを処理します
+// HandleUploadImage processes image uploads
 // POST /api/v1/images
 func (h *ImageHandlers) HandleUploadImage(w http.ResponseWriter, r *http.Request) {
-	// リクエストボディのサイズ制限
+	// Request body size limit
 	r.Body = http.MaxBytesReader(w, r.Body, h.maxUploadSize)
 
-	// multipart/form-dataのパース
+	// Parse multipart/form-data
 	if err := r.ParseMultipartForm(h.maxUploadSize); err != nil {
 		if err.Error() == "http: request body too large" {
 			writeError(w, http.StatusBadRequest, fmt.Sprintf("File too large. Maximum size is %d bytes", h.maxUploadSize))
@@ -70,7 +70,7 @@ func (h *ImageHandlers) HandleUploadImage(w http.ResponseWriter, r *http.Request
 		}
 	}()
 
-	// ファイルを取得
+	// Get the file
 	file, header, err := r.FormFile("image")
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "No image file provided")
@@ -78,13 +78,13 @@ func (h *ImageHandlers) HandleUploadImage(w http.ResponseWriter, r *http.Request
 	}
 	defer file.Close()
 
-	// ファイルサイズの検証
+	// Validate file size
 	if header.Size > h.maxUploadSize {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("File too large. Maximum size is %d bytes", h.maxUploadSize))
 		return
 	}
 
-	// Content-Typeの取得と検証
+	// Get and validate Content-Type
 	contentType := header.Header.Get("Content-Type")
 	ext, ok := allowedMimeTypes[contentType]
 	if !ok {
@@ -92,7 +92,7 @@ func (h *ImageHandlers) HandleUploadImage(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// ファイル内容を読み込み（マジックバイト検証用）
+	// Read file content (for magic byte validation)
 	fileBytes, err := io.ReadAll(file)
 	if err != nil {
 		log.Printf("failed to read file: %v", err)
@@ -100,13 +100,13 @@ func (h *ImageHandlers) HandleUploadImage(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// マジックバイトの検証
+	// Validate magic bytes
 	if !validateMagicBytes(fileBytes, contentType) {
 		writeError(w, http.StatusBadRequest, "Invalid file content. File type does not match content")
 		return
 	}
 
-	// メタデータ（EXIF等）を削除
+	// Strip metadata (EXIF, etc.)
 	strippedBytes, err := StripMetadata(fileBytes, contentType)
 	if err != nil {
 		log.Printf("failed to strip metadata from %s: %v", contentType, err)
@@ -114,20 +114,20 @@ func (h *ImageHandlers) HandleUploadImage(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// 一意なファイル名を生成（UUID v4 + 拡張子）
+	// Generate unique filename (UUID v4 + extension)
 	newFilename := uuid.New().String() + ext
 
-	// ファイルパスの構築（ディレクトリトラバーサル防止）
+	// Build file path (prevent directory traversal)
 	safePath := filepath.Join(h.uploadDir, filepath.Base(newFilename))
 
-	// ファイルを保存（メタデータ削除済み）
+	// Save file (with metadata stripped)
 	if err := os.WriteFile(safePath, strippedBytes, 0644); err != nil {
 		log.Printf("failed to save file: %v", err)
 		writeError(w, http.StatusInternalServerError, "Failed to save image")
 		return
 	}
 
-	// レスポンスを返す
+	// Return response
 	response := ImageUploadResponse{
 		URL:      "/uploads/" + newFilename,
 		Filename: sanitizeFilename(header.Filename),
@@ -136,7 +136,7 @@ func (h *ImageHandlers) HandleUploadImage(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusCreated, response)
 }
 
-// validateMagicBytes はファイルのマジックバイトを検証します
+// validateMagicBytes validates the magic bytes of a file
 func validateMagicBytes(data []byte, contentType string) bool {
 	expectedMagic, ok := allowedMagicBytes[contentType]
 	if !ok {
@@ -147,23 +147,23 @@ func validateMagicBytes(data []byte, contentType string) bool {
 		return false
 	}
 
-	// WebPの場合は特殊な検証（RIFFヘッダー + WEBPフォーマット）
+	// Special validation for WebP (RIFF header + WEBP format)
 	if contentType == "image/webp" {
 		if len(data) < 12 {
 			return false
 		}
-		// RIFF....WEBP のパターンをチェック
+		// Check RIFF....WEBP pattern
 		return bytes.HasPrefix(data, expectedMagic) && string(data[8:12]) == "WEBP"
 	}
 
 	return bytes.HasPrefix(data, expectedMagic)
 }
 
-// sanitizeFilename はファイル名から危険な文字を除去します
+// sanitizeFilename removes dangerous characters from a filename
 func sanitizeFilename(filename string) string {
-	// パス区切り文字を除去
+	// Remove path separators
 	filename = filepath.Base(filename)
-	// 制御文字や特殊文字を除去
+	// Remove control characters and special characters
 	filename = strings.Map(func(r rune) rune {
 		if r < 32 || r == '<' || r == '>' || r == ':' || r == '"' || r == '/' || r == '\\' || r == '|' || r == '?' || r == '*' {
 			return -1

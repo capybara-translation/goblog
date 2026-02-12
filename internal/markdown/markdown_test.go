@@ -14,52 +14,52 @@ func TestConvert_BasicMarkdown(t *testing.T) {
 		contains []string
 	}{
 		{
-			name:     "見出し変換",
+			name:     "Heading conversion",
 			input:    "# Hello World",
 			contains: []string{"<h1", "Hello World", "</h1>"},
 		},
 		{
-			name:     "段落変換",
+			name:     "Paragraph conversion",
 			input:    "This is a paragraph.",
 			contains: []string{"<p ", "This is a paragraph.", "</p>"},
 		},
 		{
-			name:     "太字変換",
+			name:     "Bold conversion",
 			input:    "**bold text**",
 			contains: []string{"<strong>", "bold text", "</strong>"},
 		},
 		{
-			name:     "斜体変換",
+			name:     "Italic conversion",
 			input:    "*italic text*",
 			contains: []string{"<em>", "italic text", "</em>"},
 		},
 		{
-			name:     "リンク変換",
+			name:     "Link conversion",
 			input:    "[Google](https://google.com)",
 			contains: []string{`href="https://google.com"`, "Google"},
 		},
 		{
-			name:     "インラインコード",
+			name:     "Inline code",
 			input:    "Use `fmt.Println()` function",
 			contains: []string{"<code>", "fmt.Println()", "</code>"},
 		},
 		{
-			name:     "リスト変換",
+			name:     "List conversion",
 			input:    "- Item 1\n- Item 2\n- Item 3",
 			contains: []string{"<ul ", "<li ", "Item 1", "Item 2", "Item 3", "</li>", "</ul>"},
 		},
 		{
-			name:     "番号付きリスト",
+			name:     "Numbered list",
 			input:    "1. First\n2. Second\n3. Third",
 			contains: []string{"<ol ", "<li ", "First", "Second", "Third", "</li>", "</ol>"},
 		},
 		{
-			name:     "引用",
+			name:     "Blockquote",
 			input:    "> This is a quote",
 			contains: []string{"<blockquote ", "This is a quote", "</blockquote>"},
 		},
 		{
-			name:     "日本語テキスト",
+			name:     "Japanese text",
 			input:    "# こんにちは世界\n\nこれは日本語のテキストです。",
 			contains: []string{"<h1", "こんにちは世界", "</h1>", "<p ", "これは日本語のテキストです。", "</p>"},
 		},
@@ -89,27 +89,27 @@ func TestConvert_GFMFeatures(t *testing.T) {
 		contains []string
 	}{
 		{
-			name:     "テーブル変換",
+			name:     "Table conversion",
 			input:    "| Header 1 | Header 2 |\n|----------|----------|\n| Cell 1   | Cell 2   |",
 			contains: []string{"<table ", "<th ", "Header 1", "Header 2", "<td ", "Cell 1", "Cell 2", "</table>"},
 		},
 		{
-			name:     "取り消し線",
+			name:     "Strikethrough",
 			input:    "~~deleted text~~",
 			contains: []string{"<del>", "deleted text", "</del>"},
 		},
 		{
-			name:     "タスクリスト（チェック済み）",
+			name:     "Task list (checked)",
 			input:    "- [x] Done task",
 			contains: []string{"<li ", "Done task", "<input", "type=\"checkbox\"", "checked"},
 		},
 		{
-			name:     "タスクリスト（未チェック）",
+			name:     "Task list (unchecked)",
 			input:    "- [ ] Todo task",
 			contains: []string{"<li ", "Todo task", "<input", "type=\"checkbox\""},
 		},
 		{
-			name:     "自動リンク",
+			name:     "Auto link",
 			input:    "Visit https://example.com for more info",
 			contains: []string{`href="https://example.com"`, "https://example.com"},
 		},
@@ -139,17 +139,17 @@ func TestConvert_SyntaxHighlighting(t *testing.T) {
 		contains []string
 	}{
 		{
-			name:     "Goコードブロック",
+			name:     "Go code block",
 			input:    "```go\nfunc main() {\n    fmt.Println(\"Hello\")\n}\n```",
 			contains: []string{"<pre", "<code", "func", "main"},
 		},
 		{
-			name:     "JavaScriptコードブロック",
+			name:     "JavaScript code block",
 			input:    "```javascript\nconst x = 1;\nconsole.log(x);\n```",
 			contains: []string{"<pre", "<code", "const", "console"},
 		},
 		{
-			name:     "言語指定なしコードブロック",
+			name:     "Code block without language",
 			input:    "```\nplain code\n```",
 			contains: []string{"<pre", "<code", "plain code"},
 		},
@@ -169,16 +169,16 @@ func TestConvert_SyntaxHighlighting(t *testing.T) {
 		})
 	}
 
-	// シンタックスハイライトがスタイル属性を生成することを確認
-	t.Run("シンタックスハイライトがstyle属性を生成する", func(t *testing.T) {
+	// Verify syntax highlighting generates style attributes
+	t.Run("Syntax highlighting generates style attribute", func(t *testing.T) {
 		input := "```go\nfunc main() {}\n```"
 		result, err := converter.Convert(input)
 		if err != nil {
 			t.Fatalf("Convert() error = %v", err)
 		}
-		// highlighting拡張はspan要素にstyle属性を付与する
+		// highlighting extension adds style attribute to span elements
 		if !strings.Contains(result, "style=") {
-			t.Errorf("シンタックスハイライトが有効なら style 属性が存在するはず, got: %q", result)
+			t.Errorf("Expected style attribute if syntax highlighting is enabled, got: %q", result)
 		}
 	})
 }
@@ -192,52 +192,52 @@ func TestConvert_XSSSanitization(t *testing.T) {
 		notContains []string
 	}{
 		{
-			name:        "scriptタグ除去",
+			name:        "Remove script tag",
 			input:       "<script>alert('xss')</script>",
 			notContains: []string{"<script>", "alert("},
 		},
 		{
-			name:        "onclickイベント除去",
+			name:        "Remove onclick event",
 			input:       `<a href="#" onclick="alert('xss')">Click</a>`,
 			notContains: []string{"onclick"},
 		},
 		{
-			name:        "javascriptプロトコル除去",
+			name:        "Remove javascript protocol",
 			input:       `<a href="javascript:alert('xss')">Click</a>`,
 			notContains: []string{"javascript:"},
 		},
 		{
-			name:        "iframeタグ除去",
+			name:        "Remove iframe tag",
 			input:       `<iframe src="https://evil.com"></iframe>`,
 			notContains: []string{"<iframe"},
 		},
 		{
-			name:        "imgタグのonerror除去",
+			name:        "Remove onerror on img tag",
 			input:       `<img src="x" onerror="alert('xss')">`,
 			notContains: []string{"onerror"},
 		},
 		{
-			name:        "styleタグ除去（ルート）",
+			name:        "Remove style tag (root)",
 			input:       `<style>body { display: none; }</style>`,
 			notContains: []string{"<style>"},
 		},
 		{
-			name:        "Markdownコード内のscript（エスケープ）",
+			name:        "Script in Markdown code (escaped)",
 			input:       "```html\n<script>alert('xss')</script>\n```",
 			notContains: []string{"<script>alert"},
 		},
 		{
-			name:        "input type=text は除去",
+			name:        "Remove input type=text",
 			input:       `<input type="text" value="phishing">`,
 			notContains: []string{`type="text"`},
 		},
 		{
-			name:        "input type=password は除去",
+			name:        "Remove input type=password",
 			input:       `<input type="password">`,
 			notContains: []string{`type="password"`},
 		},
 		{
-			name:        "input type=hidden は除去",
+			name:        "Remove input type=hidden",
 			input:       `<input type="hidden" value="secret">`,
 			notContains: []string{`type="hidden"`},
 		},
@@ -267,12 +267,12 @@ func TestConvert_AllowedHTMLTags(t *testing.T) {
 		contains []string
 	}{
 		{
-			name:     "imgタグは許可（src属性のみ）",
+			name:     "img tag is allowed (src attribute only)",
 			input:    `![alt text](https://example.com/image.png)`,
 			contains: []string{"<img", `src="https://example.com/image.png"`, `alt="alt text"`},
 		},
 		{
-			name:     "aタグは許可",
+			name:     "a tag is allowed",
 			input:    `[link](https://example.com)`,
 			contains: []string{"<a", `href="https://example.com"`, "link", "</a>"},
 		},
@@ -373,20 +373,20 @@ func main() {
 func TestConvert_DataLineAttributes(t *testing.T) {
 	converter := NewConverter()
 
-	t.Run("data-line属性がサニタイズ後も残る", func(t *testing.T) {
+	t.Run("data-line attribute remains after sanitization", func(t *testing.T) {
 		input := "# Title\n\nParagraph"
 		result, err := converter.Convert(input)
 		if err != nil {
 			t.Fatalf("Convert() error = %v", err)
 		}
 
-		// data-line属性が存在するべき
+		// data-line attribute should exist
 		if !strings.Contains(result, `data-line="`) {
 			t.Errorf("Convert() should contain data-line attribute, got: %q", result)
 		}
 	})
 
-	t.Run("見出しにdata-line属性が付与される", func(t *testing.T) {
+	t.Run("data-line attribute is added to heading", func(t *testing.T) {
 		input := "# Title"
 		result, err := converter.Convert(input)
 		if err != nil {
@@ -398,28 +398,28 @@ func TestConvert_DataLineAttributes(t *testing.T) {
 		}
 	})
 
-	t.Run("段落にdata-line属性が付与される", func(t *testing.T) {
+	t.Run("data-line attribute is added to paragraph", func(t *testing.T) {
 		input := "# Title\n\nParagraph"
 		result, err := converter.Convert(input)
 		if err != nil {
 			t.Fatalf("Convert() error = %v", err)
 		}
 
-		// 段落は2行目（0-indexed）
+		// Paragraph is on line 2 (0-indexed)
 		if !strings.Contains(result, `<p`) || !strings.Contains(result, `data-line="2"`) {
 			t.Errorf("Convert() should contain p with data-line=\"2\", got: %q", result)
 		}
 	})
 
-	t.Run("不正なdata-line属性はサニタイズされる", func(t *testing.T) {
-		// 直接HTMLを入力（XSS攻撃のシミュレーション）
+	t.Run("Invalid data-line attribute is sanitized", func(t *testing.T) {
+		// Direct HTML input (simulating XSS attack)
 		input := `<p data-line="alert('xss')">text</p>`
 		result, err := converter.Convert(input)
 		if err != nil {
 			t.Fatalf("Convert() error = %v", err)
 		}
 
-		// 不正な値はサニタイズされる（数字のみ許可）
+		// Invalid values are sanitized (only numbers allowed)
 		if strings.Contains(result, `alert`) {
 			t.Errorf("Convert() should sanitize invalid data-line values, got: %q", result)
 		}

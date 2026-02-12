@@ -9,35 +9,35 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-// UserRepository はユーザーデータへのアクセスを提供するインターフェースです
+// UserRepository is an interface that provides access to user data
 type UserRepository interface {
-	// FindByUsername はユーザー名でユーザーを取得します
+	// FindByUsername retrieves a user by username
 	FindByUsername(username string) (*domain.User, error)
 
-	// FindByID はIDでユーザーを取得します
+	// FindByID retrieves a user by ID
 	FindByID(id int64) (*domain.User, error)
 
-	// Create は新しいユーザーを作成します
+	// Create creates a new user
 	Create(user *domain.User) error
 
-	// Update はユーザーを更新します
+	// Update updates a user
 	Update(user *domain.User) error
 
-	// Delete はユーザーを削除します
+	// Delete deletes a user
 	Delete(id int64) error
 }
 
-// userRepository はUserRepositoryのSQLite実装です
+// userRepository is the SQLite implementation of UserRepository
 type userRepository struct {
 	db *sqlx.DB
 }
 
-// NewUserRepository は新しいUserRepositoryを作成します
+// NewUserRepository creates a new UserRepository
 func NewUserRepository(db *sqlx.DB) UserRepository {
 	return &userRepository{db: db}
 }
 
-// FindByUsername はユーザー名でユーザーを取得します
+// FindByUsername retrieves a user by username
 func (r *userRepository) FindByUsername(username string) (*domain.User, error) {
 	var user domain.User
 	query := "SELECT * FROM users WHERE username = ?"
@@ -53,7 +53,7 @@ func (r *userRepository) FindByUsername(username string) (*domain.User, error) {
 	return &user, nil
 }
 
-// FindByID はIDでユーザーを取得します
+// FindByID retrieves a user by ID
 func (r *userRepository) FindByID(id int64) (*domain.User, error) {
 	var user domain.User
 	query := "SELECT * FROM users WHERE id = ?"
@@ -69,7 +69,7 @@ func (r *userRepository) FindByID(id int64) (*domain.User, error) {
 	return &user, nil
 }
 
-// Create は新しいユーザーを作成します
+// Create creates a new user
 func (r *userRepository) Create(user *domain.User) error {
 	query := `
 		INSERT INTO users (username, password_hash, created_at, updated_at)
@@ -90,7 +90,7 @@ func (r *userRepository) Create(user *domain.User) error {
 	return nil
 }
 
-// Update はユーザーを更新します
+// Update updates a user
 func (r *userRepository) Update(user *domain.User) error {
 	query := `
 		UPDATE users
@@ -106,7 +106,7 @@ func (r *userRepository) Update(user *domain.User) error {
 	return nil
 }
 
-// Delete はユーザーを削除します
+// Delete deletes a user
 func (r *userRepository) Delete(id int64) error {
 	query := "DELETE FROM users WHERE id = ?"
 

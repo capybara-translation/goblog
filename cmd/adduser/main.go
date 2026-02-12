@@ -21,29 +21,29 @@ import (
 )
 
 func main() {
-	// .envファイルから環境変数を読み込む（存在しない場合はスキップ）
+	// Load environment variables from .env file (skip if not found)
 	if err := godotenv.Load(); err != nil {
-		// .envファイルが存在しない場合はログに記録するが、エラーにはしない
+		// Log if .env file doesn't exist, but don't treat it as an error
 		log.Printf(".env file not found or could not be loaded: %v", err)
 	}
 
-	// フラグの定義
-	username := flag.String("username", "", "ユーザー名（必須）")
-	password := flag.String("password", "", "パスワード（省略時はプロンプトで入力）")
-	help := flag.Bool("help", false, "ヘルプを表示")
-	flag.BoolVar(help, "h", false, "ヘルプを表示（短縮形）")
+	// Define flags
+	username := flag.String("username", "", "Username (required)")
+	password := flag.String("password", "", "Password (will prompt if omitted)")
+	help := flag.Bool("help", false, "Show help")
+	flag.BoolVar(help, "h", false, "Show help (shorthand)")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "使い方: adduser [オプション]\n\n")
-		fmt.Fprintf(os.Stderr, "goblogの管理者ユーザーを作成します。\n\n")
-		fmt.Fprintf(os.Stderr, "オプション:\n")
+		fmt.Fprintf(os.Stderr, "Usage: adduser [options]\n\n")
+		fmt.Fprintf(os.Stderr, "Create an admin user for goblog.\n\n")
+		fmt.Fprintf(os.Stderr, "Options:\n")
 		flag.PrintDefaults()
-		fmt.Fprintf(os.Stderr, "\n例:\n")
-		fmt.Fprintf(os.Stderr, "  adduser -username admin                    # パスワードをプロンプトで入力\n")
-		fmt.Fprintf(os.Stderr, "  adduser -username admin -password secret   # パスワードを指定（スクリプト用）\n")
-		fmt.Fprintf(os.Stderr, "\n環境変数（.envファイルからも読み込み可能）:\n")
-		fmt.Fprintf(os.Stderr, "  DATABASE_PATH    - データベースファイルのパス（デフォルト: data/goblog.db）\n")
-		fmt.Fprintf(os.Stderr, "  PASSWORD_POLICY  - パスワードポリシー（NONE または STRONG）\n")
+		fmt.Fprintf(os.Stderr, "\nExamples:\n")
+		fmt.Fprintf(os.Stderr, "  adduser -username admin                    # Enter password at prompt\n")
+		fmt.Fprintf(os.Stderr, "  adduser -username admin -password secret   # Specify password (for scripts)\n")
+		fmt.Fprintf(os.Stderr, "\nEnvironment variables (can also be loaded from .env file):\n")
+		fmt.Fprintf(os.Stderr, "  DATABASE_PATH    - Path to database file (default: data/goblog.db)\n")
+		fmt.Fprintf(os.Stderr, "  PASSWORD_POLICY  - Password policy (NONE or STRONG)\n")
 	}
 
 	flag.Parse()
@@ -53,94 +53,94 @@ func main() {
 		os.Exit(0)
 	}
 
-	// ユーザー名の取得（フラグが空ならプロンプト）
+	// Get username (prompt if flag is empty)
 	if *username == "" {
-		fmt.Print("ユーザー名: ")
+		fmt.Print("Username: ")
 		reader := bufio.NewReader(os.Stdin)
 		input, err := reader.ReadString('\n')
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "エラー: ユーザー名の読み取りに失敗しました: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Error: Failed to read username: %v\n", err)
 			os.Exit(1)
 		}
 		*username = strings.TrimSpace(input)
 	}
 
 	if *username == "" {
-		fmt.Fprintf(os.Stderr, "エラー: ユーザー名は必須です\n")
+		fmt.Fprintf(os.Stderr, "Error: Username is required\n")
 		os.Exit(1)
 	}
 
-	// パスワードの取得（フラグが空ならプロンプト）
+	// Get password (prompt if flag is empty)
 	if *password == "" {
-		fmt.Print("パスワード: ")
+		fmt.Print("Password: ")
 		bytePassword, err := term.ReadPassword(int(syscall.Stdin))
-		fmt.Println() // 改行
+		fmt.Println() // newline
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "エラー: パスワードの読み取りに失敗しました: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Error: Failed to read password: %v\n", err)
 			os.Exit(1)
 		}
 		*password = string(bytePassword)
 
-		// パスワード確認
-		fmt.Print("パスワード（確認）: ")
+		// Confirm password
+		fmt.Print("Password (confirm): ")
 		bytePasswordConfirm, err := term.ReadPassword(int(syscall.Stdin))
-		fmt.Println() // 改行
+		fmt.Println() // newline
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "エラー: パスワードの読み取りに失敗しました: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Error: Failed to read password: %v\n", err)
 			os.Exit(1)
 		}
 
 		if *password != string(bytePasswordConfirm) {
-			fmt.Fprintf(os.Stderr, "エラー: パスワードが一致しません\n")
+			fmt.Fprintf(os.Stderr, "Error: Passwords do not match\n")
 			os.Exit(1)
 		}
 	}
 
 	if *password == "" {
-		fmt.Fprintf(os.Stderr, "エラー: パスワードは必須です\n")
+		fmt.Fprintf(os.Stderr, "Error: Password is required\n")
 		os.Exit(1)
 	}
 
-	// 設定の読み込み
+	// Load configuration
 	cfg := config.Load()
 
-	// データベースの初期化
+	// Initialize database
 	database, err := db.Open(cfg.DatabasePath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "エラー: データベースの接続に失敗しました: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: Failed to connect to database: %v\n", err)
 		os.Exit(1)
 	}
 	defer database.Close()
 
-	// マイグレーションの実行（埋め込まれたファイルから）
+	// Run migrations (from embedded files)
 	if err := db.RunMigrations(database, goblog.Migrations, "migrations/001_create_posts.sql", "migrations/002_create_users.sql", "migrations/003_add_is_pinned.sql"); err != nil {
-		fmt.Fprintf(os.Stderr, "エラー: マイグレーションに失敗しました: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: Failed to run migrations: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Repository と Service の初期化
+	// Initialize Repository and Service
 	userRepo := repo.NewUserRepository(database)
 	sessionStore := auth.NewInMemorySessionStore()
 	authService := service.NewAuthService(userRepo, sessionStore, cfg.PasswordPolicy)
 
-	// ユーザーの作成
+	// Create user
 	user, err := authService.CreateUser(*username, *password)
 	if err != nil {
 		if errors.Is(err, service.ErrUsernameAlreadyExists) {
-			fmt.Fprintf(os.Stderr, "エラー: ユーザー名 '%s' は既に使用されています\n", *username)
+			fmt.Fprintf(os.Stderr, "Error: Username '%s' is already taken\n", *username)
 		} else if errors.Is(err, service.ErrWeakPassword) {
-			fmt.Fprintf(os.Stderr, "エラー: パスワードが弱すぎます\n")
-			fmt.Fprintf(os.Stderr, "パスワードポリシー（STRONG）の要件:\n")
-			fmt.Fprintf(os.Stderr, "  - 15文字以上\n")
-			fmt.Fprintf(os.Stderr, "  - 大文字を含む\n")
-			fmt.Fprintf(os.Stderr, "  - 小文字を含む\n")
-			fmt.Fprintf(os.Stderr, "  - 数字を含む\n")
-			fmt.Fprintf(os.Stderr, "  - 記号を含む\n")
+			fmt.Fprintf(os.Stderr, "Error: Password is too weak\n")
+			fmt.Fprintf(os.Stderr, "Password policy (STRONG) requirements:\n")
+			fmt.Fprintf(os.Stderr, "  - At least 15 characters\n")
+			fmt.Fprintf(os.Stderr, "  - Contains uppercase letter\n")
+			fmt.Fprintf(os.Stderr, "  - Contains lowercase letter\n")
+			fmt.Fprintf(os.Stderr, "  - Contains digit\n")
+			fmt.Fprintf(os.Stderr, "  - Contains symbol\n")
 		} else {
-			fmt.Fprintf(os.Stderr, "エラー: ユーザーの作成に失敗しました: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Error: Failed to create user: %v\n", err)
 		}
 		os.Exit(1)
 	}
 
-	fmt.Printf("ユーザーを作成しました: username=%s, id=%d\n", user.Username, user.ID)
+	fmt.Printf("User created: username=%s, id=%d\n", user.Username, user.ID)
 }

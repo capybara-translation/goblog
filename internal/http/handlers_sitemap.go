@@ -7,17 +7,17 @@ import (
 	"net/url"
 )
 
-// XMLヘッダー
+// XML header
 const xmlHeader = `<?xml version="1.0" encoding="UTF-8"?>`
 
-// SitemapURLSet はsitemap.xmlのルート要素
+// SitemapURLSet is the root element of sitemap.xml
 type SitemapURLSet struct {
 	XMLName xml.Name     `xml:"urlset"`
 	XMLNS   string       `xml:"xmlns,attr"`
 	URLs    []SitemapURL `xml:"url"`
 }
 
-// SitemapURL はsitemap.xml内の個別URL要素
+// SitemapURL is an individual URL element within sitemap.xml
 type SitemapURL struct {
 	Loc        string  `xml:"loc"`
 	LastMod    string  `xml:"lastmod,omitempty"`
@@ -25,9 +25,9 @@ type SitemapURL struct {
 	Priority   float64 `xml:"priority,omitempty"`
 }
 
-// HandleSitemap はsitemap.xmlを生成して返します
+// HandleSitemap generates and returns sitemap.xml
 func (h *PublicHandlers) HandleSitemap(w http.ResponseWriter, r *http.Request) {
-	// 1. 公開済み記事を取得（最大10000件）
+	// 1. Get published posts (max 10000)
 	posts, err := h.postService.GetPublishedPosts(10000, 0)
 	if err != nil {
 		log.Printf("failed to get published posts for sitemap: %v", err)
@@ -35,7 +35,7 @@ func (h *PublicHandlers) HandleSitemap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. タグ一覧を取得
+	// 2. Get tag list
 	tagCounts, err := h.postService.GetPublishedTags()
 	if err != nil {
 		log.Printf("failed to get published tags for sitemap: %v", err)
@@ -43,14 +43,14 @@ func (h *PublicHandlers) HandleSitemap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 3. URL一覧を構築
+	// 3. Build URL list
 	urls := []SitemapURL{
 		{Loc: h.baseURL + "/", ChangeFreq: "weekly", Priority: 1.0},
 		{Loc: h.baseURL + "/posts", ChangeFreq: "daily", Priority: 0.8},
 		{Loc: h.baseURL + "/tags", ChangeFreq: "weekly", Priority: 0.6},
 	}
 
-	// 記事URL
+	// Post URLs
 	for _, post := range posts {
 		lastMod := ""
 		if !post.UpdatedAt.IsZero() {
@@ -64,7 +64,7 @@ func (h *PublicHandlers) HandleSitemap(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// タグURL
+	// Tag URLs
 	for tagName := range tagCounts {
 		urls = append(urls, SitemapURL{
 			Loc:        h.baseURL + "/tags/" + url.PathEscape(tagName),
@@ -73,7 +73,7 @@ func (h *PublicHandlers) HandleSitemap(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// 4. XMLレスポンスを出力
+	// 4. Output XML response
 	urlset := SitemapURLSet{
 		XMLNS: "http://www.sitemaps.org/schemas/sitemap/0.9",
 		URLs:  urls,

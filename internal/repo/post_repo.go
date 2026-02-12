@@ -10,71 +10,71 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-// PostRepository は記事データへのアクセスを提供するインターフェースです
+// PostRepository is an interface that provides access to post data
 type PostRepository interface {
-	// FindAll はすべての記事を取得します
+	// FindAll retrieves all posts
 	FindAll(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
 
-	// FindBySlug はスラッグで記事を取得します
+	// FindBySlug retrieves a post by slug
 	FindBySlug(slug string) (*domain.Post, error)
 
-	// FindByID はIDで記事を取得します
+	// FindByID retrieves a post by ID
 	FindByID(id int64) (*domain.Post, error)
 
-	// Create は新しい記事を作成します
+	// Create creates a new post
 	Create(post *domain.Post) error
 
-	// Update は記事を更新します
+	// Update updates a post
 	Update(post *domain.Post) error
 
-	// Delete は記事を削除します
+	// Delete deletes a post
 	Delete(id int64) error
 
-	// FindAllByTag は特定のタグを持つ記事を取得します
+	// FindAllByTag retrieves posts with a specific tag
 	FindAllByTag(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
 
-	// GetAllTags はすべてのユニークなタグと記事数を取得します
+	// GetAllTags retrieves all unique tags and their post counts
 	GetAllTags(status *domain.PostStatus) (map[string]int, error)
 
-	// Count は記事の総数を取得します
+	// Count retrieves the total number of posts
 	Count(status *domain.PostStatus) (int, error)
 
-	// CountByTag は特定のタグを持つ記事の総数を取得します
+	// CountByTag retrieves the total number of posts with a specific tag
 	CountByTag(tag string, status *domain.PostStatus) (int, error)
 
-	// Search は検索クエリに一致する記事を取得します
+	// Search retrieves posts matching the search query
 	Search(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
 
-	// CountSearch は検索クエリに一致する記事数を取得します
+	// CountSearch retrieves the number of posts matching the search query
 	CountSearch(query string, status *domain.PostStatus) (int, error)
 
-	// FindPinnedPublished はピン留めされた公開記事を取得します
+	// FindPinnedPublished retrieves pinned published posts
 	FindPinnedPublished() ([]*domain.Post, error)
 }
 
-// postRepository はPostRepositoryのSQLite実装です
+// postRepository is the SQLite implementation of PostRepository
 type postRepository struct {
 	db *sqlx.DB
 }
 
-// NewPostRepository は新しいPostRepositoryを作成します
+// NewPostRepository creates a new PostRepository
 func NewPostRepository(db *sqlx.DB) PostRepository {
 	return &postRepository{db: db}
 }
 
-// FindAll はすべての記事を取得します
+// FindAll retrieves all posts
 func (r *postRepository) FindAll(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
 	var posts []*domain.Post
 	query := "SELECT * FROM posts"
 	args := []any{}
 
-	// ステータスでフィルタリング
+	// Filter by status
 	if status != nil {
 		query += " WHERE status = ?"
 		args = append(args, *status)
 	}
 
-	// 公開日時の降順でソート
+	// Sort by published date descending
 	query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
 	args = append(args, limit, offset)
 
@@ -85,7 +85,7 @@ func (r *postRepository) FindAll(status *domain.PostStatus, limit, offset int) (
 	return posts, nil
 }
 
-// FindBySlug はスラッグで記事を取得します
+// FindBySlug retrieves a post by slug
 func (r *postRepository) FindBySlug(slug string) (*domain.Post, error) {
 	var post domain.Post
 	query := "SELECT * FROM posts WHERE slug = ?"
@@ -101,7 +101,7 @@ func (r *postRepository) FindBySlug(slug string) (*domain.Post, error) {
 	return &post, nil
 }
 
-// FindByID はIDで記事を取得します
+// FindByID retrieves a post by ID
 func (r *postRepository) FindByID(id int64) (*domain.Post, error) {
 	var post domain.Post
 	query := "SELECT * FROM posts WHERE id = ?"
@@ -117,7 +117,7 @@ func (r *postRepository) FindByID(id int64) (*domain.Post, error) {
 	return &post, nil
 }
 
-// Create は新しい記事を作成します
+// Create creates a new post
 func (r *postRepository) Create(post *domain.Post) error {
 	query := `
 		INSERT INTO posts (title, slug, content, status, tags, is_pinned, created_at, updated_at, published_at)
@@ -138,7 +138,7 @@ func (r *postRepository) Create(post *domain.Post) error {
 	return nil
 }
 
-// Update は記事を更新します
+// Update updates a post
 func (r *postRepository) Update(post *domain.Post) error {
 	query := `
 		UPDATE posts
@@ -155,7 +155,7 @@ func (r *postRepository) Update(post *domain.Post) error {
 	return nil
 }
 
-// Delete は記事を削除します
+// Delete deletes a post
 func (r *postRepository) Delete(id int64) error {
 	query := "DELETE FROM posts WHERE id = ?"
 
@@ -167,16 +167,16 @@ func (r *postRepository) Delete(id int64) error {
 	return nil
 }
 
-// FindAllByTag は特定のタグを持つ記事を取得します
+// FindAllByTag retrieves posts with a specific tag
 func (r *postRepository) FindAllByTag(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
 	var posts []*domain.Post
 
-	// LIKEクエリでカンマ区切りタグを検索
-	// 4つのパターンで完全一致を確保:
-	// 1. tags = "Go" (単一タグ)
-	// 2. tags LIKE "Go,%" (先頭)
-	// 3. tags LIKE "%,Go,%" (中間)
-	// 4. tags LIKE "%,Go" (末尾)
+	// Search comma-separated tags with LIKE query
+	// Ensure exact match with 4 patterns:
+	// 1. tags = "Go" (single tag)
+	// 2. tags LIKE "Go,%" (at beginning)
+	// 3. tags LIKE "%,Go,%" (in middle)
+	// 4. tags LIKE "%,Go" (at end)
 	query := `SELECT * FROM posts WHERE (
 		tags = ? OR
 		tags LIKE ? || ',%' OR
@@ -185,13 +185,13 @@ func (r *postRepository) FindAllByTag(tag string, status *domain.PostStatus, lim
 	)`
 	args := []any{tag, tag, tag, tag}
 
-	// ステータスでフィルタリング
+	// Filter by status
 	if status != nil {
 		query += " AND status = ?"
 		args = append(args, *status)
 	}
 
-	// 作成日時の降順でソート
+	// Sort by created date descending
 	query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
 	args = append(args, limit, offset)
 
@@ -202,13 +202,13 @@ func (r *postRepository) FindAllByTag(tag string, status *domain.PostStatus, lim
 	return posts, nil
 }
 
-// GetAllTags はすべてのユニークなタグと記事数を取得します
+// GetAllTags retrieves all unique tags and their post counts
 func (r *postRepository) GetAllTags(status *domain.PostStatus) (map[string]int, error) {
 	var posts []*domain.Post
 	query := "SELECT tags FROM posts"
 	args := []any{}
 
-	// ステータスでフィルタリング
+	// Filter by status
 	if status != nil {
 		query += " WHERE status = ?"
 		args = append(args, *status)
@@ -218,7 +218,7 @@ func (r *postRepository) GetAllTags(status *domain.PostStatus) (map[string]int, 
 		return nil, fmt.Errorf("failed to query tags: %w", err)
 	}
 
-	// タグをカウント
+	// Count tags
 	tagCount := make(map[string]int)
 	for _, post := range posts {
 		if post.Tags == "" {
@@ -236,7 +236,7 @@ func (r *postRepository) GetAllTags(status *domain.PostStatus) (map[string]int, 
 	return tagCount, nil
 }
 
-// Count は記事の総数を取得します
+// Count retrieves the total number of posts
 func (r *postRepository) Count(status *domain.PostStatus) (int, error) {
 	query := "SELECT COUNT(*) FROM posts"
 	args := []any{}
@@ -254,7 +254,7 @@ func (r *postRepository) Count(status *domain.PostStatus) (int, error) {
 	return count, nil
 }
 
-// CountByTag は特定のタグを持つ記事の総数を取得します
+// CountByTag retrieves the total number of posts with a specific tag
 func (r *postRepository) CountByTag(tag string, status *domain.PostStatus) (int, error) {
 	query := `SELECT COUNT(*) FROM posts WHERE (
 		tags = ? OR
@@ -277,24 +277,24 @@ func (r *postRepository) CountByTag(tag string, status *domain.PostStatus) (int,
 	return count, nil
 }
 
-// Search は検索クエリに一致する記事を取得します（タイトルと本文を検索）
+// Search retrieves posts matching the search query (searches title and body)
 func (r *postRepository) Search(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
 	var posts []*domain.Post
 
-	// 大文字小文字を区別しない部分一致検索
+	// Case-insensitive partial match search
 	searchPattern := "%" + strings.ToLower(query) + "%"
 	sql := `SELECT * FROM posts WHERE (
 		LOWER(title) LIKE ? OR LOWER(content) LIKE ?
 	)`
 	args := []any{searchPattern, searchPattern}
 
-	// ステータスでフィルタリング
+	// Filter by status
 	if status != nil {
 		sql += " AND status = ?"
 		args = append(args, *status)
 	}
 
-	// 作成日時の降順でソート
+	// Sort by created date descending
 	sql += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
 	args = append(args, limit, offset)
 
@@ -305,7 +305,7 @@ func (r *postRepository) Search(query string, status *domain.PostStatus, limit, 
 	return posts, nil
 }
 
-// CountSearch は検索クエリに一致する記事数を取得します
+// CountSearch retrieves the number of posts matching the search query
 func (r *postRepository) CountSearch(query string, status *domain.PostStatus) (int, error) {
 	searchPattern := "%" + strings.ToLower(query) + "%"
 	sql := `SELECT COUNT(*) FROM posts WHERE (
@@ -326,7 +326,7 @@ func (r *postRepository) CountSearch(query string, status *domain.PostStatus) (i
 	return count, nil
 }
 
-// FindPinnedPublished はピン留めされた公開記事を取得します
+// FindPinnedPublished retrieves pinned published posts
 func (r *postRepository) FindPinnedPublished() ([]*domain.Post, error) {
 	var posts []*domain.Post
 	query := `SELECT * FROM posts WHERE is_pinned = 1 AND status = 'published' ORDER BY title ASC`

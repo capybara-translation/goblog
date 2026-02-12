@@ -15,7 +15,7 @@ import (
 	"github.com/yuin/goldmark/util"
 )
 
-// Converter はMarkdownをHTMLに変換するインターフェース
+// Converter is an interface for converting Markdown to HTML
 type Converter interface {
 	Convert(markdown string) (string, error)
 }
@@ -29,7 +29,7 @@ var (
 	once     sync.Once
 )
 
-// NewConverter はシングルトンのConverterを返す
+// NewConverter returns a singleton Converter
 func NewConverter() Converter {
 	once.Do(func() {
 		instance = &converter{
@@ -39,30 +39,30 @@ func NewConverter() Converter {
 	return instance
 }
 
-// createPolicy はHTMLサニタイズポリシーを作成する
+// createPolicy creates an HTML sanitization policy
 func createPolicy() *bluemonday.Policy {
 	policy := bluemonday.UGCPolicy()
-	// シンタックスハイライト用のclass属性を許可
+	// Allow class attribute for syntax highlighting
 	policy.AllowAttrs("class").Matching(bluemonday.SpaceSeparatedTokens).OnElements("code", "pre", "span", "div")
-	// コードブロックのstyle属性を許可（ハイライト色）
+	// Allow style attribute for code blocks (highlight colors)
 	policy.AllowAttrs("style").OnElements("pre", "code", "span")
-	// タスクリスト用のチェックボックスのみを許可（セキュリティ上、type="checkbox"に限定）
+	// Allow only checkboxes for task lists (limited to type="checkbox" for security)
 	policy.AllowAttrs("checked", "disabled").OnElements("input")
 	policy.AllowAttrs("type").Matching(regexp.MustCompile(`^checkbox$`)).OnElements("input")
-	// タスクリスト用のli要素のclass属性を許可
+	// Allow class attribute for li elements in task lists
 	policy.AllowAttrs("class").Matching(bluemonday.SpaceSeparatedTokens).OnElements("li", "ul")
-	// data-line属性を許可（プレビュー同期スクロール用）
+	// Allow data-line attribute (for preview sync scrolling)
 	policy.AllowAttrs("data-line").Matching(regexp.MustCompile(`^\d+$`)).Globally()
 	return policy
 }
 
-// createMarkdown はgoldmarkインスタンスを作成する
+// createMarkdown creates a goldmark instance
 func createMarkdown(src []byte) goldmark.Markdown {
 	return goldmark.New(
 		goldmark.WithExtensions(
-			extension.GFM, // テーブル、取り消し線、タスクリスト等
+			extension.GFM, // tables, strikethrough, task lists, etc.
 			highlighting.NewHighlighting(
-				highlighting.WithStyle("monokai"), // シンタックスハイライトのテーマ
+				highlighting.WithStyle("monokai"), // syntax highlighting theme
 			),
 		),
 		goldmark.WithParserOptions(
@@ -71,18 +71,18 @@ func createMarkdown(src []byte) goldmark.Markdown {
 		goldmark.WithRendererOptions(
 			html.WithHardWraps(),
 			html.WithXHTML(),
-			// data-line属性を付与するカスタムrenderer
+			// Custom renderer that adds data-line attribute
 			renderer.WithNodeRenderers(
 				util.Prioritized(&practicalLineRenderer{
 					li: newLineIndex(src),
-				}, 50), // highlightingより低い優先度
+				}, 50), // lower priority than highlighting
 			),
 		),
 	)
 }
 
-// Convert はMarkdownをサニタイズ済みHTMLに変換する
-// 各ブロック要素にdata-line属性を付与し、プレビュー同期スクロールに使用する
+// Convert converts Markdown to sanitized HTML
+// Adds data-line attribute to each block element for preview sync scrolling
 func (c *converter) Convert(markdown string) (string, error) {
 	src := []byte(markdown)
 	md := createMarkdown(src)
@@ -92,6 +92,6 @@ func (c *converter) Convert(markdown string) (string, error) {
 		return "", err
 	}
 
-	// XSS対策: HTMLをサニタイズ
+	// XSS protection: sanitize HTML
 	return c.policy.Sanitize(buf.String()), nil
 }

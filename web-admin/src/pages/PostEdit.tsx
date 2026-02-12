@@ -10,8 +10,8 @@ import { useModal } from '../hooks/useModal';
 const BLOG_TIMEZONE = import.meta.env.VITE_BLOG_TIMEZONE || 'UTC';
 
 /**
- * 日付をISO 8601形式でフォーマット
- * 例: "2024-01-15 10:30:05"
+ * Format date in ISO 8601 format
+ * Example: "2024-01-15 10:30:05"
  */
 function formatDateTime(dateString: string): string {
   return formatInTimeZone(new Date(dateString), BLOG_TIMEZONE, 'yyyy-MM-dd HH:mm:ss');
@@ -39,7 +39,7 @@ export function PostEdit() {
     }
   }, [id, isEditMode]);
 
-  // 保存処理（フォーム送信とショートカットキーで共有）
+  // Save handler (shared between form submit and shortcut key)
   const performSave = useCallback(async () => {
     if (isSaving) return;
 

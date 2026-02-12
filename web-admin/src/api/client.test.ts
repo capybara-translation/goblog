@@ -80,7 +80,7 @@ describe('API Client', () => {
 
         expect(response.posts).toBeInstanceOf(Array)
         expect(response.posts.length).toBeGreaterThan(0)
-        // 検索結果がクエリに一致するか確認
+        // Verify search results match the query
         response.posts.forEach((post) => {
           const matchesQuery =
             post.title.toLowerCase().includes('test') ||
@@ -268,9 +268,9 @@ describe('API Client', () => {
       it('should convert markdown to HTML with data-line attributes', async () => {
         const html = await apiClient.previewMarkdown('# Hello\n\nThis is text.')
 
-        // data-line属性付きの見出しが含まれる
+        // Contains heading with data-line attribute
         expect(html).toContain('<h1 data-line="0">Hello</h1>')
-        // data-line属性付きの段落が含まれる
+        // Contains paragraph with data-line attribute
         expect(html).toContain('data-line="2"')
       })
 
@@ -283,7 +283,7 @@ describe('API Client', () => {
       it('should convert headings with data-line attributes', async () => {
         const html = await apiClient.previewMarkdown('# H1\n\n## H2\n\n### H3')
 
-        // data-line属性付きの見出しが含まれる
+        // Contains headings with data-line attributes
         expect(html).toContain('<h1 data-line="0">H1</h1>')
         expect(html).toContain('<h2 data-line="2">H2</h2>')
         expect(html).toContain('<h3 data-line="4">H3</h3>')
@@ -291,8 +291,8 @@ describe('API Client', () => {
     })
   })
 
-  // 注: 画像アップロードテストはMSWのformData処理が不安定なためスキップ
-  // バックエンドのGoテストとMarkdownEditor.test.tsxで機能は確認済み
+  // Note: Image upload tests are skipped due to MSW's unstable formData handling
+  // Functionality is verified in backend Go tests and MarkdownEditor.test.tsx
   describe.skip('Image upload endpoint', () => {
     describe('uploadImage', () => {
       it('should upload a JPEG image successfully', async () => {

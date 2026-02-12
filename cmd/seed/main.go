@@ -14,7 +14,7 @@ import (
 	"github.com/capybara-translation/goblog/internal/service"
 )
 
-// seedPost はシードデータの記事を表す構造体です
+// seedPost is a struct representing a post for seed data
 type seedPost struct {
 	title    string
 	slug     string
@@ -24,8 +24,8 @@ type seedPost struct {
 	isPinned bool
 }
 
-// getSeedPosts はシードデータの記事一覧を返します
-// createdAtはmain関数で設定されます
+// getSeedPosts returns a list of posts for seed data
+// createdAt is set in the main function
 func getSeedPosts() []seedPost {
 	return []seedPost{
 		{
@@ -456,34 +456,34 @@ Markdownを使うと、シンプルなテキストで美しいドキュメント
 }
 
 func main() {
-	fmt.Println("=== シードデータ投入開始 ===")
+	fmt.Println("=== Starting seed data insertion ===")
 
-	// 設定の読み込み
+	// Load configuration
 	cfg := config.Load()
 
-	// データベースの初期化
+	// Initialize database
 	database, err := db.Open(cfg.DatabasePath)
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
 	}
 	defer database.Close()
 
-	// マイグレーションの実行（埋め込まれたファイルから）
+	// Run migrations (from embedded files)
 	if err := db.RunMigrations(database, goblog.Migrations, "migrations/001_create_posts.sql", "migrations/002_create_users.sql", "migrations/003_add_is_pinned.sql"); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
 	fmt.Println("Database initialized successfully")
 
-	// Repository層の初期化
+	// Initialize repository layer
 	postRepo := repo.NewPostRepository(database)
 	userRepo := repo.NewUserRepository(database)
 
-	// SessionStoreとAuthServiceの初期化
+	// Initialize SessionStore and AuthService
 	sessionStore := auth.NewInMemorySessionStore()
 	authService := service.NewAuthService(userRepo, sessionStore, config.PasswordPolicyNone)
 
-	// 既存のデータを削除（開発環境用）
+	// Delete existing data (for development environment)
 	fmt.Println("Clearing existing data...")
 	_, err = database.Exec("DELETE FROM posts")
 	if err != nil {
@@ -494,7 +494,7 @@ func main() {
 		log.Fatalf("Failed to clear existing users data: %v", err)
 	}
 
-	// シードデータの投入
+	// Insert seed data
 	seedPosts := getSeedPosts()
 	publishedCount := 0
 	draftCount := 0
@@ -502,21 +502,21 @@ func main() {
 
 	fmt.Printf("Inserting %d posts...\n", len(seedPosts))
 
-	// 基準日時（最新記事の日時）
+	// Base time (date of the most recent post)
 	baseTime := time.Date(2024, 12, 28, 12, 0, 0, 0, time.UTC)
 
 	for i, seed := range seedPosts {
-		// 配列の最初（index=0）が最新記事となるよう、日付を遡って設定
+		// Set dates going back so that the first item (index=0) is the most recent post
 		createdAt := baseTime.AddDate(0, 0, -i)
 		updatedAt := createdAt
 
-		// 公開日時の設定
+		// Set published date
 		var publishedAt *time.Time
 		if seed.publish {
 			publishedAt = &createdAt
 		}
 
-		// Postオブジェクトを作成
+		// Create Post object
 		post := &domain.Post{
 			Title:       seed.title,
 			Slug:        seed.slug,
@@ -529,7 +529,7 @@ func main() {
 			PublishedAt: publishedAt,
 		}
 
-		// 公開フラグによってステータスを設定
+		// Set status based on publish flag
 		if seed.publish {
 			post.Status = domain.PostStatusPublished
 			publishedCount++
@@ -540,19 +540,19 @@ func main() {
 			pinnedCount++
 		}
 
-		// Repositoryで直接作成
+		// Create directly via Repository
 		if err := postRepo.Create(post); err != nil {
 			log.Printf("Warning: Failed to create post %d (%s): %v", i+1, seed.title, err)
 			continue
 		}
 	}
 
-	fmt.Printf("\n公開記事: %d件\n", publishedCount)
-	fmt.Printf("下書き: %d件\n", draftCount)
-	fmt.Printf("ピン留め: %d件\n", pinnedCount)
-	fmt.Printf("合計: %d件\n", publishedCount+draftCount)
+	fmt.Printf("\nPublished posts: %d\n", publishedCount)
+	fmt.Printf("Draft posts: %d\n", draftCount)
+	fmt.Printf("Pinned posts: %d\n", pinnedCount)
+	fmt.Printf("Total: %d\n", publishedCount+draftCount)
 
-	// テストユーザーの作成
+	// Create test user
 	fmt.Println("\nCreating test user...")
 	testUser, err := authService.CreateUser("admin", "password")
 	if err != nil {
@@ -561,7 +561,7 @@ func main() {
 		fmt.Printf("Test user created: username=%s, id=%d\n", testUser.Username, testUser.ID)
 	}
 
-	fmt.Printf("\n=== シードデータ投入完了 ===\n")
-	fmt.Printf("\nブログを起動して http://localhost:8080 で確認できます\n")
-	fmt.Printf("管理画面ログイン情報: username=admin, password=password\n")
+	fmt.Printf("\n=== Seed data insertion completed ===\n")
+	fmt.Printf("\nStart the blog and access http://localhost:8080 to verify\n")
+	fmt.Printf("Admin login credentials: username=admin, password=password\n")
 }

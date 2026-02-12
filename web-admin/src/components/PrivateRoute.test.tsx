@@ -4,7 +4,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { PrivateRoute } from './PrivateRoute'
 import { useAuth } from '../hooks/useAuth'
 
-// useAuth をモック
+// Mock useAuth
 vi.mock('../hooks/useAuth', () => ({
   useAuth: vi.fn(),
 }))
@@ -142,7 +142,7 @@ describe('PrivateRoute', () => {
   })
 
   describe('State transitions', () => {
-    // ヘルパー関数: テストコンポーネントを生成
+    // Helper function: create test component
     const createTestComponent = () => (
       <MemoryRouter initialEntries={['/protected']}>
         <Routes>
@@ -160,7 +160,7 @@ describe('PrivateRoute', () => {
     )
 
     it('should transition from loading to authenticated', () => {
-      // 初期状態: ローディング中
+      // Initial state: loading
       vi.mocked(useAuth).mockReturnValue({
         user: null,
         isLoading: true,
@@ -172,7 +172,7 @@ describe('PrivateRoute', () => {
       const { rerender } = render(createTestComponent())
       expect(screen.getByText('Loading...')).toBeInTheDocument()
 
-      // ローディング完了 → 認証済み
+      // Loading complete → authenticated
       vi.mocked(useAuth).mockReturnValue({
         user: mockUser,
         isLoading: false,
@@ -187,7 +187,7 @@ describe('PrivateRoute', () => {
     })
 
     it('should transition from loading to unauthenticated', () => {
-      // 初期状態: ローディング中
+      // Initial state: loading
       vi.mocked(useAuth).mockReturnValue({
         user: null,
         isLoading: true,
@@ -199,7 +199,7 @@ describe('PrivateRoute', () => {
       const { rerender } = render(createTestComponent())
       expect(screen.getByText('Loading...')).toBeInTheDocument()
 
-      // ローディング完了 → 未認証
+      // Loading complete → unauthenticated
       vi.mocked(useAuth).mockReturnValue({
         user: null,
         isLoading: false,

@@ -23,11 +23,11 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// PublicHandlers は公開ページのハンドラーをまとめた構造体です
+// PublicHandlers is a struct that groups handlers for public pages
 type PublicHandlers struct {
 	postService      service.PostService
-	blogTitle        string // ブログのタイトル
-	baseURL          string // サイトのベースURL（sitemap用）
+	blogTitle        string // Blog title
+	baseURL          string // Site base URL (for sitemap)
 	homeTemplate     *template.Template
 	postsTemplate    *template.Template
 	postTemplate     *template.Template
@@ -36,8 +36,8 @@ type PublicHandlers struct {
 	notFoundTemplate *template.Template
 }
 
-// truncateRunes は文字列をルーン（文字）単位で切り詰めます
-// バイト単位ではなくルーン単位で切り詰めることで、日本語などのマルチバイト文字を安全に扱えます
+// truncateRunes truncates a string by rune (character) count
+// By truncating by rune count instead of byte count, it safely handles multibyte characters like Japanese
 func truncateRunes(s string, maxRunes int) string {
 	runes := []rune(s)
 	if len(runes) <= maxRunes {
@@ -46,21 +46,21 @@ func truncateRunes(s string, maxRunes int) string {
 	return string(runes[:maxRunes])
 }
 
-// htmlTagPattern はHTMLタグにマッチする正規表現パターン
+// htmlTagPattern is a regular expression pattern that matches HTML tags
 var htmlTagPattern = regexp.MustCompile(`<[^>]*>`)
 
-// stripHTMLTags はHTML文字列からタグを除去してプレーンテキストを返します
+// stripHTMLTags removes tags from an HTML string and returns plain text
 func stripHTMLTags(htmlStr string) string {
-	// HTMLタグを除去
+	// Remove HTML tags
 	text := htmlTagPattern.ReplaceAllString(htmlStr, "")
-	// HTMLエンティティをデコード
+	// Decode HTML entities
 	text = html.UnescapeString(text)
-	// 連続する空白を1つにまとめ、前後の空白を削除
+	// Collapse consecutive whitespace to single space and trim leading/trailing whitespace
 	text = strings.Join(strings.Fields(text), " ")
 	return text
 }
 
-// splitTags はカンマ区切りのタグ文字列をスライスに変換します
+// splitTags converts a comma-separated tag string to a slice
 func splitTags(tags string) []string {
 	if tags == "" {
 		return []string{}
@@ -75,7 +75,7 @@ func splitTags(tags string) []string {
 	return result
 }
 
-// getTimezoneLocation はTZ環境変数からタイムゾーンを取得します
+// getTimezoneLocation gets the timezone from the TZ environment variable
 func getTimezoneLocation() *time.Location {
 	var loc *time.Location
 	var err error
@@ -91,8 +91,8 @@ func getTimezoneLocation() *time.Location {
 	return loc
 }
 
-// getUTCOffsetString はタイムゾーンのUTCオフセットを文字列で返します
-// 例: "UTC+9", "UTC-5", "UTC+0"
+// getUTCOffsetString returns the UTC offset of the timezone as a string
+// Example: "UTC+9", "UTC-5", "UTC+0"
 func getUTCOffsetString(t time.Time) string {
 	_, offset := t.Zone()
 	hours := offset / 3600
@@ -102,116 +102,116 @@ func getUTCOffsetString(t time.Time) string {
 	return fmt.Sprintf("UTC%d", hours)
 }
 
-// formatDateWithTZ は日付をISO 8601形式 + タイムゾーン略称 + UTCオフセットで表示します
-// TZ環境変数で設定されたタイムゾーンに変換してからフォーマットします
-// 例: "2026-01-17 (JST, UTC+9)"
+// formatDateWithTZ displays a date in ISO 8601 format + timezone abbreviation + UTC offset
+// Converts to the timezone set in the TZ environment variable before formatting
+// Example: "2026-01-17 (JST, UTC+9)"
 func formatDateWithTZ(t time.Time) string {
 	localTime := t.In(getTimezoneLocation())
 	return localTime.Format("2006-01-02") + " (" + localTime.Format("MST") + ", " + getUTCOffsetString(localTime) + ")"
 }
 
-// formatDateDetailWithTZ は日付を詳細形式（時刻+タイムゾーン略称+UTCオフセット）で表示します
-// マウスオーバー時のツールチップ用
-// 例: "2026-01-17 22:00 (JST, UTC+9)"
+// formatDateDetailWithTZ displays a date in detailed format (time + timezone abbreviation + UTC offset)
+// For mouse-over tooltip
+// Example: "2026-01-17 22:00 (JST, UTC+9)"
 func formatDateDetailWithTZ(t time.Time) string {
 	localTime := t.In(getTimezoneLocation())
 	return localTime.Format("2006-01-02 15:04") + " (" + localTime.Format("MST") + ", " + getUTCOffsetString(localTime) + ")"
 }
 
-// mdConverter はMarkdown変換器のシングルトンインスタンス
+// mdConverter is a singleton instance of the Markdown converter
 var mdConverter = markdown.NewConverter()
 
-// renderMarkdown はMarkdownをHTMLに変換します
+// renderMarkdown converts Markdown to HTML
 func renderMarkdown(content string) template.HTML {
 	htmlContent, err := mdConverter.Convert(content)
 	if err != nil {
-		// エラー時はHTMLエスケープしたテキストを返す
+		// On error, return HTML-escaped text
 		return template.HTML(template.HTMLEscapeString(content))
 	}
 	return template.HTML(htmlContent)
 }
 
-// markdownExcerpt はMarkdownをプレーンテキストに変換して切り詰めます
+// markdownExcerpt converts Markdown to plain text and truncates it
 func markdownExcerpt(content string, maxLen int) string {
-	// Markdown → HTML → プレーンテキスト → 切り詰め
+	// Markdown -> HTML -> plain text -> truncate
 	htmlContent, err := mdConverter.Convert(content)
 	if err != nil {
-		// エラー時は元のテキストを切り詰めて返す
+		// On error, return truncated original text
 		return truncateRunes(content, maxLen)
 	}
 	plainText := stripHTMLTags(htmlContent)
 	return truncateRunes(plainText, maxLen)
 }
 
-// highlightQuery は検索クエリに一致する文字列を<mark>タグでハイライトします
-// XSS対策のため、テキストはHTMLエスケープしてから処理します
+// highlightQuery highlights strings matching the search query with <mark> tags
+// For XSS protection, text is HTML-escaped before processing
 func highlightQuery(text string, query string) template.HTML {
-	// テキストをHTMLエスケープ
+	// HTML-escape the text
 	escapedText := html.EscapeString(text)
 
 	if query == "" {
 		return template.HTML(escapedText)
 	}
 
-	// クエリもHTMLエスケープ（エスケープ後のテキストとマッチさせるため）
+	// HTML-escape the query too (to match against escaped text)
 	escapedQuery := html.EscapeString(query)
 
-	// 正規表現の特殊文字をエスケープ
+	// Escape regex special characters
 	quotedQuery := regexp.QuoteMeta(escapedQuery)
 
-	// 大文字小文字を区別しないパターン
+	// Case-insensitive pattern
 	pattern := regexp.MustCompile("(?i)(" + quotedQuery + ")")
 
-	// マッチ部分を<mark>でラップ
+	// Wrap matched parts with <mark>
 	highlighted := pattern.ReplaceAllString(escapedText, "<mark>$1</mark>")
 
 	return template.HTML(highlighted)
 }
 
-// highlightHTMLContent はHTML内のテキスト部分のみをハイライトします
-// HTMLタグ内のテキストは変更しません
+// highlightHTMLContent highlights only the text parts within HTML
+// Text inside HTML tags is not modified
 func highlightHTMLContent(htmlContent string, query string) string {
 	if query == "" {
 		return htmlContent
 	}
 
-	// クエリをHTMLエスケープ（HTML内のテキストはエスケープ済みのため）
+	// HTML-escape the query (since text in HTML is already escaped)
 	escapedQuery := html.EscapeString(query)
 	quotedQuery := regexp.QuoteMeta(escapedQuery)
 	searchPattern := regexp.MustCompile("(?i)(" + quotedQuery + ")")
 
-	// HTMLをパースしてテキスト部分のみをハイライト
-	// タグの外側にあるテキストを見つけてハイライトする
+	// Parse HTML and highlight only text parts
+	// Find and highlight text outside of tags
 	var result strings.Builder
 	remaining := htmlContent
 
 	for len(remaining) > 0 {
-		// 次のタグを探す
+		// Find the next tag
 		tagStart := strings.Index(remaining, "<")
 
 		if tagStart == -1 {
-			// タグがない場合、残りすべてがテキスト
+			// No tag found, all remaining content is text
 			highlighted := searchPattern.ReplaceAllString(remaining, "<mark>$1</mark>")
 			result.WriteString(highlighted)
 			break
 		}
 
 		if tagStart > 0 {
-			// タグの前のテキストをハイライト
+			// Highlight text before the tag
 			textPart := remaining[:tagStart]
 			highlighted := searchPattern.ReplaceAllString(textPart, "<mark>$1</mark>")
 			result.WriteString(highlighted)
 		}
 
-		// タグの終わりを探す
+		// Find the end of the tag
 		tagEnd := strings.Index(remaining[tagStart:], ">")
 		if tagEnd == -1 {
-			// 閉じタグがない場合、残りをそのまま追加
+			// No closing bracket found, add remaining content as-is
 			result.WriteString(remaining[tagStart:])
 			break
 		}
 
-		// タグをそのまま追加（ハイライトしない）
+		// Add the tag as-is (without highlighting)
 		tagEnd += tagStart + 1
 		result.WriteString(remaining[tagStart:tagEnd])
 		remaining = remaining[tagEnd:]
@@ -220,11 +220,11 @@ func highlightHTMLContent(htmlContent string, query string) string {
 	return result.String()
 }
 
-// renderMarkdownWithHighlight はMarkdownをHTMLに変換し、検索クエリをハイライトします
+// renderMarkdownWithHighlight converts Markdown to HTML and highlights the search query
 func renderMarkdownWithHighlight(content string, query string) template.HTML {
 	htmlContent, err := mdConverter.Convert(content)
 	if err != nil {
-		// エラー時はHTMLエスケープしたテキストを返す
+		// On error, return HTML-escaped text
 		return template.HTML(template.HTMLEscapeString(content))
 	}
 
@@ -236,9 +236,9 @@ func renderMarkdownWithHighlight(content string, query string) template.HTML {
 	return template.HTML(highlighted)
 }
 
-// NewPublicHandlers は埋め込まれたテンプレートからPublicHandlersを作成します
+// NewPublicHandlers creates PublicHandlers from embedded templates
 func NewPublicHandlers(postService service.PostService, blogTitle, baseURL string, templatesFS embed.FS) *PublicHandlers {
-	// カスタムテンプレート関数を定義
+	// Define custom template functions
 	funcMap := template.FuncMap{
 		"truncate":               truncateRunes,
 		"splitTags":              splitTags,
@@ -250,13 +250,13 @@ func NewPublicHandlers(postService service.PostService, blogTitle, baseURL strin
 		"markdownExcerpt":             markdownExcerpt,
 	}
 
-	// 埋め込まれたテンプレートからサブFSを作成
+	// Create sub FS from embedded templates
 	templateFS, err := fs.Sub(templatesFS, "internal/view/templates")
 	if err != nil {
 		panic(fmt.Sprintf("failed to get templates sub FS: %v", err))
 	}
 
-	// ヘルパー関数: 埋め込まれたテンプレートをパース
+	// Helper function: parse embedded templates
 	parseTemplates := func(names ...string) *template.Template {
 		t := template.New("").Funcs(funcMap)
 		for _, name := range names {
@@ -272,7 +272,7 @@ func NewPublicHandlers(postService service.PostService, blogTitle, baseURL strin
 		return t
 	}
 
-	// 各ページごとに独立したテンプレートセットを作成
+	// Create independent template sets for each page
 	homeTemplate := parseTemplates("layout.html", "home.html")
 	postsTemplate := parseTemplates("layout.html", "posts.html")
 	postTemplate := parseTemplates("layout.html", "post.html")
@@ -293,12 +293,12 @@ func NewPublicHandlers(postService service.PostService, blogTitle, baseURL strin
 	}
 }
 
-// NewPublicHandlersFromPath はファイルシステムからテンプレートを読み込んでPublicHandlersを作成します（テスト用）
+// NewPublicHandlersFromPath creates PublicHandlers by loading templates from the filesystem (for testing)
 func NewPublicHandlersFromPath(postService service.PostService, blogTitle, baseURL, templatePattern string) *PublicHandlers {
 	dir := filepath.Dir(templatePattern)
 	layoutPath := filepath.Join(dir, "layout.html")
 
-	// カスタムテンプレート関数を定義
+	// Define custom template functions
 	funcMap := template.FuncMap{
 		"truncate":               truncateRunes,
 		"splitTags":              splitTags,
@@ -310,7 +310,7 @@ func NewPublicHandlersFromPath(postService service.PostService, blogTitle, baseU
 		"markdownExcerpt":             markdownExcerpt,
 	}
 
-	// 各ページごとに独立したテンプレートセットを作成
+	// Create independent template sets for each page
 	homeTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "home.html")))
 	postsTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "posts.html")))
 	postTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "post.html")))
@@ -331,7 +331,7 @@ func NewPublicHandlersFromPath(postService service.PostService, blogTitle, baseU
 	}
 }
 
-// getPinnedPosts はピン留めされた公開記事を取得するヘルパーメソッドです
+// getPinnedPosts is a helper method that retrieves pinned published posts
 func (h *PublicHandlers) getPinnedPosts() []*domain.Post {
 	pinnedPosts, err := h.postService.GetPinnedPosts()
 	if err != nil {
@@ -341,7 +341,7 @@ func (h *PublicHandlers) getPinnedPosts() []*domain.Post {
 	return pinnedPosts
 }
 
-// renderNotFound は404ページをレンダリングします
+// renderNotFound renders the 404 page
 func (h *PublicHandlers) renderNotFound(w http.ResponseWriter) {
 	data := map[string]any{
 		"SiteTitle":   h.blogTitle,
@@ -356,9 +356,9 @@ func (h *PublicHandlers) renderNotFound(w http.ResponseWriter) {
 	}
 }
 
-// HandleHome はトップページを表示します
+// HandleHome displays the home page
 func (h *PublicHandlers) HandleHome(w http.ResponseWriter, r *http.Request) {
-	// 最近の記事を5件取得
+	// Get the 5 most recent posts
 	posts, err := h.postService.GetPublishedPosts(5, 0)
 	if err != nil {
 		log.Printf("failed to get published posts: %v", err)
@@ -379,9 +379,9 @@ func (h *PublicHandlers) HandleHome(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// HandlePosts は記事一覧ページを表示します
+// HandlePosts displays the posts list page
 func (h *PublicHandlers) HandlePosts(w http.ResponseWriter, r *http.Request) {
-	// クエリパラメータから page と q を取得
+	// Get page and q from query parameters
 	pageStr := r.URL.Query().Get("page")
 	queryStr := r.URL.Query().Get("q")
 	page := 1
@@ -391,23 +391,23 @@ func (h *PublicHandlers) HandlePosts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 検索クエリの長さ制限
+	// Search query length limit
 	const maxQueryLength = 200
 	if len(queryStr) > maxQueryLength {
 		http.Error(w, "Search query too long", http.StatusBadRequest)
 		return
 	}
 
-	// 1ページあたりの記事数
+	// Number of posts per page
 	const perPage = 20
 	offset := (page - 1) * perPage
 
 	var posts []*domain.Post
 	var err error
 
-	// 次のページがあるか判定するため、perPage+1 件取得
+	// Fetch perPage+1 items to determine if there is a next page
 	if queryStr != "" {
-		// 検索モード
+		// Search mode
 		posts, err = h.postService.SearchPublishedPosts(queryStr, perPage+1, offset)
 	} else {
 		posts, err = h.postService.GetPublishedPosts(perPage+1, offset)
@@ -418,10 +418,10 @@ func (h *PublicHandlers) HandlePosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 次のページがあるか判定
+	// Determine if there is a next page
 	hasNext := len(posts) > perPage
 	if hasNext {
-		posts = posts[:perPage] // 表示用に perPage 件に切り詰める
+		posts = posts[:perPage] // Trim to perPage items for display
 	}
 
 	data := map[string]any{
@@ -443,12 +443,12 @@ func (h *PublicHandlers) HandlePosts(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// HandlePostDetail は記事詳細ページを表示します
+// HandlePostDetail displays the post detail page
 func (h *PublicHandlers) HandlePostDetail(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	slug := vars["slug"]
 
-	// スラッグで記事を取得
+	// Get post by slug
 	post, err := h.postService.GetPostBySlug(slug)
 	if err != nil {
 		log.Printf("failed to get post by slug: %v", err)
@@ -474,9 +474,9 @@ func (h *PublicHandlers) HandlePostDetail(w http.ResponseWriter, r *http.Request
 	}
 }
 
-// HandleTags はタグ一覧ページを表示します
+// HandleTags displays the tags list page
 func (h *PublicHandlers) HandleTags(w http.ResponseWriter, r *http.Request) {
-	// 公開済み記事のタグを取得
+	// Get tags from published posts
 	tagCounts, err := h.postService.GetPublishedTags()
 	if err != nil {
 		log.Printf("failed to get published tags: %v", err)
@@ -484,7 +484,7 @@ func (h *PublicHandlers) HandleTags(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// タグを記事数の降順でソート
+	// Sort tags by post count in descending order
 	type TagInfo struct {
 		Name  string
 		Count int
@@ -495,13 +495,13 @@ func (h *PublicHandlers) HandleTags(w http.ResponseWriter, r *http.Request) {
 		tags = append(tags, TagInfo{Name: name, Count: count})
 	}
 
-	// 記事数の降順、同数の場合はタグ名の昇順でソート
+	// Sort by post count descending, then by tag name ascending for ties
 	slices.SortFunc(tags, func(a, b TagInfo) int {
-		// 記事数で比較（降順）
+		// Compare by post count (descending)
 		if a.Count != b.Count {
 			return b.Count - a.Count
 		}
-		// タグ名で比較（昇順）
+		// Compare by tag name (ascending)
 		if a.Name < b.Name {
 			return -1
 		} else if a.Name > b.Name {
@@ -523,7 +523,7 @@ func (h *PublicHandlers) HandleTags(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// HandleTagPosts は特定のタグの記事一覧ページを表示します
+// HandleTagPosts displays the posts list page for a specific tag
 func (h *PublicHandlers) HandleTagPosts(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	tag := vars["tag"]
@@ -533,7 +533,7 @@ func (h *PublicHandlers) HandleTagPosts(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// URLデコード
+	// URL decode
 	decodedTag, err := url.QueryUnescape(tag)
 	if err != nil {
 		h.renderNotFound(w)
@@ -541,7 +541,7 @@ func (h *PublicHandlers) HandleTagPosts(w http.ResponseWriter, r *http.Request) 
 	}
 	tag = decodedTag
 
-	// ページネーション
+	// Pagination
 	pageStr := r.URL.Query().Get("page")
 	page := 1
 	if pageStr != "" {
@@ -553,7 +553,7 @@ func (h *PublicHandlers) HandleTagPosts(w http.ResponseWriter, r *http.Request) 
 	const perPage = 20
 	offset := (page - 1) * perPage
 
-	// 記事を取得
+	// Get posts
 	posts, err := h.postService.GetPublishedPostsByTag(tag, perPage+1, offset)
 	if err != nil {
 		log.Printf("failed to get posts by tag: %v", err)
@@ -561,7 +561,7 @@ func (h *PublicHandlers) HandleTagPosts(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// 次のページがあるか判定
+	// Determine if there is a next page
 	hasNext := len(posts) > perPage
 	if hasNext {
 		posts = posts[:perPage]

@@ -8,7 +8,7 @@ import (
 	"github.com/capybara-translation/goblog/internal/domain"
 )
 
-// mockPostRepository はPostRepositoryのモック実装です
+// mockPostRepository is a mock implementation of PostRepository
 type mockPostRepository struct {
 	findAllFunc            func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
 	findAllByTagFunc       func(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
@@ -137,7 +137,7 @@ func TestPostService_GetPublishedPosts(t *testing.T) {
 
 	mockRepo := &mockPostRepository{
 		findAllFunc: func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
-			// ステータスが公開済みであることを確認
+			// Verify status is published
 			if status == nil || *status != domain.PostStatusPublished {
 				t.Errorf("expected status to be published, got: %v", status)
 			}
@@ -168,7 +168,7 @@ func TestPostService_GetPostBySlug(t *testing.T) {
 		expectNil      bool
 	}{
 		{
-			name: "公開済み記事を取得",
+			name: "Get published post",
 			slug: "published-post",
 			repoPost: &domain.Post{
 				ID:          1,
@@ -187,7 +187,7 @@ func TestPostService_GetPostBySlug(t *testing.T) {
 			expectNil: false,
 		},
 		{
-			name: "下書き記事は取得できない",
+			name: "Cannot get draft post",
 			slug: "draft-post",
 			repoPost: &domain.Post{
 				ID:     2,
@@ -199,7 +199,7 @@ func TestPostService_GetPostBySlug(t *testing.T) {
 			expectNil:      true,
 		},
 		{
-			name:           "存在しない記事",
+			name:           "Non-existent post",
 			slug:           "non-existent",
 			repoPost:       nil,
 			expectedResult: nil,
@@ -242,14 +242,14 @@ func TestPostService_GetPostBySlug(t *testing.T) {
 }
 
 func TestPostService_CreatePost(t *testing.T) {
-	t.Run("正常に記事を作成", func(t *testing.T) {
+	t.Run("Create post successfully", func(t *testing.T) {
 		mockRepo := &mockPostRepository{
 			findBySlugFunc: func(slug string) (*domain.Post, error) {
-				// スラッグが存在しない
+				// Slug does not exist
 				return nil, nil
 			},
 			createFunc: func(post *domain.Post) error {
-				// IDを設定してCreateをシミュレート
+				// Simulate Create by setting ID
 				post.ID = 1
 				return nil
 			},
@@ -273,10 +273,10 @@ func TestPostService_CreatePost(t *testing.T) {
 		}
 	})
 
-	t.Run("スラッグが重複している場合はエラー", func(t *testing.T) {
+	t.Run("Error when slug is duplicated", func(t *testing.T) {
 		mockRepo := &mockPostRepository{
 			findBySlugFunc: func(slug string) (*domain.Post, error) {
-				// スラッグが既に存在
+				// Slug already exists
 				return &domain.Post{
 					ID:   99,
 					Slug: slug,
@@ -294,7 +294,7 @@ func TestPostService_CreatePost(t *testing.T) {
 }
 
 func TestPostService_UpdatePost(t *testing.T) {
-	t.Run("正常に記事を更新", func(t *testing.T) {
+	t.Run("Update post successfully", func(t *testing.T) {
 		existingPost := &domain.Post{
 			ID:      1,
 			Title:   "Original Title",
@@ -311,7 +311,7 @@ func TestPostService_UpdatePost(t *testing.T) {
 				return nil, nil
 			},
 			findBySlugFunc: func(slug string) (*domain.Post, error) {
-				// 新しいスラッグは使用されていない
+				// New slug is not in use
 				return nil, nil
 			},
 			updateFunc: func(post *domain.Post) error {
@@ -334,7 +334,7 @@ func TestPostService_UpdatePost(t *testing.T) {
 		}
 	})
 
-	t.Run("同じスラッグのまま更新（自分自身なのでOK）", func(t *testing.T) {
+	t.Run("Update with same slug (OK because it is the same post)", func(t *testing.T) {
 		existingPost := &domain.Post{
 			ID:      1,
 			Title:   "Original Title",
@@ -348,7 +348,7 @@ func TestPostService_UpdatePost(t *testing.T) {
 				return existingPost, nil
 			},
 			findBySlugFunc: func(slug string) (*domain.Post, error) {
-				// スラッグは変わっていないのでチェックされない
+				// Slug is unchanged so not checked
 				return nil, nil
 			},
 			updateFunc: func(post *domain.Post) error {
@@ -364,7 +364,7 @@ func TestPostService_UpdatePost(t *testing.T) {
 		}
 	})
 
-	t.Run("新しいスラッグが既に使用されている場合はエラー", func(t *testing.T) {
+	t.Run("Error when new slug is already in use", func(t *testing.T) {
 		existingPost := &domain.Post{
 			ID:   1,
 			Slug: "original-slug",
@@ -375,7 +375,7 @@ func TestPostService_UpdatePost(t *testing.T) {
 				return existingPost, nil
 			},
 			findBySlugFunc: func(slug string) (*domain.Post, error) {
-				// 新しいスラッグが既に別の記事で使用されている
+				// New slug is already used by another post
 				return &domain.Post{
 					ID:   2,
 					Slug: slug,
@@ -391,7 +391,7 @@ func TestPostService_UpdatePost(t *testing.T) {
 		}
 	})
 
-	t.Run("存在しない記事を更新しようとするとエラー", func(t *testing.T) {
+	t.Run("Error when trying to update non-existent post", func(t *testing.T) {
 		mockRepo := &mockPostRepository{
 			findByIDFunc: func(id int64) (*domain.Post, error) {
 				return nil, nil
@@ -408,7 +408,7 @@ func TestPostService_UpdatePost(t *testing.T) {
 }
 
 func TestPostService_PublishPost(t *testing.T) {
-	t.Run("記事を公開する", func(t *testing.T) {
+	t.Run("Publish post", func(t *testing.T) {
 		draftPost := &domain.Post{
 			ID:      1,
 			Title:   "Draft Post",
@@ -449,7 +449,7 @@ func TestPostService_PublishPost(t *testing.T) {
 		}
 	})
 
-	t.Run("存在しない記事を公開しようとするとエラー", func(t *testing.T) {
+	t.Run("Error when trying to publish non-existent post", func(t *testing.T) {
 		mockRepo := &mockPostRepository{
 			findByIDFunc: func(id int64) (*domain.Post, error) {
 				return nil, nil
@@ -466,7 +466,7 @@ func TestPostService_PublishPost(t *testing.T) {
 }
 
 func TestPostService_UnpublishPost(t *testing.T) {
-	t.Run("記事を下書きに戻す", func(t *testing.T) {
+	t.Run("Revert post to draft", func(t *testing.T) {
 		now := time.Now()
 		publishedPost := &domain.Post{
 			ID:          1,
@@ -506,7 +506,7 @@ func TestPostService_UnpublishPost(t *testing.T) {
 }
 
 func TestPostService_DeletePost(t *testing.T) {
-	t.Run("記事を削除する", func(t *testing.T) {
+	t.Run("Delete post", func(t *testing.T) {
 		var deletedID int64
 
 		mockRepo := &mockPostRepository{
@@ -528,7 +528,7 @@ func TestPostService_DeletePost(t *testing.T) {
 		}
 	})
 
-	t.Run("削除でエラーが発生した場合", func(t *testing.T) {
+	t.Run("When deletion error occurs", func(t *testing.T) {
 		mockRepo := &mockPostRepository{
 			deleteFunc: func(id int64) error {
 				return fmt.Errorf("database error")
@@ -547,7 +547,7 @@ func TestPostService_DeletePost(t *testing.T) {
 func TestPostService_GetPublishedPostsByTag(t *testing.T) {
 	now := time.Now()
 
-	t.Run("公開済み記事をタグで取得", func(t *testing.T) {
+	t.Run("Get published posts by tag", func(t *testing.T) {
 		expectedPosts := []*domain.Post{
 			{
 				ID:          1,
@@ -587,7 +587,7 @@ func TestPostService_GetPublishedPostsByTag(t *testing.T) {
 		}
 	})
 
-	t.Run("空のタグでエラー", func(t *testing.T) {
+	t.Run("Error with empty tag", func(t *testing.T) {
 		mockRepo := &mockPostRepository{}
 		service := NewPostService(mockRepo)
 
@@ -602,7 +602,7 @@ func TestPostService_GetPublishedPostsByTag(t *testing.T) {
 		}
 	})
 
-	t.Run("リポジトリエラー", func(t *testing.T) {
+	t.Run("Repository error", func(t *testing.T) {
 		mockRepo := &mockPostRepository{
 			findAllByTagFunc: func(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
 				return nil, fmt.Errorf("database error")
@@ -621,7 +621,7 @@ func TestPostService_GetPublishedPostsByTag(t *testing.T) {
 func TestPostService_GetAllPostsByTag(t *testing.T) {
 	now := time.Now()
 
-	t.Run("全ステータスの記事をタグで取得", func(t *testing.T) {
+	t.Run("Get posts of all statuses by tag", func(t *testing.T) {
 		expectedPosts := []*domain.Post{
 			{
 				ID:          1,
@@ -662,7 +662,7 @@ func TestPostService_GetAllPostsByTag(t *testing.T) {
 		}
 	})
 
-	t.Run("特定ステータスの記事をタグで取得", func(t *testing.T) {
+	t.Run("Get posts of specific status by tag", func(t *testing.T) {
 		draftStatus := domain.PostStatusDraft
 		expectedPosts := []*domain.Post{
 			{
@@ -694,7 +694,7 @@ func TestPostService_GetAllPostsByTag(t *testing.T) {
 		}
 	})
 
-	t.Run("空のタグでエラー", func(t *testing.T) {
+	t.Run("Error with empty tag", func(t *testing.T) {
 		mockRepo := &mockPostRepository{}
 		service := NewPostService(mockRepo)
 
@@ -707,7 +707,7 @@ func TestPostService_GetAllPostsByTag(t *testing.T) {
 }
 
 func TestPostService_GetPublishedTags(t *testing.T) {
-	t.Run("公開記事のタグを取得", func(t *testing.T) {
+	t.Run("Get tags from published posts", func(t *testing.T) {
 		expectedTags := map[string]int{
 			"Go":     5,
 			"React":  3,
@@ -747,7 +747,7 @@ func TestPostService_GetPublishedTags(t *testing.T) {
 		}
 	})
 
-	t.Run("リポジトリエラー", func(t *testing.T) {
+	t.Run("Repository error", func(t *testing.T) {
 		mockRepo := &mockPostRepository{
 			getAllTagsFunc: func(status *domain.PostStatus) (map[string]int, error) {
 				return nil, fmt.Errorf("database error")
@@ -762,7 +762,7 @@ func TestPostService_GetPublishedTags(t *testing.T) {
 		}
 	})
 
-	t.Run("タグが存在しない場合", func(t *testing.T) {
+	t.Run("When no tags exist", func(t *testing.T) {
 		mockRepo := &mockPostRepository{
 			getAllTagsFunc: func(status *domain.PostStatus) (map[string]int, error) {
 				return map[string]int{}, nil
@@ -783,7 +783,7 @@ func TestPostService_GetPublishedTags(t *testing.T) {
 }
 
 func TestPostService_GetAllTags(t *testing.T) {
-	t.Run("全記事のタグを取得（ステータス指定なし）", func(t *testing.T) {
+	t.Run("Get tags from all posts (no status filter)", func(t *testing.T) {
 		expectedTags := map[string]int{
 			"Go":     8,
 			"React":  5,
@@ -815,7 +815,7 @@ func TestPostService_GetAllTags(t *testing.T) {
 		}
 	})
 
-	t.Run("特定ステータスのタグを取得", func(t *testing.T) {
+	t.Run("Get tags with specific status", func(t *testing.T) {
 		draftStatus := domain.PostStatusDraft
 		expectedTags := map[string]int{
 			"Go":     3,
@@ -843,7 +843,7 @@ func TestPostService_GetAllTags(t *testing.T) {
 		}
 	})
 
-	t.Run("リポジトリエラー", func(t *testing.T) {
+	t.Run("Repository error", func(t *testing.T) {
 		mockRepo := &mockPostRepository{
 			getAllTagsFunc: func(status *domain.PostStatus) (map[string]int, error) {
 				return nil, fmt.Errorf("database error")
@@ -862,7 +862,7 @@ func TestPostService_GetAllTags(t *testing.T) {
 func TestPostService_SearchPosts(t *testing.T) {
 	now := time.Now()
 
-	t.Run("検索クエリで記事を取得", func(t *testing.T) {
+	t.Run("Get posts by search query", func(t *testing.T) {
 		expectedPosts := []*domain.Post{
 			{
 				ID:      1,
@@ -900,7 +900,7 @@ func TestPostService_SearchPosts(t *testing.T) {
 		}
 	})
 
-	t.Run("ステータス指定付きで検索", func(t *testing.T) {
+	t.Run("Search with status filter", func(t *testing.T) {
 		draftStatus := domain.PostStatusDraft
 		expectedPosts := []*domain.Post{
 			{
@@ -931,7 +931,7 @@ func TestPostService_SearchPosts(t *testing.T) {
 		}
 	})
 
-	t.Run("空のクエリは全件取得にフォールバック", func(t *testing.T) {
+	t.Run("Empty query falls back to get all", func(t *testing.T) {
 		expectedPosts := []*domain.Post{
 			{
 				ID:          1,
@@ -968,7 +968,7 @@ func TestPostService_SearchPosts(t *testing.T) {
 		}
 	})
 
-	t.Run("リポジトリエラー", func(t *testing.T) {
+	t.Run("Repository error", func(t *testing.T) {
 		mockRepo := &mockPostRepository{
 			searchFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
 				return nil, fmt.Errorf("database error")
@@ -985,7 +985,7 @@ func TestPostService_SearchPosts(t *testing.T) {
 }
 
 func TestPostService_CountSearchPosts(t *testing.T) {
-	t.Run("検索結果の件数を取得", func(t *testing.T) {
+	t.Run("Get search results count", func(t *testing.T) {
 		mockRepo := &mockPostRepository{
 			countSearchFunc: func(query string, status *domain.PostStatus) (int, error) {
 				if query != "Go" {
@@ -1007,7 +1007,7 @@ func TestPostService_CountSearchPosts(t *testing.T) {
 		}
 	})
 
-	t.Run("ステータス指定付きで件数取得", func(t *testing.T) {
+	t.Run("Get count with status filter", func(t *testing.T) {
 		draftStatus := domain.PostStatusDraft
 		mockRepo := &mockPostRepository{
 			countSearchFunc: func(query string, status *domain.PostStatus) (int, error) {
@@ -1030,7 +1030,7 @@ func TestPostService_CountSearchPosts(t *testing.T) {
 		}
 	})
 
-	t.Run("空のクエリは全件カウントにフォールバック", func(t *testing.T) {
+	t.Run("Empty query falls back to count all", func(t *testing.T) {
 		mockRepo := &mockPostRepository{
 			countFunc: func(status *domain.PostStatus) (int, error) {
 				return 10, nil
@@ -1053,7 +1053,7 @@ func TestPostService_CountSearchPosts(t *testing.T) {
 		}
 	})
 
-	t.Run("リポジトリエラー", func(t *testing.T) {
+	t.Run("Repository error", func(t *testing.T) {
 		mockRepo := &mockPostRepository{
 			countSearchFunc: func(query string, status *domain.PostStatus) (int, error) {
 				return 0, fmt.Errorf("database error")
@@ -1072,7 +1072,7 @@ func TestPostService_CountSearchPosts(t *testing.T) {
 func TestPostService_SearchPublishedPosts(t *testing.T) {
 	now := time.Now()
 
-	t.Run("公開済み記事を検索", func(t *testing.T) {
+	t.Run("Search published posts", func(t *testing.T) {
 		expectedPosts := []*domain.Post{
 			{
 				ID:          1,
@@ -1106,7 +1106,7 @@ func TestPostService_SearchPublishedPosts(t *testing.T) {
 		}
 	})
 
-	t.Run("空のクエリは公開済み全件取得にフォールバック", func(t *testing.T) {
+	t.Run("Empty query falls back to get all published", func(t *testing.T) {
 		expectedPosts := []*domain.Post{
 			{
 				ID:          1,
@@ -1141,7 +1141,7 @@ func TestPostService_SearchPublishedPosts(t *testing.T) {
 		}
 	})
 
-	t.Run("リポジトリエラー", func(t *testing.T) {
+	t.Run("Repository error", func(t *testing.T) {
 		mockRepo := &mockPostRepository{
 			searchFunc: func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
 				return nil, fmt.Errorf("database error")
@@ -1164,52 +1164,52 @@ func TestNormalizeTags(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "スペースなしのタグ",
+			name:     "Tags without spaces",
 			input:    "Go,React,TypeScript",
 			expected: "Go,React,TypeScript",
 		},
 		{
-			name:     "スペース付きのタグ（カンマ後）",
+			name:     "Tags with space after comma",
 			input:    "Go, React, TypeScript",
 			expected: "Go,React,TypeScript",
 		},
 		{
-			name:     "スペース付きのタグ（カンマ前後）",
+			name:     "Tags with spaces before and after comma",
 			input:    "Go , React , TypeScript",
 			expected: "Go,React,TypeScript",
 		},
 		{
-			name:     "複数スペース",
+			name:     "Multiple spaces",
 			input:    "Go,   React,    TypeScript",
 			expected: "Go,React,TypeScript",
 		},
 		{
-			name:     "空のタグを除外",
+			name:     "Exclude empty tags",
 			input:    "Go,,React,  ,TypeScript",
 			expected: "Go,React,TypeScript",
 		},
 		{
-			name:     "単一タグ",
+			name:     "Single tag",
 			input:    "Go",
 			expected: "Go",
 		},
 		{
-			name:     "単一タグ（前後スペース）",
+			name:     "Single tag with surrounding spaces",
 			input:    "  Go  ",
 			expected: "Go",
 		},
 		{
-			name:     "空文字列",
+			name:     "Empty string",
 			input:    "",
 			expected: "",
 		},
 		{
-			name:     "スペースのみ",
+			name:     "Spaces only",
 			input:    "   ",
 			expected: "",
 		},
 		{
-			name:     "カンマのみ",
+			name:     "Commas only",
 			input:    ",,,",
 			expected: "",
 		},
@@ -1226,7 +1226,7 @@ func TestNormalizeTags(t *testing.T) {
 }
 
 func TestPostService_CreatePost_NormalizesTags(t *testing.T) {
-	t.Run("タグが正規化されて保存される", func(t *testing.T) {
+	t.Run("Tags are normalized before saving", func(t *testing.T) {
 		var savedPost *domain.Post
 
 		mockRepo := &mockPostRepository{
@@ -1247,12 +1247,12 @@ func TestPostService_CreatePost_NormalizesTags(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		// 返却されたpostのタグが正規化されていることを確認
+		// Verify returned post has normalized tags
 		if post.Tags != "Go,React,TypeScript" {
 			t.Errorf("expected tags %q, got %q", "Go,React,TypeScript", post.Tags)
 		}
 
-		// リポジトリに保存されたタグも正規化されていることを確認
+		// Verify tags saved to repository are also normalized
 		if savedPost.Tags != "Go,React,TypeScript" {
 			t.Errorf("expected saved tags %q, got %q", "Go,React,TypeScript", savedPost.Tags)
 		}
@@ -1260,7 +1260,7 @@ func TestPostService_CreatePost_NormalizesTags(t *testing.T) {
 }
 
 func TestPostService_UpdatePost_NormalizesTags(t *testing.T) {
-	t.Run("タグが正規化されて更新される", func(t *testing.T) {
+	t.Run("Tags are normalized when updating", func(t *testing.T) {
 		existingPost := &domain.Post{
 			ID:      1,
 			Title:   "Original Title",
@@ -1292,12 +1292,12 @@ func TestPostService_UpdatePost_NormalizesTags(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		// 返却されたpostのタグが正規化されていることを確認
+		// Verify returned post has normalized tags
 		if post.Tags != "Go,React,TypeScript" {
 			t.Errorf("expected tags %q, got %q", "Go,React,TypeScript", post.Tags)
 		}
 
-		// リポジトリに保存されたタグも正規化されていることを確認
+		// Verify tags saved to repository are also normalized
 		if updatedPost.Tags != "Go,React,TypeScript" {
 			t.Errorf("expected saved tags %q, got %q", "Go,React,TypeScript", updatedPost.Tags)
 		}
@@ -1305,7 +1305,7 @@ func TestPostService_UpdatePost_NormalizesTags(t *testing.T) {
 }
 
 func TestPostService_CountSearchPublishedPosts(t *testing.T) {
-	t.Run("公開済み記事の検索件数を取得", func(t *testing.T) {
+	t.Run("Get search count for published posts", func(t *testing.T) {
 		mockRepo := &mockPostRepository{
 			countSearchFunc: func(query string, status *domain.PostStatus) (int, error) {
 				if query != "Go" {
@@ -1330,7 +1330,7 @@ func TestPostService_CountSearchPublishedPosts(t *testing.T) {
 		}
 	})
 
-	t.Run("空のクエリは公開済み全件カウントにフォールバック", func(t *testing.T) {
+	t.Run("Empty query falls back to count all published", func(t *testing.T) {
 		mockRepo := &mockPostRepository{
 			countFunc: func(status *domain.PostStatus) (int, error) {
 				if status == nil || *status != domain.PostStatusPublished {
@@ -1356,7 +1356,7 @@ func TestPostService_CountSearchPublishedPosts(t *testing.T) {
 		}
 	})
 
-	t.Run("リポジトリエラー", func(t *testing.T) {
+	t.Run("Repository error", func(t *testing.T) {
 		mockRepo := &mockPostRepository{
 			countSearchFunc: func(query string, status *domain.PostStatus) (int, error) {
 				return 0, fmt.Errorf("database error")
@@ -1375,7 +1375,7 @@ func TestPostService_CountSearchPublishedPosts(t *testing.T) {
 func TestPostService_GetPinnedPosts(t *testing.T) {
 	now := time.Now()
 
-	t.Run("ピン留めされた公開記事を取得", func(t *testing.T) {
+	t.Run("Get pinned published posts", func(t *testing.T) {
 		expectedPosts := []*domain.Post{
 			{
 				ID:          1,
@@ -1419,7 +1419,7 @@ func TestPostService_GetPinnedPosts(t *testing.T) {
 		}
 	})
 
-	t.Run("ピン留め記事がない場合", func(t *testing.T) {
+	t.Run("When there are no pinned posts", func(t *testing.T) {
 		mockRepo := &mockPostRepository{
 			findPinnedPublishedFunc: func() ([]*domain.Post, error) {
 				return []*domain.Post{}, nil
@@ -1438,7 +1438,7 @@ func TestPostService_GetPinnedPosts(t *testing.T) {
 		}
 	})
 
-	t.Run("リポジトリエラー", func(t *testing.T) {
+	t.Run("Repository error", func(t *testing.T) {
 		mockRepo := &mockPostRepository{
 			findPinnedPublishedFunc: func() ([]*domain.Post, error) {
 				return nil, fmt.Errorf("database error")
@@ -1455,7 +1455,7 @@ func TestPostService_GetPinnedPosts(t *testing.T) {
 }
 
 func TestPostService_SetPinned(t *testing.T) {
-	t.Run("記事をピン留めする", func(t *testing.T) {
+	t.Run("Pin a post", func(t *testing.T) {
 		existingPost := &domain.Post{
 			ID:       1,
 			Title:    "Test Post",
@@ -1499,7 +1499,7 @@ func TestPostService_SetPinned(t *testing.T) {
 		}
 	})
 
-	t.Run("記事のピン留めを解除する", func(t *testing.T) {
+	t.Run("Unpin a post", func(t *testing.T) {
 		existingPost := &domain.Post{
 			ID:       1,
 			Title:    "Test Post",
@@ -1540,7 +1540,7 @@ func TestPostService_SetPinned(t *testing.T) {
 		}
 	})
 
-	t.Run("存在しない記事をピン留めしようとするとエラー", func(t *testing.T) {
+	t.Run("Error when trying to pin non-existent post", func(t *testing.T) {
 		mockRepo := &mockPostRepository{
 			findByIDFunc: func(id int64) (*domain.Post, error) {
 				return nil, nil
@@ -1555,7 +1555,7 @@ func TestPostService_SetPinned(t *testing.T) {
 		}
 	})
 
-	t.Run("リポジトリのFindByIDでエラー", func(t *testing.T) {
+	t.Run("Error in repository FindByID", func(t *testing.T) {
 		mockRepo := &mockPostRepository{
 			findByIDFunc: func(id int64) (*domain.Post, error) {
 				return nil, fmt.Errorf("database error")
@@ -1570,7 +1570,7 @@ func TestPostService_SetPinned(t *testing.T) {
 		}
 	})
 
-	t.Run("リポジトリのUpdateでエラー", func(t *testing.T) {
+	t.Run("Error in repository Update", func(t *testing.T) {
 		existingPost := &domain.Post{
 			ID:       1,
 			Title:    "Test Post",

@@ -10,17 +10,17 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// setupTestDBWithUsers はテスト用のインメモリSQLiteデータベースをセットアップします（usersテーブル含む）
+// setupTestDBWithUsers sets up an in-memory SQLite database for testing (including users table)
 func setupTestDBWithUsers(t *testing.T) *sqlx.DB {
 	t.Helper()
 
-	// インメモリSQLiteを開く
+	// Open in-memory SQLite
 	db, err := sqlx.Open("sqlite3", ":memory:")
 	if err != nil {
 		t.Fatalf("failed to open test database: %v", err)
 	}
 
-	// usersテーブルのマイグレーションを実行
+	// Execute users table migration
 	schema, err := os.ReadFile("../../migrations/002_create_users.sql")
 	if err != nil {
 		t.Fatalf("failed to read migration file: %v", err)
@@ -42,7 +42,7 @@ func TestUserRepository_Create(t *testing.T) {
 	now := time.Now()
 	user := &domain.User{
 		Username:     "testuser",
-		PasswordHash: "$2a$10$abcdefghijklmnopqrstuvwxyz", // bcryptハッシュのダミー
+		PasswordHash: "$2a$10$abcdefghijklmnopqrstuvwxyz", // Dummy bcrypt hash
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
@@ -56,7 +56,7 @@ func TestUserRepository_Create(t *testing.T) {
 		t.Error("expected user ID to be set, got 0")
 	}
 
-	// 作成されたユーザーを取得して検証
+	// Retrieve and verify created user
 	found, err := repo.FindByID(user.ID)
 	if err != nil {
 		t.Fatalf("failed to find user: %v", err)
@@ -93,7 +93,7 @@ func TestUserRepository_FindByUsername(t *testing.T) {
 		t.Fatalf("failed to create user: %v", err)
 	}
 
-	// ユーザー名で検索
+	// Search by username
 	found, err := repo.FindByUsername("findme")
 	if err != nil {
 		t.Fatalf("failed to find user by username: %v", err)
@@ -111,7 +111,7 @@ func TestUserRepository_FindByUsername(t *testing.T) {
 		t.Errorf("expected username %q, got %q", user.Username, found.Username)
 	}
 
-	// 存在しないユーザー名で検索
+	// Search with non-existent username
 	notFound, err := repo.FindByUsername("nonexistent")
 	if err != nil {
 		t.Fatalf("failed to query user: %v", err)
@@ -140,7 +140,7 @@ func TestUserRepository_FindByID(t *testing.T) {
 		t.Fatalf("failed to create user: %v", err)
 	}
 
-	// IDで検索
+	// Search by ID
 	found, err := repo.FindByID(user.ID)
 	if err != nil {
 		t.Fatalf("failed to find user by ID: %v", err)
@@ -154,7 +154,7 @@ func TestUserRepository_FindByID(t *testing.T) {
 		t.Errorf("expected username %q, got %q", user.Username, found.Username)
 	}
 
-	// 存在しないIDで検索
+	// Search with non-existent ID
 	notFound, err := repo.FindByID(99999)
 	if err != nil {
 		t.Fatalf("failed to query user: %v", err)
@@ -183,7 +183,7 @@ func TestUserRepository_Update(t *testing.T) {
 		t.Fatalf("failed to create user: %v", err)
 	}
 
-	// ユーザー情報を更新
+	// Update user information
 	user.Username = "newname"
 	user.PasswordHash = "$2a$10$newhash"
 	user.UpdatedAt = time.Now()
@@ -192,7 +192,7 @@ func TestUserRepository_Update(t *testing.T) {
 		t.Fatalf("failed to update user: %v", err)
 	}
 
-	// 更新後のユーザーを取得
+	// Retrieve updated user
 	updated, err := repo.FindByID(user.ID)
 	if err != nil {
 		t.Fatalf("failed to find user: %v", err)
@@ -225,12 +225,12 @@ func TestUserRepository_Delete(t *testing.T) {
 		t.Fatalf("failed to create user: %v", err)
 	}
 
-	// ユーザーを削除
+	// Delete user
 	if err := repo.Delete(user.ID); err != nil {
 		t.Fatalf("failed to delete user: %v", err)
 	}
 
-	// 削除後に検索
+	// Search after deletion
 	found, err := repo.FindByID(user.ID)
 	if err != nil {
 		t.Fatalf("failed to query user: %v", err)

@@ -61,7 +61,7 @@ func (r *practicalLineRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegis
 	reg.Register(gast.KindListItem, r.wrap("li"))           // li
 	reg.Register(gast.KindThematicBreak, r.renderHR)        // hr
 	reg.Register(gast.KindCodeBlock, r.renderCodeBlock)     // indented code
-	// FencedCodeBlockはhighlighting拡張に任せる（シンタックスハイライト優先）
+	// FencedCodeBlock is delegated to the highlighting extension (syntax highlighting takes priority)
 	reg.Register(gast.KindHTMLBlock, r.renderHTMLBlock) // raw HTML block (optional)
 
 	// --- tables (GFM) ---
@@ -129,7 +129,7 @@ func (r *practicalLineRenderer) renderCodeBlock(w util.BufWriter, src []byte, no
 }
 
 func (r *practicalLineRenderer) renderHTMLBlock(w util.BufWriter, src []byte, node gast.Node, entering bool) (gast.WalkStatus, error) {
-	// 生HTMLは「そのタグ自体」に data-line を付けられないので、ラップで妥協
+	// Raw HTML cannot have data-line added to the tag itself, so we compromise by wrapping it
 	if !entering {
 		return gast.WalkContinue, nil
 	}
@@ -146,7 +146,7 @@ func (r *practicalLineRenderer) renderHTMLBlock(w util.BufWriter, src []byte, no
 func (r *practicalLineRenderer) renderTableCell(w util.BufWriter, src []byte, node gast.Node, entering bool) (gast.WalkStatus, error) {
 	n := node.(*extast.TableCell)
 
-	// TableHeader直下のセルはヘッダーセル
+	// Cells directly under TableHeader are header cells
 	isHeader := false
 	if p := node.Parent(); p != nil && p.Kind() == extast.KindTableHeader {
 		isHeader = true
@@ -166,7 +166,7 @@ func (r *practicalLineRenderer) renderTableCell(w util.BufWriter, src []byte, no
 			alignAttr = ` style="text-align:center"`
 		case extast.AlignRight:
 			alignAttr = ` style="text-align:right"`
-			// AlignNone は何も付けない
+			// AlignNone adds nothing
 		}
 
 		_, _ = w.WriteString("<" + tag + dataLineAttr(r.li, node) + alignAttr + ">")

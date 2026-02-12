@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { TagInput } from './TagInput';
 import { apiClient } from '../api/client';
 
-// apiClient をモック
+// Mock apiClient
 vi.mock('../api/client', () => ({
   apiClient: {
     getTags: vi.fn(),
@@ -76,7 +76,7 @@ describe('TagInput', () => {
       });
 
       expect(screen.getByRole('textbox')).toBeDisabled();
-      // 削除ボタンが表示されないことを確認
+      // Verify remove button is not displayed
       expect(screen.queryByLabelText('Remove Go')).not.toBeInTheDocument();
     });
   });
@@ -138,7 +138,7 @@ describe('TagInput', () => {
 
       await waitFor(() => {
         expect(screen.getByRole('listbox')).toBeInTheDocument();
-        expect(screen.getByText('(5)')).toBeInTheDocument(); // Go の件数
+        expect(screen.getByText('(5)')).toBeInTheDocument(); // Go tag count
       });
     });
 
@@ -194,7 +194,7 @@ describe('TagInput', () => {
         expect(screen.getByText('Go')).toBeInTheDocument();
       });
 
-      // Goのリストアイテムをクリック（件数表示を含むので親要素を選択）
+      // Click Go list item (select parent element since it includes count display)
       const goOption = screen.getByRole('option', { name: /Go/ });
       await user.click(goOption);
 
@@ -221,7 +221,7 @@ describe('TagInput', () => {
 
       await user.keyboard('{ArrowDown}');
 
-      // 最初の項目が選択される
+      // First item is selected
       const firstOption = screen.getByRole('option', { name: /Go/ });
       expect(firstOption).toHaveAttribute('aria-selected', 'true');
     });
@@ -242,7 +242,7 @@ describe('TagInput', () => {
         expect(screen.getByRole('listbox')).toBeInTheDocument();
       });
 
-      // 2回下に移動してから1回上に移動
+      // Move down twice then move up once
       await user.keyboard('{ArrowDown}{ArrowDown}{ArrowUp}');
 
       const firstOption = screen.getByRole('option', { name: /Go/ });
@@ -367,7 +367,7 @@ describe('TagInput', () => {
         expect(screen.getByRole('listbox')).toBeInTheDocument();
       });
 
-      // 外側をクリック
+      // Click outside
       await user.click(screen.getByText('Outside'));
 
       await waitFor(() => {
@@ -387,16 +387,16 @@ describe('TagInput', () => {
 
       const input = screen.getByRole('textbox');
 
-      // IME変換開始
+      // Start IME composition
       fireEvent.compositionStart(input);
       fireEvent.change(input, { target: { value: 'にほんご' } });
 
-      // IME変換中にEnterを押しても何も起きない（変換確定になる）
+      // Pressing Enter during IME composition does nothing (becomes composition commit)
       fireEvent.keyDown(input, { key: 'Enter' });
 
       expect(onChange).not.toHaveBeenCalled();
 
-      // IME変換終了
+      // End IME composition
       fireEvent.compositionEnd(input);
     });
   });
@@ -410,7 +410,7 @@ describe('TagInput', () => {
         expect(apiClient.getTags).toHaveBeenCalled();
       });
 
-      // タグチップがないことを確認
+      // Verify no tag chips exist
       expect(screen.queryByLabelText(/Remove/)).not.toBeInTheDocument();
     });
 
@@ -419,7 +419,7 @@ describe('TagInput', () => {
       render(<TagInput value="Go,   , React" onChange={onChange} />);
 
       await waitFor(() => {
-        // 空白のみのタグは除外される
+        // Whitespace-only tags are filtered out
         expect(screen.getByText('Go')).toBeInTheDocument();
         expect(screen.getByText('React')).toBeInTheDocument();
       });

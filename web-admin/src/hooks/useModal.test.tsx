@@ -3,7 +3,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ModalProvider, useModal } from './useModal';
 
-// テスト用のコンポーネント
+// Test component
 function TestComponent() {
   const { showAlert, confirm } = useModal();
 

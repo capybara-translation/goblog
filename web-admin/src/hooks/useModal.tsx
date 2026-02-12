@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { Modal } from '../components/Modal';
 
-// オプション型定義
+// Options type definitions
 interface AlertOptions {
   title?: string;
   buttonText?: string;
@@ -14,7 +14,7 @@ interface ConfirmOptions {
   danger?: boolean;
 }
 
-// Context型定義
+// Context type definition
 interface ModalContextType {
   showAlert: (message: string, options?: AlertOptions) => Promise<void>;
   confirm: (message: string, options?: ConfirmOptions) => Promise<boolean>;
@@ -26,7 +26,7 @@ interface ModalProviderProps {
   children: ReactNode;
 }
 
-// 内部状態の型
+// Internal state type
 type ModalState =
   | { type: 'closed' }
   | { type: 'alert'; message: string; options: AlertOptions; resolve: () => void }
@@ -77,7 +77,7 @@ export function ModalProvider({ children }: ModalProviderProps) {
     <ModalContext.Provider value={value}>
       {children}
 
-      {/* Alert ダイアログ */}
+      {/* Alert dialog */}
       {modalState.type === 'alert' && (
         <Modal
           isOpen={true}
@@ -101,7 +101,7 @@ export function ModalProvider({ children }: ModalProviderProps) {
         </Modal>
       )}
 
-      {/* Confirm ダイアログ */}
+      {/* Confirm dialog */}
       {modalState.type === 'confirm' && (
         <Modal
           isOpen={true}

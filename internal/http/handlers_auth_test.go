@@ -12,7 +12,7 @@ import (
 	"github.com/capybara-translation/goblog/internal/service"
 )
 
-// mockAuthService は AuthService のモック実装です
+// mockAuthService is a mock implementation of AuthService
 type mockAuthService struct {
 	loginFunc            func(username, password, ipAddress string) (string, error)
 	logoutFunc           func(sessionID string) error
@@ -74,7 +74,7 @@ func TestHandleLogin_Success(t *testing.T) {
 
 	handlers := NewAuthHandlers(mockService, false)
 
-	// ログインリクエストを作成
+	// Create login request
 	reqBody := LoginRequest{
 		Username: "testuser",
 		Password: "password123",
@@ -85,15 +85,15 @@ func TestHandleLogin_Success(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
-	// ハンドラーを実行
+	// Execute handler
 	handlers.HandleLogin(rec, req)
 
-	// ステータスコードを確認
+	// Verify status code
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 
-	// レスポンスボディを確認（ユーザー情報が返される）
+	// Verify response body (user information is returned)
 	var resp domain.User
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
@@ -107,7 +107,7 @@ func TestHandleLogin_Success(t *testing.T) {
 		t.Error("expected user ID to be set")
 	}
 
-	// Cookieが設定されていることを確認
+	// Verify that cookies are set
 	cookies := rec.Result().Cookies()
 	if len(cookies) == 0 {
 		t.Fatal("expected session cookie to be set")
@@ -147,7 +147,7 @@ func TestHandleLogin_InvalidUsername(t *testing.T) {
 
 	handlers := NewAuthHandlers(mockService, false)
 
-	// 存在しないユーザー名でログイン
+	// Login with non-existent username
 	reqBody := LoginRequest{
 		Username: "nonexistent",
 		Password: "password123",
@@ -160,12 +160,12 @@ func TestHandleLogin_InvalidUsername(t *testing.T) {
 
 	handlers.HandleLogin(rec, req)
 
-	// ステータスコードを確認
+	// Verify status code
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
 	}
 
-	// エラーメッセージを確認
+	// Verify error message
 	var resp ErrorResponse
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
@@ -185,7 +185,7 @@ func TestHandleLogin_InvalidPassword(t *testing.T) {
 
 	handlers := NewAuthHandlers(mockService, false)
 
-	// 間違ったパスワードでログイン
+	// Login with wrong password
 	reqBody := LoginRequest{
 		Username: "testuser",
 		Password: "wrongpassword",
@@ -198,7 +198,7 @@ func TestHandleLogin_InvalidPassword(t *testing.T) {
 
 	handlers.HandleLogin(rec, req)
 
-	// ステータスコードを確認
+	// Verify status code
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
 	}
@@ -238,12 +238,12 @@ func TestHandleLogin_MissingCredentials(t *testing.T) {
 
 			handlers.HandleLogin(rec, req)
 
-			// ステータスコードを確認
+			// Verify status code
 			if rec.Code != http.StatusBadRequest {
 				t.Errorf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
 			}
 
-			// エラーメッセージを確認
+			// Verify error message
 			var resp ErrorResponse
 			if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 				t.Fatalf("failed to decode response: %v", err)
@@ -272,7 +272,7 @@ func TestHandleLogin_InvalidJSON(t *testing.T) {
 
 	handlers.HandleLogin(rec, req)
 
-	// ステータスコードを確認
+	// Verify status code
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
 	}
@@ -290,7 +290,7 @@ func TestHandleLogout_Success(t *testing.T) {
 
 	handlers := NewAuthHandlers(mockService, false)
 
-	// ログアウトリクエストを作成
+	// Create logout request
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  sessionCookieName,
@@ -298,15 +298,15 @@ func TestHandleLogout_Success(t *testing.T) {
 	})
 	rec := httptest.NewRecorder()
 
-	// ハンドラーを実行
+	// Execute handler
 	handlers.HandleLogout(rec, req)
 
-	// ステータスコードを確認
+	// Verify status code
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 
-	// レスポンスボディを確認
+	// Verify response body
 	var resp map[string]string
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
@@ -316,12 +316,12 @@ func TestHandleLogout_Success(t *testing.T) {
 		t.Errorf("expected message %q, got %q", "Logout successful", resp["message"])
 	}
 
-	// Logout が正しいセッションIDで呼ばれたことを確認
+	// Verify that Logout was called with the correct session ID
 	if loggedOutSessionID != "test-session-id" {
 		t.Errorf("expected logout session ID %q, got %q", "test-session-id", loggedOutSessionID)
 	}
 
-	// Cookieが削除されていることを確認（MaxAge = -1）
+	// Verify that the cookie is deleted (MaxAge = -1)
 	cookies := rec.Result().Cookies()
 	var sessionCookie *http.Cookie
 	for _, cookie := range cookies {
@@ -339,7 +339,7 @@ func TestHandleLogout_Success(t *testing.T) {
 		t.Errorf("expected MaxAge = -1 for cookie deletion, got %d", sessionCookie.MaxAge)
 	}
 
-	// Cookie属性が設定時と一致することを確認
+	// Verify that cookie attributes match the settings
 	if !sessionCookie.HttpOnly {
 		t.Error("expected session cookie to be HttpOnly")
 	}
@@ -356,7 +356,7 @@ func TestHandleLogout_Success(t *testing.T) {
 func TestHandleLogout_NoCookie(t *testing.T) {
 	mockService := &mockAuthService{
 		logoutFunc: func(sessionID string) error {
-			// Cookieがない場合、Logoutは呼ばれないはず
+			// Logout should not be called when there is no cookie
 			t.Error("Logout should not be called when no cookie is present")
 			return nil
 		},
@@ -364,18 +364,18 @@ func TestHandleLogout_NoCookie(t *testing.T) {
 
 	handlers := NewAuthHandlers(mockService, false)
 
-	// Cookieなしでログアウト
+	// Logout without cookie
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
 	rec := httptest.NewRecorder()
 
 	handlers.HandleLogout(rec, req)
 
-	// ステータスコードを確認（エラーにならない）
+	// Verify status code (should not error)
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 
-	// レスポンスを確認
+	// Verify response
 	var resp map[string]string
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
@@ -396,10 +396,10 @@ func TestHandleLogout_WithSecureCookie(t *testing.T) {
 		},
 	}
 
-	// 本番環境を想定（secureCookie=true）
+	// Assuming production environment (secureCookie=true)
 	handlers := NewAuthHandlers(mockService, true)
 
-	// ログアウトリクエストを作成
+	// Create logout request
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  sessionCookieName,
@@ -407,20 +407,20 @@ func TestHandleLogout_WithSecureCookie(t *testing.T) {
 	})
 	rec := httptest.NewRecorder()
 
-	// ハンドラーを実行
+	// Execute handler
 	handlers.HandleLogout(rec, req)
 
-	// ステータスコードを確認
+	// Verify status code
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 
-	// Logout が正しいセッションIDで呼ばれたことを確認
+	// Verify that Logout was called with the correct session ID
 	if loggedOutSessionID != "test-session-id" {
 		t.Errorf("expected logout session ID %q, got %q", "test-session-id", loggedOutSessionID)
 	}
 
-	// 削除用Cookieを取得
+	// Get the cookie for deletion
 	cookies := rec.Result().Cookies()
 	var sessionCookie *http.Cookie
 	for _, cookie := range cookies {
@@ -434,7 +434,7 @@ func TestHandleLogout_WithSecureCookie(t *testing.T) {
 		t.Fatal("expected session cookie to be set for deletion")
 	}
 
-	// Cookie属性が本番環境の設定と一致することを確認
+	// Verify that cookie attributes match production environment settings
 	if sessionCookie.MaxAge != -1 {
 		t.Errorf("expected MaxAge = -1 for cookie deletion, got %d", sessionCookie.MaxAge)
 	}
@@ -447,7 +447,7 @@ func TestHandleLogout_WithSecureCookie(t *testing.T) {
 		t.Errorf("expected SameSite=Lax, got %v", sessionCookie.SameSite)
 	}
 
-	// 本番環境ではSecure=trueであることを確認
+	// Verify that Secure=true in production environment
 	if !sessionCookie.Secure {
 		t.Error("expected Secure to be true (secureCookie=true)")
 	}
@@ -471,7 +471,7 @@ func TestHandleMe_Success(t *testing.T) {
 
 	handlers := NewAuthHandlers(mockService, false)
 
-	// /me リクエストを作成
+	// Create /me request
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  sessionCookieName,
@@ -479,15 +479,15 @@ func TestHandleMe_Success(t *testing.T) {
 	})
 	rec := httptest.NewRecorder()
 
-	// ハンドラーを実行
+	// Execute handler
 	handlers.HandleMe(rec, req)
 
-	// ステータスコードを確認
+	// Verify status code
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 
-	// レスポンスボディを確認（ユーザー情報が返される）
+	// Verify response body (user information is returned)
 	var resp domain.User
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
@@ -501,7 +501,7 @@ func TestHandleMe_Success(t *testing.T) {
 		t.Errorf("expected username %q, got %q", "testuser", resp.Username)
 	}
 
-	// CreatedAt, UpdatedAt も返されることを確認
+	// Verify that CreatedAt and UpdatedAt are also returned
 	if resp.CreatedAt.IsZero() {
 		t.Error("expected created_at to be set")
 	}
@@ -510,7 +510,7 @@ func TestHandleMe_Success(t *testing.T) {
 		t.Error("expected updated_at to be set")
 	}
 
-	// PasswordHash は JSON に含まれないことを確認（ゼロ値のまま）
+	// Verify that PasswordHash is not included in JSON (remains zero value)
 	if resp.PasswordHash != "" {
 		t.Error("expected password_hash to not be included in JSON response")
 	}
@@ -526,18 +526,18 @@ func TestHandleMe_NotAuthenticated(t *testing.T) {
 
 	handlers := NewAuthHandlers(mockService, false)
 
-	// Cookieなしでリクエスト
+	// Request without cookie
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
 	rec := httptest.NewRecorder()
 
 	handlers.HandleMe(rec, req)
 
-	// ステータスコードを確認
+	// Verify status code
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
 	}
 
-	// エラーメッセージを確認
+	// Verify error message
 	var resp ErrorResponse
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
@@ -551,14 +551,14 @@ func TestHandleMe_NotAuthenticated(t *testing.T) {
 func TestHandleMe_InvalidSession(t *testing.T) {
 	mockService := &mockAuthService{
 		getUserBySessionFunc: func(sessionID string) (*domain.User, error) {
-			// セッションが無効（ユーザーが見つからない）
+			// Session is invalid (user not found)
 			return nil, nil
 		},
 	}
 
 	handlers := NewAuthHandlers(mockService, false)
 
-	// 無効なセッションIDでリクエスト
+	// Request with invalid session ID
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  sessionCookieName,
@@ -568,12 +568,12 @@ func TestHandleMe_InvalidSession(t *testing.T) {
 
 	handlers.HandleMe(rec, req)
 
-	// ステータスコードを確認
+	// Verify status code
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
 	}
 
-	// エラーメッセージを確認
+	// Verify error message
 	var resp ErrorResponse
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)

@@ -9,14 +9,14 @@ interface TagInputProps {
 }
 
 /**
- * タグ入力コンポーネント（自動補完機能付き）
- * - 選択済みタグをチップ（バッジ）で表示
- * - 入力時に既存タグをドロップダウンで候補表示
- * - キーボード操作対応（↑↓Enter/Tab/Esc/Backspace）
- * - IME対応（日本語入力中は補完を発動しない）
+ * Tag input component with autocomplete
+ * - Display selected tags as chips (badges)
+ * - Show existing tags as dropdown suggestions while typing
+ * - Keyboard navigation support (↑↓Enter/Tab/Esc/Backspace)
+ * - IME support (no autocomplete during Japanese input)
  */
 export function TagInput({ value, onChange, disabled = false, placeholder = 'Enter tags...' }: TagInputProps) {
-  // 内部状態
+  // Internal state
   const [inputValue, setInputValue] = useState('');
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -29,18 +29,18 @@ export function TagInput({ value, onChange, disabled = false, placeholder = 'Ent
   const containerRef = useRef<HTMLDivElement>(null);
   const listboxRef = useRef<HTMLUListElement>(null);
 
-  // 文字列からタグ配列への変換
+  // Convert string to tag array
   const selectedTags = value
     .split(',')
     .map((tag) => tag.trim())
     .filter(Boolean);
 
-  // タグ配列から文字列への変換
+  // Convert tag array to string
   const tagsToString = (tags: string[]): string => {
     return tags.join(', ');
   };
 
-  // 全タグを取得（マウント時のみ）
+  // Fetch all tags (on mount only)
   useEffect(() => {
     const loadTags = async () => {
       try {
@@ -56,17 +56,17 @@ export function TagInput({ value, onChange, disabled = false, placeholder = 'Ent
     loadTags();
   }, []);
 
-  // 候補のフィルタリング
+  // Filter suggestions
   const filteredSuggestions = allTags.filter((tag) => {
-    // 既に選択済みのタグは除外
+    // Exclude already selected tags
     if (selectedTags.includes(tag.name)) return false;
-    // 入力が空の場合はすべて表示
+    // Show all if input is empty
     if (!inputValue.trim()) return true;
-    // 部分一致（大文字小文字を区別しない）
+    // Partial match (case-insensitive)
     return tag.name.toLowerCase().includes(inputValue.toLowerCase());
   });
 
-  // 外側クリックでドロップダウンを閉じる
+  // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
@@ -78,7 +78,7 @@ export function TagInput({ value, onChange, disabled = false, placeholder = 'Ent
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // 選択中の候補をスクロールして表示
+  // Scroll selected suggestion into view
   useEffect(() => {
     if (selectedIndex >= 0 && listboxRef.current) {
       const selectedItem = listboxRef.current.children[selectedIndex] as HTMLElement | undefined;
@@ -88,11 +88,11 @@ export function TagInput({ value, onChange, disabled = false, placeholder = 'Ent
     }
   }, [selectedIndex]);
 
-  // タグを追加
+  // Add tag
   const addTag = useCallback((tagName: string) => {
     const trimmed = tagName.trim();
     if (!trimmed) return;
-    // 重複チェック
+    // Check for duplicates
     if (selectedTags.includes(trimmed)) {
       setInputValue('');
       return;
@@ -104,23 +104,23 @@ export function TagInput({ value, onChange, disabled = false, placeholder = 'Ent
     setIsOpen(false);
   }, [selectedTags, onChange]);
 
-  // タグを削除
+  // Remove tag
   const removeTag = useCallback((tagToRemove: string) => {
     const newTags = selectedTags.filter((tag) => tag !== tagToRemove);
     onChange(tagsToString(newTags));
   }, [selectedTags, onChange]);
 
-  // 入力変更
+  // Input change handler
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
-    // カンマが入力されたらタグを追加
+    // Add tag when comma is entered
     if (newValue.includes(',')) {
       const parts = newValue.split(',');
       const tagToAdd = (parts[0] ?? '').trim();
       if (tagToAdd) {
         addTag(tagToAdd);
       }
-      // カンマ以降の部分を入力に残す
+      // Keep the part after comma in input
       setInputValue(parts.slice(1).join(',').trimStart());
     } else {
       setInputValue(newValue);
@@ -129,9 +129,9 @@ export function TagInput({ value, onChange, disabled = false, placeholder = 'Ent
     }
   };
 
-  // キーボード操作
+  // Keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // IME変換中はスキップ
+    // Skip during IME composition
     if (isComposing) return;
 
     switch (e.key) {
@@ -187,7 +187,7 @@ export function TagInput({ value, onChange, disabled = false, placeholder = 'Ent
     }
   };
 
-  // IME Composition ハンドラ
+  // IME composition handlers
   const handleCompositionStart = () => {
     setIsComposing(true);
   };
@@ -196,18 +196,18 @@ export function TagInput({ value, onChange, disabled = false, placeholder = 'Ent
     setIsComposing(false);
   };
 
-  // 候補クリック
+  // Suggestion click handler
   const handleSuggestionClick = (tagName: string) => {
     addTag(tagName);
     inputRef.current?.focus();
   };
 
-  // フォーカス時にドロップダウンを開く
+  // Open dropdown on focus
   const handleFocus = () => {
     setIsOpen(true);
   };
 
-  // フォーカスが外れたらドロップダウンを閉じる
+  // Close dropdown on blur
   const handleBlur = () => {
     setIsOpen(false);
     setSelectedIndex(-1);
@@ -215,7 +215,7 @@ export function TagInput({ value, onChange, disabled = false, placeholder = 'Ent
 
   return (
     <div ref={containerRef} className="relative">
-      {/* タグチップ + 入力フィールド */}
+      {/* Tag chips + input field */}
       <div
         className={`flex flex-wrap gap-1.5 items-center min-h-[42px] px-3 py-2 border rounded-md ${
           disabled
@@ -224,7 +224,7 @@ export function TagInput({ value, onChange, disabled = false, placeholder = 'Ent
         }`}
         onClick={() => !disabled && inputRef.current?.focus()}
       >
-        {/* 選択済みタグ */}
+        {/* Selected tags */}
         {selectedTags.map((tag) => (
           <span
             key={tag}
@@ -249,7 +249,7 @@ export function TagInput({ value, onChange, disabled = false, placeholder = 'Ent
           </span>
         ))}
 
-        {/* 入力フィールド */}
+        {/* Input field */}
         <input
           ref={inputRef}
           type="text"
@@ -269,7 +269,7 @@ export function TagInput({ value, onChange, disabled = false, placeholder = 'Ent
         />
       </div>
 
-      {/* ドロップダウン候補 */}
+      {/* Dropdown suggestions */}
       {isOpen && !disabled && filteredSuggestions.length > 0 && (
         <ul
           ref={listboxRef}
@@ -296,7 +296,7 @@ export function TagInput({ value, onChange, disabled = false, placeholder = 'Ent
         </ul>
       )}
 
-      {/* ローディング表示 */}
+      {/* Loading indicator */}
       {isLoading && (
         <div className="absolute right-3 top-1/2 -translate-y-1/2">
           <svg className="animate-spin h-4 w-4 text-primary-400" fill="none" viewBox="0 0 24 24">

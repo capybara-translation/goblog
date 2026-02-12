@@ -13,55 +13,55 @@ func TestParsePostStatus(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name:        "有効な値: draft",
+			name:        "Valid value: draft",
 			input:       "draft",
 			expected:    PostStatusDraft,
 			expectError: false,
 		},
 		{
-			name:        "有効な値: published",
+			name:        "Valid value: published",
 			input:       "published",
 			expected:    PostStatusPublished,
 			expectError: false,
 		},
 		{
-			name:        "無効な値: invalid",
+			name:        "Invalid value: invalid",
 			input:       "invalid",
 			expected:    "",
 			expectError: true,
 		},
 		{
-			name:        "無効な値: 空文字列",
+			name:        "Invalid value: empty string",
 			input:       "",
 			expected:    "",
 			expectError: true,
 		},
 		{
-			name:        "無効な値: Draft（大文字）",
+			name:        "Invalid value: Draft (uppercase)",
 			input:       "Draft",
 			expected:    "",
 			expectError: true,
 		},
 		{
-			name:        "無効な値: PUBLISHED（大文字）",
+			name:        "Invalid value: PUBLISHED (uppercase)",
 			input:       "PUBLISHED",
 			expected:    "",
 			expectError: true,
 		},
 		{
-			name:        "無効な値: publised（タイポ）",
+			name:        "Invalid value: publised (typo)",
 			input:       "publised",
 			expected:    "",
 			expectError: true,
 		},
 		{
-			name:        "無効な値: ランダムな文字列",
+			name:        "Invalid value: random string",
 			input:       "random-status",
 			expected:    "",
 			expectError: true,
 		},
 		{
-			name:        "無効な値: スペース付き",
+			name:        "Invalid value: with spaces",
 			input:       " draft ",
 			expected:    "",
 			expectError: true,
@@ -76,7 +76,7 @@ func TestParsePostStatus(t *testing.T) {
 				if err == nil {
 					t.Errorf("expected error for input %q, but got nil", tt.input)
 				}
-				// エラーメッセージに入力値が含まれていることを確認
+				// Verify that the error message contains the input value
 				if err != nil && tt.input != "" {
 					expectedMsg := "invalid status: '" + tt.input + "'"
 					if err.Error()[:len(expectedMsg)] != expectedMsg {
@@ -96,7 +96,7 @@ func TestParsePostStatus(t *testing.T) {
 }
 
 func TestParsePostStatus_ErrorMessage(t *testing.T) {
-	t.Run("エラーメッセージに有効な値が含まれる", func(t *testing.T) {
+	t.Run("Error message contains valid values", func(t *testing.T) {
 		_, err := ParsePostStatus("invalid")
 		if err == nil {
 			t.Fatal("expected error, got nil")

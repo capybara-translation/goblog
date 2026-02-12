@@ -5,12 +5,12 @@ import { MemoryRouter } from 'react-router-dom'
 import { Login } from './Login'
 import { useAuth } from '../hooks/useAuth'
 
-// useAuth をモック
+// Mock useAuth
 vi.mock('../hooks/useAuth', () => ({
   useAuth: vi.fn(),
 }))
 
-// React Router のナビゲーションをモック
+// Mock React Router navigation
 const mockNavigate = vi.fn()
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom')
@@ -181,7 +181,7 @@ describe('Login', () => {
 
       renderLogin()
 
-      // 最初の失敗
+      // First failure
       await user.type(screen.getByLabelText('Username'), 'user1')
       await user.type(screen.getByLabelText('Password'), 'pass1')
       await user.click(screen.getByRole('button', { name: 'Sign in' }))
@@ -190,7 +190,7 @@ describe('Login', () => {
         expect(screen.getByText('First error')).toBeInTheDocument()
       })
 
-      // 2回目の試行（成功）
+      // Second attempt (success)
       mockLogin.mockResolvedValue(undefined)
       await user.clear(screen.getByLabelText('Username'))
       await user.clear(screen.getByLabelText('Password'))
@@ -220,15 +220,15 @@ describe('Login', () => {
       await user.type(screen.getByLabelText('Password'), 'password')
       await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-      // 送信中の表示を確認
+      // Verify submitting state display
       await waitFor(() => {
         expect(screen.getByRole('button', { name: 'Signing in...' })).toBeInTheDocument()
       })
 
-      // Sign inを完了
+      // Complete sign in
       resolveLogin!()
 
-      // 元に戻ることを確認
+      // Verify it returns to original state
       await waitFor(() => {
         expect(screen.queryByRole('button', { name: 'Signing in...' })).not.toBeInTheDocument()
       })
@@ -253,17 +253,17 @@ describe('Login', () => {
       await user.type(passwordInput, 'password')
       await user.click(submitButton)
 
-      // 送信中はフィールドが無効化される
+      // Fields are disabled during submission
       await waitFor(() => {
         expect(usernameInput).toBeDisabled()
         expect(passwordInput).toBeDisabled()
         expect(submitButton).toBeDisabled()
       })
 
-      // Sign inを完了
+      // Complete sign in
       resolveLogin!()
 
-      // 有効に戻る
+      // Fields become enabled again
       await waitFor(() => {
         expect(usernameInput).not.toBeDisabled()
         expect(passwordInput).not.toBeDisabled()
@@ -273,7 +273,7 @@ describe('Login', () => {
     it('should re-enable fields after failed login', async () => {
       const user = userEvent.setup()
 
-      // Promise を手動で制御して送信中の状態を確認できるようにする
+      // Manually control Promise to verify submitting state
       let rejectLogin: (error: Error) => void
       mockLogin.mockReturnValue(
         new Promise((_, reject) => {
@@ -291,17 +291,17 @@ describe('Login', () => {
       await user.type(passwordInput, 'password')
       await user.click(submitButton)
 
-      // 送信中はフィールドが無効化される
+      // Fields are disabled during submission
       await waitFor(() => {
         expect(usernameInput).toBeDisabled()
         expect(passwordInput).toBeDisabled()
         expect(submitButton).toBeDisabled()
       })
 
-      // Sign in失敗
+      // Sign in fails
       rejectLogin!(new Error('Login failed'))
 
-      // エラー後にフィールドが再度有効になる
+      // Fields become enabled again after error
       await waitFor(() => {
         expect(usernameInput).not.toBeDisabled()
         expect(passwordInput).not.toBeDisabled()

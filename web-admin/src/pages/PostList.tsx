@@ -20,7 +20,7 @@ export function PostList() {
   const [isComposing, setIsComposing] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Debounce search query (IME変換中は発動しない)
+  // Debounce search query (does not trigger during IME composition)
   useEffect(() => {
     if (isComposing) return;
 
@@ -32,7 +32,7 @@ export function PostList() {
   }, [searchQuery, isComposing]);
 
   const loadPosts = useCallback(async () => {
-    // 検索ボックスにフォーカスがあるか確認
+    // Check if search box has focus
     const wasSearchFocused = document.activeElement === searchInputRef.current;
 
     try {
@@ -51,7 +51,7 @@ export function PostList() {
       setError(err instanceof Error ? err.message : 'Failed to load posts');
     } finally {
       setIsLoading(false);
-      // フォーカスを復元
+      // Restore focus
       if (wasSearchFocused) {
         requestAnimationFrame(() => {
           searchInputRef.current?.focus();

@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// PostStatus は記事のステータスを表します
+// PostStatus represents the status of a post
 type PostStatus string
 
 const (
@@ -13,8 +13,8 @@ const (
 	PostStatusPublished PostStatus = "published"
 )
 
-// ParsePostStatus は文字列をPostStatusに変換します
-// 不正な値の場合はエラーを返します
+// ParsePostStatus converts a string to PostStatus
+// Returns an error for invalid values
 func ParsePostStatus(s string) (PostStatus, error) {
 	switch s {
 	case string(PostStatusDraft):
@@ -26,16 +26,16 @@ func ParsePostStatus(s string) (PostStatus, error) {
 	}
 }
 
-// Post はブログ記事を表すドメインモデルです
+// Post is the domain model representing a blog post
 type Post struct {
 	ID          int64      `json:"id" db:"id"`
 	Title       string     `json:"title" db:"title"`
 	Slug        string     `json:"slug" db:"slug"`
 	Content     string     `json:"content" db:"content"`
 	Status      PostStatus `json:"status" db:"status"`
-	Tags        string     `json:"tags" db:"tags"`           // カンマ区切りで保存（シンプルのため）
-	IsPinned    bool       `json:"is_pinned" db:"is_pinned"` // ヘッダーにピン留め表示
+	Tags        string     `json:"tags" db:"tags"`           // Stored as comma-separated (for simplicity)
+	IsPinned    bool       `json:"is_pinned" db:"is_pinned"` // Pinned to header display
 	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at" db:"updated_at"`
-	PublishedAt *time.Time `json:"published_at,omitempty" db:"published_at"` // 公開日時（nilの場合は未公開）
+	PublishedAt *time.Time `json:"published_at,omitempty" db:"published_at"` // Published date (nil if unpublished)
 }

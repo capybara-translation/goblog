@@ -9,7 +9,7 @@ import (
 	"github.com/capybara-translation/goblog/internal/repo"
 )
 
-// normalizeTags はタグ文字列を正規化します
+// normalizeTags normalizes a tag string
 // "Go, React, TypeScript" → "Go,React,TypeScript"
 func normalizeTags(tags string) string {
 	if tags == "" {
@@ -26,69 +26,69 @@ func normalizeTags(tags string) string {
 	return strings.Join(normalized, ",")
 }
 
-// PostService は記事に関するビジネスロジックを提供します
+// PostService provides business logic for posts
 type PostService interface {
-	// GetPublishedPosts は公開済みの記事一覧を取得します
+	// GetPublishedPosts retrieves a list of published posts
 	GetPublishedPosts(limit, offset int) ([]*domain.Post, error)
 
-	// GetPostBySlug はスラッグで公開済み記事を取得します
+	// GetPostBySlug retrieves a published post by slug
 	GetPostBySlug(slug string) (*domain.Post, error)
 
-	// GetAllPosts は管理画面用にすべての記事を取得します
+	// GetAllPosts retrieves all posts for the admin panel
 	GetAllPosts(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
 
-	// GetPostByID はIDで記事を取得します（管理画面用）
+	// GetPostByID retrieves a post by ID (for admin panel)
 	GetPostByID(id int64) (*domain.Post, error)
 
-	// CreatePost は新しい記事を作成します
+	// CreatePost creates a new post
 	CreatePost(title, slug, content, tags string, isPinned bool) (*domain.Post, error)
 
-	// UpdatePost は記事を更新します
+	// UpdatePost updates a post
 	UpdatePost(id int64, title, slug, content, tags string, isPinned bool) (*domain.Post, error)
 
-	// PublishPost は記事を公開します
+	// PublishPost publishes a post
 	PublishPost(id int64) (*domain.Post, error)
 
-	// UnpublishPost は記事を下書きに戻します
+	// UnpublishPost reverts a post to draft status
 	UnpublishPost(id int64) (*domain.Post, error)
 
-	// DeletePost は記事を削除します
+	// DeletePost deletes a post
 	DeletePost(id int64) error
 
-	// GetPublishedPostsByTag は公開済み記事をタグで取得します
+	// GetPublishedPostsByTag retrieves published posts by tag
 	GetPublishedPostsByTag(tag string, limit, offset int) ([]*domain.Post, error)
 
-	// GetAllPostsByTag は管理画面用にタグで記事を取得します（ステータス指定可能）
+	// GetAllPostsByTag retrieves posts by tag for the admin panel (status can be specified)
 	GetAllPostsByTag(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
 
-	// GetPublishedTags は公開済み記事のタグ一覧を取得します
+	// GetPublishedTags retrieves a list of tags from published posts
 	GetPublishedTags() (map[string]int, error)
 
-	// GetAllTags は管理画面用にタグ一覧を取得します（ステータス指定可能）
+	// GetAllTags retrieves a list of tags for the admin panel (status can be specified)
 	GetAllTags(status *domain.PostStatus) (map[string]int, error)
 
-	// CountPosts は記事の総数を取得します
+	// CountPosts retrieves the total number of posts
 	CountPosts(status *domain.PostStatus) (int, error)
 
-	// CountPostsByTag は特定のタグを持つ記事の総数を取得します
+	// CountPostsByTag retrieves the total number of posts with a specific tag
 	CountPostsByTag(tag string, status *domain.PostStatus) (int, error)
 
-	// SearchPosts は検索クエリに一致する記事を取得します（管理画面用）
+	// SearchPosts retrieves posts matching the search query (for admin panel)
 	SearchPosts(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
 
-	// CountSearchPosts は検索クエリに一致する記事数を取得します
+	// CountSearchPosts retrieves the count of posts matching the search query
 	CountSearchPosts(query string, status *domain.PostStatus) (int, error)
 
-	// SearchPublishedPosts は公開済み記事を検索します（公開ページ用）
+	// SearchPublishedPosts searches published posts (for public pages)
 	SearchPublishedPosts(query string, limit, offset int) ([]*domain.Post, error)
 
-	// CountSearchPublishedPosts は公開済み記事の検索結果数を取得します
+	// CountSearchPublishedPosts retrieves the count of search results for published posts
 	CountSearchPublishedPosts(query string) (int, error)
 
-	// GetPinnedPosts はピン留めされた公開記事を取得します（公開ページ用）
+	// GetPinnedPosts retrieves pinned published posts (for public pages)
 	GetPinnedPosts() ([]*domain.Post, error)
 
-	// SetPinned は記事のピン留め状態を設定します
+	// SetPinned sets the pinned status of a post
 	SetPinned(id int64, pinned bool) (*domain.Post, error)
 }
 
@@ -96,25 +96,25 @@ type postService struct {
 	repo repo.PostRepository
 }
 
-// NewPostService は新しいPostServiceを作成します
+// NewPostService creates a new PostService
 func NewPostService(repo repo.PostRepository) PostService {
 	return &postService{repo: repo}
 }
 
-// GetPublishedPosts は公開済みの記事一覧を取得します
+// GetPublishedPosts retrieves a list of published posts
 func (s *postService) GetPublishedPosts(limit, offset int) ([]*domain.Post, error) {
 	status := domain.PostStatusPublished
 	return s.repo.FindAll(&status, limit, offset)
 }
 
-// GetPostBySlug はスラッグで公開済み記事を取得します
+// GetPostBySlug retrieves a published post by slug
 func (s *postService) GetPostBySlug(slug string) (*domain.Post, error) {
 	post, err := s.repo.FindBySlug(slug)
 	if err != nil {
 		return nil, err
 	}
 
-	// 公開済みの記事のみ返す
+	// Return only published posts
 	if post == nil || post.Status != domain.PostStatusPublished {
 		return nil, nil
 	}
@@ -122,19 +122,19 @@ func (s *postService) GetPostBySlug(slug string) (*domain.Post, error) {
 	return post, nil
 }
 
-// GetAllPosts は管理画面用にすべての記事を取得します
+// GetAllPosts retrieves all posts for the admin panel
 func (s *postService) GetAllPosts(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
 	return s.repo.FindAll(status, limit, offset)
 }
 
-// GetPostByID はIDで記事を取得します（管理画面用）
+// GetPostByID retrieves a post by ID (for admin panel)
 func (s *postService) GetPostByID(id int64) (*domain.Post, error) {
 	return s.repo.FindByID(id)
 }
 
-// CreatePost は新しい記事を作成します
+// CreatePost creates a new post
 func (s *postService) CreatePost(title, slug, content, tags string, isPinned bool) (*domain.Post, error) {
-	// スラッグの重複チェック
+	// Check for slug duplication
 	existing, err := s.repo.FindBySlug(slug)
 	if err != nil {
 		return nil, err
@@ -162,7 +162,7 @@ func (s *postService) CreatePost(title, slug, content, tags string, isPinned boo
 	return post, nil
 }
 
-// UpdatePost は記事を更新します
+// UpdatePost updates a post
 func (s *postService) UpdatePost(id int64, title, slug, content, tags string, isPinned bool) (*domain.Post, error) {
 	post, err := s.repo.FindByID(id)
 	if err != nil {
@@ -172,7 +172,7 @@ func (s *postService) UpdatePost(id int64, title, slug, content, tags string, is
 		return nil, fmt.Errorf("post not found: %d", id)
 	}
 
-	// スラッグが変更された場合、重複チェック
+	// Check for slug duplication if the slug has been changed
 	if post.Slug != slug {
 		existing, err := s.repo.FindBySlug(slug)
 		if err != nil {
@@ -197,7 +197,7 @@ func (s *postService) UpdatePost(id int64, title, slug, content, tags string, is
 	return post, nil
 }
 
-// PublishPost は記事を公開します
+// PublishPost publishes a post
 func (s *postService) PublishPost(id int64) (*domain.Post, error) {
 	post, err := s.repo.FindByID(id)
 	if err != nil {
@@ -219,7 +219,7 @@ func (s *postService) PublishPost(id int64) (*domain.Post, error) {
 	return post, nil
 }
 
-// UnpublishPost は記事を下書きに戻します
+// UnpublishPost reverts a post to draft status
 func (s *postService) UnpublishPost(id int64) (*domain.Post, error) {
 	post, err := s.repo.FindByID(id)
 	if err != nil {
@@ -239,12 +239,12 @@ func (s *postService) UnpublishPost(id int64) (*domain.Post, error) {
 	return post, nil
 }
 
-// DeletePost は記事を削除します
+// DeletePost deletes a post
 func (s *postService) DeletePost(id int64) error {
 	return s.repo.Delete(id)
 }
 
-// GetPublishedPostsByTag は公開済み記事をタグで取得します
+// GetPublishedPostsByTag retrieves published posts by tag
 func (s *postService) GetPublishedPostsByTag(tag string, limit, offset int) ([]*domain.Post, error) {
 	if tag == "" {
 		return nil, fmt.Errorf("tag cannot be empty")
@@ -253,7 +253,7 @@ func (s *postService) GetPublishedPostsByTag(tag string, limit, offset int) ([]*
 	return s.repo.FindAllByTag(tag, &status, limit, offset)
 }
 
-// GetAllPostsByTag は管理画面用にタグで記事を取得します（ステータス指定可能）
+// GetAllPostsByTag retrieves posts by tag for the admin panel (status can be specified)
 func (s *postService) GetAllPostsByTag(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
 	if tag == "" {
 		return nil, fmt.Errorf("tag cannot be empty")
@@ -261,23 +261,23 @@ func (s *postService) GetAllPostsByTag(tag string, status *domain.PostStatus, li
 	return s.repo.FindAllByTag(tag, status, limit, offset)
 }
 
-// GetPublishedTags は公開済み記事のタグ一覧を取得します
+// GetPublishedTags retrieves a list of tags from published posts
 func (s *postService) GetPublishedTags() (map[string]int, error) {
 	status := domain.PostStatusPublished
 	return s.repo.GetAllTags(&status)
 }
 
-// GetAllTags は管理画面用にタグ一覧を取得します（ステータス指定可能）
+// GetAllTags retrieves a list of tags for the admin panel (status can be specified)
 func (s *postService) GetAllTags(status *domain.PostStatus) (map[string]int, error) {
 	return s.repo.GetAllTags(status)
 }
 
-// CountPosts は記事の総数を取得します
+// CountPosts retrieves the total number of posts
 func (s *postService) CountPosts(status *domain.PostStatus) (int, error) {
 	return s.repo.Count(status)
 }
 
-// CountPostsByTag は特定のタグを持つ記事の総数を取得します
+// CountPostsByTag retrieves the total number of posts with a specific tag
 func (s *postService) CountPostsByTag(tag string, status *domain.PostStatus) (int, error) {
 	if tag == "" {
 		return 0, fmt.Errorf("tag cannot be empty")
@@ -285,7 +285,7 @@ func (s *postService) CountPostsByTag(tag string, status *domain.PostStatus) (in
 	return s.repo.CountByTag(tag, status)
 }
 
-// SearchPosts は検索クエリに一致する記事を取得します（管理画面用）
+// SearchPosts retrieves posts matching the search query (for admin panel)
 func (s *postService) SearchPosts(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) {
 	if query == "" {
 		return s.repo.FindAll(status, limit, offset)
@@ -293,7 +293,7 @@ func (s *postService) SearchPosts(query string, status *domain.PostStatus, limit
 	return s.repo.Search(query, status, limit, offset)
 }
 
-// CountSearchPosts は検索クエリに一致する記事数を取得します
+// CountSearchPosts retrieves the count of posts matching the search query
 func (s *postService) CountSearchPosts(query string, status *domain.PostStatus) (int, error) {
 	if query == "" {
 		return s.repo.Count(status)
@@ -301,7 +301,7 @@ func (s *postService) CountSearchPosts(query string, status *domain.PostStatus) 
 	return s.repo.CountSearch(query, status)
 }
 
-// SearchPublishedPosts は公開済み記事を検索します（公開ページ用）
+// SearchPublishedPosts searches published posts (for public pages)
 func (s *postService) SearchPublishedPosts(query string, limit, offset int) ([]*domain.Post, error) {
 	status := domain.PostStatusPublished
 	if query == "" {
@@ -310,7 +310,7 @@ func (s *postService) SearchPublishedPosts(query string, limit, offset int) ([]*
 	return s.repo.Search(query, &status, limit, offset)
 }
 
-// CountSearchPublishedPosts は公開済み記事の検索結果数を取得します
+// CountSearchPublishedPosts retrieves the count of search results for published posts
 func (s *postService) CountSearchPublishedPosts(query string) (int, error) {
 	status := domain.PostStatusPublished
 	if query == "" {
@@ -319,12 +319,12 @@ func (s *postService) CountSearchPublishedPosts(query string) (int, error) {
 	return s.repo.CountSearch(query, &status)
 }
 
-// GetPinnedPosts はピン留めされた公開記事を取得します（公開ページ用）
+// GetPinnedPosts retrieves pinned published posts (for public pages)
 func (s *postService) GetPinnedPosts() ([]*domain.Post, error) {
 	return s.repo.FindPinnedPublished()
 }
 
-// SetPinned は記事のピン留め状態を設定します
+// SetPinned sets the pinned status of a post
 func (s *postService) SetPinned(id int64, pinned bool) (*domain.Post, error) {
 	post, err := s.repo.FindByID(id)
 	if err != nil {

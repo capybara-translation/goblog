@@ -11,7 +11,7 @@ import (
 )
 
 func TestHandleSitemap(t *testing.T) {
-	// テスト用の記事データ
+	// Test post data
 	now := time.Now()
 	testPosts := []*domain.Post{
 		{
@@ -32,7 +32,7 @@ func TestHandleSitemap(t *testing.T) {
 		},
 	}
 
-	// テスト用のタグデータ
+	// Test tag data
 	testTags := map[string]int{
 		"Go":   2,
 		"Web":  1,
@@ -50,7 +50,7 @@ func TestHandleSitemap(t *testing.T) {
 
 	router := NewRouterWithTemplates(mockService, nil, testSecureCookie, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
-	t.Run("正常にsitemap.xmlが生成される", func(t *testing.T) {
+	t.Run("sitemap.xml is generated correctly", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/sitemap.xml", nil)
 		w := httptest.NewRecorder()
 
@@ -67,17 +67,17 @@ func TestHandleSitemap(t *testing.T) {
 
 		body := w.Body.String()
 
-		// XMLヘッダーが含まれる
+		// Contains XML header
 		if !strings.Contains(body, `<?xml version="1.0" encoding="UTF-8"?>`) {
 			t.Error("expected XML header")
 		}
 
-		// urlset要素が含まれる
+		// Contains urlset element
 		if !strings.Contains(body, `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`) {
 			t.Error("expected urlset element with xmlns")
 		}
 
-		// 固定URLが含まれる
+		// Contains static URLs
 		if !strings.Contains(body, testBaseURL+"/") {
 			t.Error("expected root URL")
 		}
@@ -88,7 +88,7 @@ func TestHandleSitemap(t *testing.T) {
 			t.Error("expected tags URL")
 		}
 
-		// 記事URLが含まれる
+		// Contains post URLs
 		if !strings.Contains(body, testBaseURL+"/posts/test-post-1") {
 			t.Error("expected post URL for test-post-1")
 		}
@@ -96,7 +96,7 @@ func TestHandleSitemap(t *testing.T) {
 			t.Error("expected post URL for test-post-2")
 		}
 
-		// タグURLが含まれる
+		// Contains tag URLs
 		if !strings.Contains(body, testBaseURL+"/tags/Go") {
 			t.Error("expected tag URL for Go")
 		}
@@ -104,18 +104,18 @@ func TestHandleSitemap(t *testing.T) {
 			t.Error("expected tag URL for Web")
 		}
 
-		// 日本語タグはURLエンコードされる
+		// Japanese tags are URL encoded
 		if !strings.Contains(body, testBaseURL+"/tags/") {
 			t.Error("expected tag URL")
 		}
 
-		// lastmodが含まれる（YYYY-MM-DD形式、UTC）
+		// Contains lastmod (YYYY-MM-DD format, UTC)
 		expectedDate := now.UTC().Format("2006-01-02")
 		if !strings.Contains(body, "<lastmod>"+expectedDate+"</lastmod>") {
 			t.Errorf("expected lastmod with date %s, body: %s", expectedDate, body)
 		}
 
-		// changefreqが含まれる
+		// Contains changefreq
 		if !strings.Contains(body, "<changefreq>weekly</changefreq>") {
 			t.Error("expected changefreq weekly")
 		}
@@ -126,7 +126,7 @@ func TestHandleSitemap(t *testing.T) {
 			t.Error("expected changefreq monthly")
 		}
 
-		// priorityが含まれる
+		// Contains priority
 		if !strings.Contains(body, "<priority>1</priority>") {
 			t.Error("expected priority 1")
 		}
@@ -138,7 +138,7 @@ func TestHandleSitemap(t *testing.T) {
 		}
 	})
 
-	t.Run("記事がない場合も固定URLは生成される", func(t *testing.T) {
+	t.Run("Static URLs are generated even when there are no posts", func(t *testing.T) {
 		emptyMockService := &mockPostService{
 			getPublishedPostsFunc: func(limit, offset int) ([]*domain.Post, error) {
 				return []*domain.Post{}, nil
@@ -161,7 +161,7 @@ func TestHandleSitemap(t *testing.T) {
 
 		body := w.Body.String()
 
-		// 固定URLは含まれる
+		// Static URLs are included
 		if !strings.Contains(body, testBaseURL+"/") {
 			t.Error("expected root URL even with no posts")
 		}

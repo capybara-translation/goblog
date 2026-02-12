@@ -4,14 +4,14 @@ import { TagList } from './TagList'
 
 describe('TagList', () => {
   describe('Empty tags', () => {
-    it('should display "タグなし" when tags is empty string', () => {
+    it('should display "No tags" when tags is empty string', () => {
       render(<TagList tags="" />)
-      expect(screen.getByText('タグなし')).toBeInTheDocument()
+      expect(screen.getByText('No tags')).toBeInTheDocument()
     })
 
-    it('should display "タグなし" when tags is only whitespace', () => {
+    it('should display "No tags" when tags is only whitespace', () => {
       render(<TagList tags="   " />)
-      expect(screen.getByText('タグなし')).toBeInTheDocument()
+      expect(screen.getByText('No tags')).toBeInTheDocument()
     })
   })
 
@@ -27,9 +27,9 @@ describe('TagList', () => {
       expect(screen.queryByText('  React  ')).not.toBeInTheDocument()
     })
 
-    it('should not display "タグなし" when single tag exists', () => {
+    it('should not display "No tags" when single tag exists', () => {
       render(<TagList tags="React" />)
-      expect(screen.queryByText('タグなし')).not.toBeInTheDocument()
+      expect(screen.queryByText('No tags')).not.toBeInTheDocument()
     })
   })
 
@@ -98,8 +98,8 @@ describe('TagList', () => {
 
     it('should handle only commas', () => {
       render(<TagList tags=",,," />)
-      // 空のタグはフィルタリングされるため、何も表示されない
-      expect(screen.queryByText('タグなし')).not.toBeInTheDocument()
+      // Empty tags are filtered out, so nothing is displayed
+      expect(screen.queryByText('No tags')).not.toBeInTheDocument()
     })
 
     it('should handle mix of empty and whitespace tags', () => {

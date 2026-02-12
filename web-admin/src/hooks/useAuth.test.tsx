@@ -4,7 +4,7 @@ import { AuthProvider, useAuth } from './useAuth'
 import { apiClient } from '../api/client'
 import type { ReactNode } from 'react'
 
-// apiClient をモック
+// Mock apiClient
 vi.mock('../api/client', () => ({
   apiClient: {
     me: vi.fn(),
@@ -35,16 +35,16 @@ describe('useAuth', () => {
 
       const { result } = renderHook(() => useAuth(), { wrapper })
 
-      // 初期状態: user は null、isLoading は true
+      // Initial state: user is null, isLoading is true
       expect(result.current.user).toBeNull()
       expect(result.current.isLoading).toBe(true)
 
-      // checkAuth が完了するのを待つ
+      // Wait for checkAuth to complete
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false)
       })
 
-      // ユーザー情報が設定されている
+      // User info is set
       expect(result.current.user).toEqual(mockUser)
       expect(apiClient.me).toHaveBeenCalledTimes(1)
     })
@@ -75,7 +75,7 @@ describe('useAuth', () => {
         updated_at: '2024-01-01T00:00:00Z',
       }
 
-      // 初回の checkAuth は失敗させる
+      // Make initial checkAuth fail
       vi.mocked(apiClient.me).mockRejectedValue(new Error('Not authenticated'))
       vi.mocked(apiClient.login).mockResolvedValue(mockUser)
 
@@ -85,20 +85,20 @@ describe('useAuth', () => {
 
       const { result } = renderHook(() => useAuth(), { wrapper })
 
-      // 初期化完了を待つ
+      // Wait for initialization to complete
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false)
       })
 
       expect(result.current.user).toBeNull()
 
-      // ログイン実行（await なし）
+      // Execute login (without await)
       result.current.login({
         username: 'testuser',
         password: 'password',
       })
 
-      // 状態の更新を waitFor 内で待つ
+      // Wait for state update inside waitFor
       await waitFor(() => {
         expect(result.current.user).toEqual(mockUser)
       })
@@ -160,10 +160,10 @@ describe('useAuth', () => {
 
       expect(result.current.user).toEqual(mockUser)
 
-      // ログアウト実行（await なし）
+      // Execute logout (without await)
       result.current.logout()
 
-      // 状態の更新を waitFor 内で待つ
+      // Wait for state update inside waitFor
       await waitFor(() => {
         expect(result.current.user).toBeNull()
       })
@@ -181,7 +181,7 @@ describe('useAuth', () => {
         updated_at: '2024-01-01T00:00:00Z',
       }
 
-      // 最初は失敗、2回目は成功
+      // First call fails, second call succeeds
       vi.mocked(apiClient.me)
         .mockRejectedValueOnce(new Error('Not authenticated'))
         .mockResolvedValueOnce(mockUser)
@@ -198,10 +198,10 @@ describe('useAuth', () => {
 
       expect(result.current.user).toBeNull()
 
-      // checkAuth を手動で呼び出し（await なし）
+      // Call checkAuth manually (without await)
       result.current.checkAuth()
 
-      // 状態の更新を waitFor 内で待つ
+      // Wait for state update inside waitFor
       await waitFor(() => {
         expect(result.current.user).toEqual(mockUser)
       })
@@ -210,7 +210,7 @@ describe('useAuth', () => {
 
   describe('useAuth hook', () => {
     it('should throw error when used outside AuthProvider', () => {
-      // コンソールエラーを抑制
+      // Suppress console error
       const consoleError = vi
         .spyOn(console, 'error')
         .mockImplementation(() => {})

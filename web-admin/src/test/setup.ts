@@ -2,19 +2,19 @@ import { afterAll, afterEach, beforeAll } from 'vitest'
 import { server } from '../mocks/server'
 import '@testing-library/jest-dom'
 
-// テスト開始前にMSWサーバーを起動
+// Start MSW server before tests
 beforeAll(() => {
   server.listen({
     onUnhandledRequest: 'warn',
   })
 })
 
-// 各テスト後にハンドラーをリセット
+// Reset handlers after each test
 afterEach(() => {
   server.resetHandlers()
 })
 
-// 全テスト終了後にMSWサーバーを停止
+// Stop MSW server after all tests
 afterAll(() => {
   server.close()
 })

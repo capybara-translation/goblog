@@ -2,12 +2,12 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import MDEditor, { commands, ICommand, TextState, TextAreaTextApi } from '@uiw/react-md-editor';
 import { apiClient } from '../api/client';
 
-// 許可されるMIMEタイプ
+// Allowed MIME types
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-// 最大ファイルサイズ（5MB）
+// Maximum file size (5MB)
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
-// カーソル位置から行番号を取得（0-based）
+// Get line number from cursor position (0-based)
 function getLineFromCursorPos(content: string, cursorPos: number): number {
   return content.slice(0, cursorPos).split('\n').length - 1;
 }
@@ -20,9 +20,9 @@ interface MarkdownEditorProps {
 }
 
 /**
- * Markdownエディタコンポーネント
- * サーバーサイドでMarkdownをHTMLに変換してプレビュー表示
- * 公開ページと同じ見た目でプレビューできる
+ * Markdown editor component
+ * Converts Markdown to HTML on the server side for preview display
+ * Preview matches the same appearance as the public page
  */
 export function MarkdownEditor({ value, onChange, disabled = false, onSave }: MarkdownEditorProps) {
   const [previewHtml, setPreviewHtml] = useState<string>('');
@@ -33,10 +33,10 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textApiRef = useRef<TextAreaTextApi | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
-  // 現在の行番号を保持（スクロール用）
+  // Keep track of current line number (for scrolling)
   const currentLineRef = useRef<number>(0);
 
-  // data-line属性を使ってプレビューをスクロール
+  // Scroll preview using data-line attribute
   const scrollToLine = useCallback((line: number) => {
     const container = previewRef.current;
     if (!container) return;
@@ -45,7 +45,7 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
     let targetElement: Element | null = null;
     let minDiff = Infinity;
 
-    // カーソル行以下で最も近い要素を探す
+    // Find the closest element at or before the cursor line
     elements.forEach((el) => {
       const elLine = parseInt(el.getAttribute('data-line') || '0', 10);
       if (elLine <= line) {
@@ -58,7 +58,7 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
     });
 
     if (targetElement !== null) {
-      // 要素を画面の1/3の位置にスクロール
+      // Scroll the element to 1/3 position of the screen
       const containerRect = container.getBoundingClientRect();
       const elementRect = (targetElement as Element).getBoundingClientRect();
       const scrollTop = elementRect.top - containerRect.top + container.scrollTop - container.clientHeight / 3;
@@ -66,7 +66,7 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
     }
   }, []);
 
-  // プレビューを取得（マーカー挿入なし）
+  // Fetch preview (without marker insertion)
   const fetchPreview = useCallback(async (content: string) => {
     if (!content.trim()) {
       setPreviewHtml('');
@@ -85,7 +85,7 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
     }
   }, []);
 
-  // デバウンス付きでプレビューを取得
+  // Fetch preview with debounce
   useEffect(() => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
@@ -98,7 +98,7 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
 
     debounceTimerRef.current = window.setTimeout(() => {
       fetchPreview(value);
-    }, 300); // 300ms のデバウンス
+    }, 300); // 300ms debounce
 
     return () => {
       if (debounceTimerRef.current) {
@@ -107,13 +107,13 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
     };
   }, [value, fetchPreview]);
 
-  // プレビュー更新後に現在行にスクロール
+  // Scroll to current line after preview update
   useEffect(() => {
     if (!previewHtml) return;
     scrollToLine(currentLineRef.current);
   }, [previewHtml, scrollToLine]);
 
-  // カーソル移動でスクロール（プレビュー再取得なし）
+  // Scroll on cursor move (without re-fetching preview)
   const handleCursorChange = useCallback((textarea: HTMLTextAreaElement) => {
     const line = getLineFromCursorPos(value, textarea.selectionStart);
     if (currentLineRef.current !== line) {
@@ -122,15 +122,15 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
     }
   }, [value, scrollToLine]);
 
-  // ファイル選択時の処理
+  // File selection handler
   const handleFileSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // ファイル入力をリセット（同じファイルを再選択できるように）
+    // Reset file input (to allow re-selecting the same file)
     event.target.value = '';
 
-    // クライアント側バリデーション
+    // Client-side validation
     if (!ALLOWED_MIME_TYPES.includes(file.type)) {
       setUploadError('Supported formats: JPEG, PNG, GIF, WebP only');
       return;
@@ -147,13 +147,13 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
     try {
       const response = await apiClient.uploadImage(file);
 
-      // Markdown画像構文を挿入
+      // Insert Markdown image syntax
       const imageMarkdown = `![${file.name}](${response.url})`;
 
       if (textApiRef.current) {
         textApiRef.current.replaceSelection(imageMarkdown);
       } else {
-        // フォールバック: 末尾に追加
+        // Fallback: append to end
         onChange(value + '\n' + imageMarkdown);
       }
     } catch (error) {
@@ -164,7 +164,7 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
     }
   }, [value, onChange]);
 
-  // 画像アップロードコマンド
+  // Image upload command
   const imageUploadCommand: ICommand = {
     name: 'image-upload',
     keyCommand: 'image-upload',
@@ -182,7 +182,7 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
 
   return (
     <div className="flex gap-4" data-color-mode="light">
-      {/* 非表示のファイル入力 */}
+      {/* Hidden file input */}
       <input
         ref={fileInputRef}
         type="file"
@@ -192,7 +192,7 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
         data-testid="image-file-input"
       />
 
-      {/* エディタ部分 */}
+      {/* Editor section */}
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium text-primary-600 mb-2">
           Edit
@@ -257,7 +257,7 @@ Write your content here...
         />
       </div>
 
-      {/* プレビュー部分 */}
+      {/* Preview section */}
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium text-primary-600 mb-2">
           Preview
