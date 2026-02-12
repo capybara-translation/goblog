@@ -1,114 +1,121 @@
-.PHONY: help run stop test test-v test-cover clean seed reset build install deps install-admin build-admin dev-admin clean-admin adduser
+.PHONY: help run stop test test-v test-cover clean seed reset build install deps install-admin build-admin dev-admin clean-admin adduser build-css
 
-# デフォルトターゲット: ヘルプを表示
+# Default target: show help
 help:
-	@echo "利用可能なコマンド:"
-	@echo "  make run          - サーバーを起動"
-	@echo "  make stop         - 起動中のサーバーを停止"
-	@echo "  make test         - テストを実行"
-	@echo "  make test-v       - テストを詳細出力で実行"
-	@echo "  make test-cover   - テストカバレッジを表示"
-	@echo "  make clean        - データベースと管理者用SPAビルド成果物を削除"
-	@echo "  make seed         - テストデータを投入"
-	@echo "  make reset        - データベースをリセットしてテストデータ投入（管理者用SPAも再ビルド）"
-	@echo "  make build        - 管理者用SPAとバックエンドをビルド"
-	@echo "  make install      - バイナリをインストール"
-	@echo "  make deps         - 依存関係をダウンロード"
-	@echo "  make adduser      - 管理者ユーザーを追加"
-	@echo "  make install-admin - 管理者用SPAのnpm依存関係をインストール"
-	@echo "  make build-admin   - 管理者用SPAをビルド"
-	@echo "  make dev-admin     - 管理者用SPAの開発サーバーを起動"
-	@echo "  make clean-admin   - 管理者用SPAのビルド成果物を削除"
+	@echo "Available commands:"
+	@echo "  make run          - Start server"
+	@echo "  make stop         - Stop running server"
+	@echo "  make test         - Run tests"
+	@echo "  make test-v       - Run tests with verbose output"
+	@echo "  make test-cover   - Show test coverage"
+	@echo "  make clean        - Delete database and admin SPA build artifacts"
+	@echo "  make seed         - Insert test data"
+	@echo "  make reset        - Reset database and insert test data (also rebuilds admin SPA)"
+	@echo "  make build        - Build admin SPA and backend"
+	@echo "  make install      - Install binaries"
+	@echo "  make deps         - Download dependencies"
+	@echo "  make adduser      - Add admin user"
+	@echo "  make install-admin - Install admin SPA npm dependencies"
+	@echo "  make build-admin   - Build admin SPA"
+	@echo "  make dev-admin     - Start admin SPA development server"
+	@echo "  make clean-admin   - Delete admin SPA build artifacts"
+	@echo "  make build-css     - Build Tailwind CSS for public pages"
 
-# サーバーを起動
-run:
-	@echo "サーバーを起動中..."
+# Start server (builds CSS first)
+run: build-css
+	@echo "Starting server..."
 	go run cmd/goblog/main.go
 
-# サーバーを停止
+# Stop server
 stop:
-	@echo "goblogプロセスを停止中..."
+	@echo "Stopping goblog process..."
 	@lsof -ti :8080 | xargs kill -9 2>/dev/null || true
 	@pkill -f "go run cmd/goblog/main.go" 2>/dev/null || true
 	@pkill -f "goblog" 2>/dev/null || true
-	@echo "停止しました"
+	@echo "Stopped"
 
-# テストを実行
+# Run tests
 test:
-	@echo "テストを実行中..."
+	@echo "Running tests..."
 	go test ./...
 
-# テストを詳細出力で実行
+# Run tests with verbose output
 test-v:
-	@echo "テストを詳細出力で実行中..."
+	@echo "Running tests with verbose output..."
 	go test ./... -v
 
-# テストカバレッジを表示
+# Show test coverage
 test-cover:
-	@echo "テストカバレッジを計算中..."
+	@echo "Calculating test coverage..."
 	go test ./... -cover
 
-# データベースと管理者用SPAビルド成果物を削除
+# Delete database and admin SPA build artifacts
 clean: clean-admin
-	@echo "データベースを削除中..."
+	@echo "Deleting database..."
 	@rm -f data/goblog.db
-	@echo "データベースを削除しました"
+	@echo "Database deleted"
 
-# テストデータを投入
+# Insert test data
 seed:
-	@echo "テストデータを投入中..."
+	@echo "Inserting test data..."
 	go run cmd/seed/main.go
 
-# 管理者ユーザーを追加（本番環境用）
+# Add admin user (for production)
 adduser:
-	@echo "管理者ユーザーを追加..."
+	@echo "Adding admin user..."
 	go run cmd/adduser/main.go
 
-# データベースをリセットしてテストデータ投入（管理者用SPAも再ビルド）
-reset: clean build-admin seed
+# Reset database and insert test data (also rebuilds admin SPA)
+reset: clean build-admin build-css seed
 
-# 管理者用SPAとバックエンドをビルド
-build: build-admin
-	@echo "バックエンドをビルド中..."
+# Build admin SPA, public CSS, and backend
+build: build-admin build-css
+	@echo "Building backend..."
 	@mkdir -p bin
 	go build -o bin/goblog cmd/goblog/main.go
 	go build -o bin/seed cmd/seed/main.go
 	go build -o bin/adduser cmd/adduser/main.go
-	@echo "ビルド完了: bin/goblog, bin/seed, bin/adduser"
+	@echo "Build complete: bin/goblog, bin/seed, bin/adduser"
 
-# バイナリをインストール
+# Install binaries
 install:
-	@echo "バイナリをインストール中..."
+	@echo "Installing binaries..."
 	go install ./cmd/goblog
 	go install ./cmd/seed
 	go install ./cmd/adduser
-	@echo "インストール完了"
+	@echo "Installation complete"
 
-# 依存関係をダウンロード
+# Download dependencies
 deps:
-	@echo "依存関係をダウンロード中..."
+	@echo "Downloading dependencies..."
 	go mod download
-	@echo "ダウンロード完了"
+	@echo "Download complete"
 
-# 管理者用SPAのnpm依存関係をインストール
+# Install admin SPA npm dependencies
 install-admin:
-	@echo "管理者用SPAの依存関係をインストール中..."
+	@echo "Installing admin SPA dependencies..."
 	cd web-admin && npm install
-	@echo "インストール完了"
+	@echo "Installation complete"
 
-# 管理者用SPAをビルド
+# Build admin SPA
 build-admin:
-	@echo "管理者用SPAをビルド中..."
+	@echo "Building admin SPA..."
 	cd web-admin && npm run build
-	@echo "管理者用SPAのビルド完了: web-admin/dist/"
+	@echo "Admin SPA build complete: web-admin/dist/"
 
-# 管理者用SPAの開発サーバーを起動
+# Start admin SPA development server
 dev-admin:
-	@echo "管理者用SPAの開発サーバーを起動中..."
+	@echo "Starting admin SPA development server..."
 	cd web-admin && npm run dev
 
-# 管理者用SPAのビルド成果物を削除
+# Delete admin SPA build artifacts
 clean-admin:
-	@echo "管理者用SPAのビルド成果物を削除中..."
+	@echo "Deleting admin SPA build artifacts..."
 	@rm -rf web-admin/dist
-	@echo "削除完了"
+	@echo "Deletion complete"
+
+# Build Tailwind CSS for public pages
+build-css:
+	@echo "Building Tailwind CSS for public pages..."
+	npm run build:css
+	@echo "CSS build complete: internal/view/static/tailwind.css"

@@ -39,6 +39,7 @@ go.work.sum
 TODO.md
 
 # Frontend artifacts
+node_modules/
 web-admin/node_modules/
 web-admin/dist/
 web-admin/.vite/

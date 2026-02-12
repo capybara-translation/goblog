@@ -9,40 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&family=Noto+Serif+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: {
-                            50: '#18181b',
-                            100: '#27272a',
-                            200: '#3f3f46',
-                            300: '#52525b',
-                            400: '#71717a',
-                            500: '#a1a1aa',
-                            600: '#d4d4d8',
-                            700: '#e4e4e7',
-                            800: '#f4f4f5',
-                            900: '#fafafa',
-                        }
-                    },
-                    fontFamily: {
-                        'serif': ['"Noto Serif JP"', 'Georgia', 'serif'],
-                        'sans': ['"Noto Sans JP"', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
-    <style type="text/tailwindcss">
-        @layer base {
-            body {
-                @apply font-sans text-primary-600 antialiased text-sm;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="/static/tailwind.css">
     <link rel="stylesheet" href="/static/markdown.css">
 </head>
 <body class="bg-primary-50 min-h-screen flex flex-col">

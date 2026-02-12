@@ -8,7 +8,7 @@
 <div class="space-y-6">
     <article class="bg-primary-100 rounded-lg shadow-sm p-5">
         {{if .Post.Title}}
-        <h1 class="text-xl font-sans font-semibold mb-3 text-primary-800">{{.Post.Title}}</h1>
+        <h2 class="text-lg font-sans font-semibold mb-2 text-primary-800">{{.Post.Title}}</h2>
         {{end}}
         <div class="markdown-content text-primary-700 leading-relaxed">
             {{renderMarkdown .Post.Content}}
