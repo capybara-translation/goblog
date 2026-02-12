@@ -176,16 +176,8 @@ sudo apt install -y nodejs
 git clone https://github.com/capybara-translation/goblog.git
 cd goblog
 
-# 管理画面SPA（React）をビルド
-cd web-admin
-npm install
-npm run build
-cd ..
-
-# バイナリをビルド
-go build -o bin/goblog cmd/goblog/main.go
-go build -o bin/adduser cmd/adduser/main.go
-go build -o bin/seed cmd/seed/main.go
+# すべてをビルド（npm依存インストール、フロントエンドビルド、バックエンドビルド）
+make build
 
 # バイナリを配置
 sudo mv bin/goblog bin/adduser bin/seed /opt/goblog/bin/
@@ -321,11 +313,11 @@ sudo nginx -t && sudo systemctl reload nginx
 
 開発でよく使うコマンドをMakefileにまとめています：
 
-### 基本コマンド
+### 開発用コマンド
 
 ```bash
 make help        # ヘルプを表示
-make run         # サーバーを起動
+make run         # サーバーを起動（開発用）
 make stop        # 起動中のサーバーを停止
 make test        # テストを実行
 make test-v      # テストを詳細出力で実行
@@ -333,18 +325,25 @@ make test-cover  # テストカバレッジを表示
 make clean       # データベースと管理者用SPAビルド成果物を削除
 make seed        # テストデータを投入
 make reset       # データベースをリセットしてテストデータ投入（管理者用SPAも再ビルド）
-make build       # 管理者用SPAとバックエンドをビルド
-make install     # バイナリをインストール
-make deps        # 依存関係をダウンロード
+make deps        # Go依存関係をダウンロード
+make adduser     # 管理者ユーザーを追加
 ```
 
-### 管理者用SPA（React）関連コマンド
+### ビルドコマンド（本番用）
 
 ```bash
-make install-admin  # 管理者用SPAのnpm依存関係をインストール
-make build-admin    # 管理者用SPAをビルド
-make dev-admin      # 管理者用SPAの開発サーバーを起動
-make clean-admin    # 管理者用SPAのビルド成果物を削除
+make build        # 本番用に全てビルド（依存インストール、フロントエンドビルド、バックエンドビルド）
+make install      # npm依存関係をインストール（Tailwind CLI）
+make install-admin # 管理者用SPAのnpm依存関係をインストール
+make build-admin  # 管理者用SPAをビルド
+make build-css    # 公開ページ用Tailwind CSSをビルド
+```
+
+### 管理者用SPA開発
+
+```bash
+make dev-admin    # 管理者用SPAの開発サーバーを起動
+make clean-admin  # 管理者用SPAのビルド成果物を削除
 ```
 
 

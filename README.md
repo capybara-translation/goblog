@@ -176,16 +176,8 @@ sudo apt install -y nodejs
 git clone https://github.com/capybara-translation/goblog.git
 cd goblog
 
-# Build admin SPA (React)
-cd web-admin
-npm install
-npm run build
-cd ..
-
-# Build binaries
-go build -o bin/goblog cmd/goblog/main.go
-go build -o bin/adduser cmd/adduser/main.go
-go build -o bin/seed cmd/seed/main.go
+# Build everything (installs npm deps, builds frontend, builds backend)
+make build
 
 # Deploy binaries
 sudo mv bin/goblog bin/adduser bin/seed /opt/goblog/bin/
@@ -325,11 +317,11 @@ sudo nginx -t && sudo systemctl reload nginx
 
 Common development commands are organized in the Makefile:
 
-### Basic Commands
+### Development Commands
 
 ```bash
 make help        # Show help
-make run         # Start server
+make run         # Start server (for development)
 make stop        # Stop running server
 make test        # Run tests
 make test-v      # Run tests with verbose output
@@ -337,18 +329,25 @@ make test-cover  # Show test coverage
 make clean       # Delete database and admin SPA build artifacts
 make seed        # Seed test data
 make reset       # Reset database and seed test data (also rebuilds admin SPA)
-make build       # Build admin SPA and backend
-make install     # Install binaries
-make deps        # Download dependencies
+make deps        # Download Go dependencies
+make adduser     # Add admin user
 ```
 
-### Admin SPA (React) Commands
+### Build Commands (for Production)
 
 ```bash
-make install-admin  # Install admin SPA npm dependencies
-make build-admin    # Build admin SPA
-make dev-admin      # Start admin SPA development server
-make clean-admin    # Delete admin SPA build artifacts
+make build        # Build everything for production (install deps, build frontend, build backend)
+make install      # Install npm dependencies (Tailwind CLI)
+make install-admin # Install admin SPA npm dependencies
+make build-admin  # Build admin SPA
+make build-css    # Build Tailwind CSS for public pages
+```
+
+### Admin SPA Development
+
+```bash
+make dev-admin    # Start admin SPA development server
+make clean-admin  # Delete admin SPA build artifacts
 ```
 
 

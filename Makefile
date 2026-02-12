@@ -3,7 +3,7 @@
 # Default target: show help
 help:
 	@echo "Available commands:"
-	@echo "  make run          - Start server"
+	@echo "  make run          - Start server (for development)"
 	@echo "  make stop         - Stop running server"
 	@echo "  make test         - Run tests"
 	@echo "  make test-v       - Run tests with verbose output"
@@ -11,15 +11,15 @@ help:
 	@echo "  make clean        - Delete database and admin SPA build artifacts"
 	@echo "  make seed         - Insert test data"
 	@echo "  make reset        - Reset database and insert test data (also rebuilds admin SPA)"
-	@echo "  make build        - Build admin SPA and backend"
-	@echo "  make install      - Install binaries"
-	@echo "  make deps         - Download dependencies"
-	@echo "  make adduser      - Add admin user"
+	@echo "  make build        - Build everything for production (install deps, build frontend, build backend)"
+	@echo "  make install      - Install npm dependencies (Tailwind CLI)"
 	@echo "  make install-admin - Install admin SPA npm dependencies"
+	@echo "  make deps         - Download Go dependencies"
+	@echo "  make adduser      - Add admin user"
 	@echo "  make build-admin   - Build admin SPA"
+	@echo "  make build-css     - Build Tailwind CSS for public pages"
 	@echo "  make dev-admin     - Start admin SPA development server"
 	@echo "  make clean-admin   - Delete admin SPA build artifacts"
-	@echo "  make build-css     - Build Tailwind CSS for public pages"
 
 # Start server (builds CSS first)
 run: build-css
@@ -68,8 +68,8 @@ adduser:
 # Reset database and insert test data (also rebuilds admin SPA)
 reset: clean build-admin build-css seed
 
-# Build admin SPA, public CSS, and backend
-build: build-admin build-css
+# Build everything for production
+build: install install-admin build-admin build-css
 	@echo "Building backend..."
 	@mkdir -p bin
 	go build -o bin/goblog cmd/goblog/main.go
@@ -77,12 +77,10 @@ build: build-admin build-css
 	go build -o bin/adduser cmd/adduser/main.go
 	@echo "Build complete: bin/goblog, bin/seed, bin/adduser"
 
-# Install binaries
+# Install npm dependencies (Tailwind CLI for public pages)
 install:
-	@echo "Installing binaries..."
-	go install ./cmd/goblog
-	go install ./cmd/seed
-	go install ./cmd/adduser
+	@echo "Installing npm dependencies (Tailwind CLI)..."
+	npm install
 	@echo "Installation complete"
 
 # Download dependencies
