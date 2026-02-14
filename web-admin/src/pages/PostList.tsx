@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { formatInTimeZone } from 'date-fns-tz';
 import { apiClient, Post } from '../api/client';
@@ -18,7 +18,7 @@ export function PostList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [isComposing, setIsComposing] = useState(false);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+
 
   // Debounce search query (does not trigger during IME composition)
   useEffect(() => {
@@ -32,9 +32,6 @@ export function PostList() {
   }, [searchQuery, isComposing]);
 
   const loadPosts = useCallback(async () => {
-    // Check if search box has focus
-    const wasSearchFocused = document.activeElement === searchInputRef.current;
-
     try {
       setIsLoading(true);
       setError('');
@@ -51,12 +48,6 @@ export function PostList() {
       setError(err instanceof Error ? err.message : 'Failed to load posts');
     } finally {
       setIsLoading(false);
-      // Restore focus
-      if (wasSearchFocused) {
-        requestAnimationFrame(() => {
-          searchInputRef.current?.focus();
-        });
-      }
     }
   }, [currentPage, statusFilter, debouncedQuery]);
 
@@ -98,22 +89,6 @@ export function PostList() {
     return formatInTimeZone(new Date(dateString), BLOG_TIMEZONE, 'yyyy-MM-dd HH:mm (zzz)');
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center min-h-64">
-        <div className="text-primary-600">Loading...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-        {error}
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -142,7 +117,6 @@ export function PostList() {
             </label>
             <div className="flex gap-2">
               <input
-                ref={searchInputRef}
                 id="search-input"
                 type="text"
                 value={searchQuery}
@@ -197,7 +171,15 @@ export function PostList() {
       </div>
 
       {/* Posts table */}
-      {posts.length === 0 ? (
+      {error ? (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {error}
+        </div>
+      ) : isLoading ? (
+        <div className="flex justify-center items-center min-h-64">
+          <div className="text-primary-600">Loading...</div>
+        </div>
+      ) : posts.length === 0 ? (
         <div className="bg-white rounded-lg shadow-sm p-8 text-center text-primary-500">
           {debouncedQuery
             ? `No posts found matching "${debouncedQuery}"`

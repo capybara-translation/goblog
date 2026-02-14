@@ -108,7 +108,7 @@ describe('PostList', () => {
       })
     })
 
-    it('should not show posts list when error occurs', async () => {
+    it('should not show posts table when error occurs', async () => {
       vi.mocked(apiClient.getPosts).mockRejectedValue(new Error('Error'))
       renderPostList()
 
@@ -116,7 +116,7 @@ describe('PostList', () => {
         expect(screen.getByText('Error')).toBeInTheDocument()
       })
 
-      expect(screen.queryByText('Posts')).not.toBeInTheDocument()
+      expect(screen.queryByRole('table')).not.toBeInTheDocument()
     })
   })
 
