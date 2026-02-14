@@ -18,7 +18,7 @@ func NewRouter(postService service.PostService, authService service.AuthService,
 
 	// Display custom 404 page for non-existent routes
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		publicHandlers.renderNotFound(w)
+		publicHandlers.renderNotFound(w, req)
 	})
 
 	// Initialize admin API handlers
@@ -98,7 +98,7 @@ func NewRouterWithTemplates(postService service.PostService, authService service
 
 	// Display custom 404 page for non-existent routes
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		publicHandlers.renderNotFound(w)
+		publicHandlers.renderNotFound(w, req)
 	})
 
 	// Initialize admin API handlers

@@ -336,11 +336,11 @@ func NewPublicHandlersFromPath(postService service.PostService, blogTitle, baseU
 
 	// Define custom template functions
 	funcMap := template.FuncMap{
-		"truncate":               truncateRunes,
-		"splitTags":              splitTags,
-		"formatDateWithTZ":       formatDateWithTZ,
-		"formatDateDetailWithTZ": formatDateDetailWithTZ,
-		"highlightQuery":         highlightQuery,
+		"truncate":                    truncateRunes,
+		"splitTags":                   splitTags,
+		"formatDateWithTZ":            formatDateWithTZ,
+		"formatDateDetailWithTZ":      formatDateDetailWithTZ,
+		"highlightQuery":              highlightQuery,
 		"renderMarkdown":              renderMarkdown,
 		"renderMarkdownWithHighlight": renderMarkdownWithHighlight,
 		"markdownExcerpt":             markdownExcerpt,
@@ -378,10 +378,11 @@ func (h *PublicHandlers) getPinnedPosts() []*domain.Post {
 }
 
 // renderNotFound renders the 404 page
-func (h *PublicHandlers) renderNotFound(w http.ResponseWriter) {
+func (h *PublicHandlers) renderNotFound(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{
 		"SiteTitle":   h.blogTitle,
 		"PinnedPosts": h.getPinnedPosts(),
+		"OGP":         h.defaultOGP("Not Found - "+h.blogTitle, r.URL.Path, h.blogTitle),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -406,6 +407,7 @@ func (h *PublicHandlers) HandleHome(w http.ResponseWriter, r *http.Request) {
 		"SiteTitle":   h.blogTitle,
 		"Posts":       posts,
 		"PinnedPosts": h.getPinnedPosts(),
+		"OGP":         h.defaultOGP(h.blogTitle, r.URL.Path, h.blogTitle),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -470,6 +472,7 @@ func (h *PublicHandlers) HandlePosts(w http.ResponseWriter, r *http.Request) {
 		"NextPage":    page + 1,
 		"Query":       queryStr,
 		"PinnedPosts": h.getPinnedPosts(),
+		"OGP":         h.defaultOGP("Posts - "+h.blogTitle, r.URL.Path, "Posts from "+h.blogTitle),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -493,7 +496,7 @@ func (h *PublicHandlers) HandlePostDetail(w http.ResponseWriter, r *http.Request
 	}
 
 	if post == nil {
-		h.renderNotFound(w)
+		h.renderNotFound(w, r)
 		return
 	}
 
@@ -501,6 +504,7 @@ func (h *PublicHandlers) HandlePostDetail(w http.ResponseWriter, r *http.Request
 		"SiteTitle":   h.blogTitle,
 		"Post":        post,
 		"PinnedPosts": h.getPinnedPosts(),
+		"OGP":         h.postOGP(post, r.URL.Path),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -550,6 +554,7 @@ func (h *PublicHandlers) HandleTags(w http.ResponseWriter, r *http.Request) {
 		"SiteTitle":   h.blogTitle,
 		"Tags":        tags,
 		"PinnedPosts": h.getPinnedPosts(),
+		"OGP":         h.defaultOGP("Tags - "+h.blogTitle, r.URL.Path, "Tags from "+h.blogTitle),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -565,14 +570,14 @@ func (h *PublicHandlers) HandleTagPosts(w http.ResponseWriter, r *http.Request) 
 	tag := vars["tag"]
 
 	if tag == "" {
-		h.renderNotFound(w)
+		h.renderNotFound(w, r)
 		return
 	}
 
 	// URL decode
 	decodedTag, err := url.QueryUnescape(tag)
 	if err != nil {
-		h.renderNotFound(w)
+		h.renderNotFound(w, r)
 		return
 	}
 	tag = decodedTag
@@ -613,6 +618,7 @@ func (h *PublicHandlers) HandleTagPosts(w http.ResponseWriter, r *http.Request) 
 		"PrevPage":    page - 1,
 		"NextPage":    page + 1,
 		"PinnedPosts": h.getPinnedPosts(),
+		"OGP":         h.defaultOGP(tag+" - "+h.blogTitle, r.URL.Path, "Posts tagged with "+tag),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
