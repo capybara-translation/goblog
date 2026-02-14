@@ -247,8 +247,9 @@
         flex-direction: column-reverse;
     }
     .markdown-content .link-card-image {
-        width: 100%;
+        max-width: none;
         max-height: 200px;
         object-fit: contain;
+        margin: 1rem 1rem 0;
     }
 }
