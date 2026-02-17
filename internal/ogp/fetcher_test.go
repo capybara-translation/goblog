@@ -115,73 +115,25 @@ func TestIsAmazonProductPage(t *testing.T) {
 	}
 }
 
-func TestSelectBestAmazonImage(t *testing.T) {
+func TestIsAmazonProductImage(t *testing.T) {
 	tests := []struct {
-		name       string
-		candidates []string
-		expected   string
+		name     string
+		src      string
+		expected bool
 	}{
-		{
-			name:       "Empty candidates",
-			candidates: []string{},
-			expected:   "",
-		},
-		{
-			name: "Priority 1: _SL1500_",
-			candidates: []string{
-				"https://m.media-amazon.com/images/I/abc_SX50_.jpg",
-				"https://m.media-amazon.com/images/I/abc_SL1500_.jpg",
-				"https://m.media-amazon.com/images/I/abc_AC_.jpg",
-			},
-			expected: "https://m.media-amazon.com/images/I/abc_SL1500_.jpg",
-		},
-		{
-			name: "Priority 1: _SL1080_",
-			candidates: []string{
-				"https://m.media-amazon.com/images/I/abc_SX50_.jpg",
-				"https://m.media-amazon.com/images/I/abc_SL1080_.jpg",
-			},
-			expected: "https://m.media-amazon.com/images/I/abc_SL1080_.jpg",
-		},
-		{
-			name: "Priority 2: _SX679_",
-			candidates: []string{
-				"https://m.media-amazon.com/images/I/abc_SS75_.jpg",
-				"https://m.media-amazon.com/images/I/abc_SX679_.jpg",
-			},
-			expected: "https://m.media-amazon.com/images/I/abc_SX679_.jpg",
-		},
-		{
-			name: "Priority 3: _AC_ (not thumbnail)",
-			candidates: []string{
-				"https://m.media-amazon.com/images/I/abc_SS75_.jpg",
-				"https://m.media-amazon.com/images/I/abc_AC_SX300_.jpg",
-			},
-			expected: "https://m.media-amazon.com/images/I/abc_AC_SX300_.jpg",
-		},
-		{
-			name: "Priority 3: Skip _AC_ with thumbnail size",
-			candidates: []string{
-				"https://m.media-amazon.com/images/I/abc_AC_SS75_.jpg",
-				"https://m.media-amazon.com/images/I/abc_medium.jpg",
-			},
-			expected: "https://m.media-amazon.com/images/I/abc_medium.jpg",
-		},
-		{
-			name: "Fallback to first candidate",
-			candidates: []string{
-				"https://m.media-amazon.com/images/I/abc_SS75_.jpg",
-				"https://m.media-amazon.com/images/I/def_SX50_.jpg",
-			},
-			expected: "https://m.media-amazon.com/images/I/abc_SS75_.jpg",
-		},
+		{"Product image with /I/ _SX _SY", "https://m.media-amazon.com/images/I/51abc_SX342_SY445_.jpg", true},
+		{"Missing _SY", "https://m.media-amazon.com/images/I/51abc_SX342_.jpg", false},
+		{"Missing _SX", "https://m.media-amazon.com/images/I/51abc_SY445_.jpg", false},
+		{"Missing /I/", "https://m.media-amazon.com/images/G/logo_SX100_SY50_.jpg", false},
+		{"Store logo", "https://m.media-amazon.com/images/G/09/logo.jpg", false},
+		{"Empty string", "", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := selectBestAmazonImage(tt.candidates)
+			result := isAmazonProductImage(tt.src)
 			if result != tt.expected {
-				t.Errorf("selectBestAmazonImage() = %q, want %q", result, tt.expected)
+				t.Errorf("isAmazonProductImage(%q) = %v, want %v", tt.src, result, tt.expected)
 			}
 		})
 	}
@@ -273,6 +225,58 @@ func TestParseOGP(t *testing.T) {
 			url:       "https://example.com/page",
 			wantTitle: "OGP Title",
 			wantSite:  "example.com",
+		},
+		{
+			name: "Amazon product page prefers body image over og:image",
+			html: `<!DOCTYPE html>
+<html>
+<head>
+	<meta property="og:title" content="Product Title">
+	<meta property="og:image" content="https://m.media-amazon.com/images/G/store-logo.jpg">
+</head>
+<body>
+	<img src="https://m.media-amazon.com/images/I/51product_SX342_SY445_.jpg">
+</body>
+</html>`,
+			url:       "https://www.amazon.co.jp/dp/1234567890",
+			wantTitle: "Product Title",
+			wantImage: "https://m.media-amazon.com/images/I/51product_SX342_SY445_.jpg",
+			wantSite:  "www.amazon.co.jp",
+		},
+		{
+			name: "Amazon product page falls back to og:image when no body image",
+			html: `<!DOCTYPE html>
+<html>
+<head>
+	<meta property="og:title" content="Product Title">
+	<meta property="og:image" content="https://m.media-amazon.com/images/G/fallback.jpg">
+</head>
+<body>
+	<p>No product images here</p>
+</body>
+</html>`,
+			url:       "https://www.amazon.co.jp/dp/1234567890",
+			wantTitle: "Product Title",
+			wantImage: "https://m.media-amazon.com/images/G/fallback.jpg",
+			wantSite:  "www.amazon.co.jp",
+		},
+		{
+			name: "Amazon ignores images without _SX and _SY",
+			html: `<!DOCTYPE html>
+<html>
+<head>
+	<meta property="og:title" content="Product Title">
+	<meta property="og:image" content="https://m.media-amazon.com/images/G/og-logo.jpg">
+</head>
+<body>
+	<img src="https://m.media-amazon.com/images/I/51abc_SL1500_.jpg">
+	<img src="https://m.media-amazon.com/images/I/51product_SX342_SY445_.jpg">
+</body>
+</html>`,
+			url:       "https://www.amazon.co.jp/dp/1234567890",
+			wantTitle: "Product Title",
+			wantImage: "https://m.media-amazon.com/images/I/51product_SX342_SY445_.jpg",
+			wantSite:  "www.amazon.co.jp",
 		},
 		{
 			name: "URL as title fallback",

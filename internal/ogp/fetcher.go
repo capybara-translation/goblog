@@ -210,8 +210,9 @@ func parseOGP(r io.Reader, originalURL string) (*Data, error) {
 					data.Title = strings.TrimSpace(n.FirstChild.Data)
 				}
 			case "body":
-				// For Amazon pages, continue searching for product images
-				if isAmazon && data.ImageURL == "" {
+				// For Amazon pages, always extract product image from body
+				// because og:image is often unreliable (store logo, category image, etc.)
+				if isAmazon {
 					extractAmazonImage(n, data)
 				}
 				return
@@ -233,86 +234,39 @@ func parseOGP(r io.Reader, originalURL string) (*Data, error) {
 	return data, nil
 }
 
-// extractAmazonImage extracts product image from Amazon page body
+// extractAmazonImage extracts product image from Amazon page body.
+// Amazon product images have URLs containing /I/, _SX, and _SY.
+// ref: https://zenn.dev/st43/scraps/f9940dbba495d3
 func extractAmazonImage(body *html.Node, data *Data) {
-	var candidates []string
-
-	var findImages func(*html.Node)
-	findImages = func(n *html.Node) {
+	var findProductImage func(*html.Node) string
+	findProductImage = func(n *html.Node) string {
 		if n.Type == html.ElementNode && n.Data == "img" {
-			src := ""
 			for _, attr := range n.Attr {
-				if attr.Key == "src" {
-					src = attr.Val
-					break
+				if attr.Key == "src" && isAmazonProductImage(attr.Val) {
+					return attr.Val
 				}
-			}
-
-			// Look for Amazon product images
-			// Pattern: https://m.media-amazon.com/images/I/XXXXX.jpg
-			if strings.Contains(src, "m.media-amazon.com/images/I/") &&
-				(strings.HasSuffix(src, ".jpg") || strings.HasSuffix(src, ".png") || strings.HasSuffix(src, ".webp")) {
-				candidates = append(candidates, src)
 			}
 		}
 
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			findImages(c)
+			if src := findProductImage(c); src != "" {
+				return src
+			}
 		}
-	}
-
-	findImages(body)
-
-	// Select the best image from candidates
-	data.ImageURL = selectBestAmazonImage(candidates)
-}
-
-// selectBestAmazonImage selects the best product image from candidates
-func selectBestAmazonImage(candidates []string) string {
-	if len(candidates) == 0 {
 		return ""
 	}
 
-	// Priority 1: Large images with _SL1080_ or similar (highest quality)
-	for _, src := range candidates {
-		if strings.Contains(src, "_SL1080_") || strings.Contains(src, "_SL1500_") {
-			return src
-		}
+	if src := findProductImage(body); src != "" {
+		data.ImageURL = src
 	}
+}
 
-	// Priority 2: Medium-large images with _SX679_ or larger
-	for _, src := range candidates {
-		if strings.Contains(src, "_SX679_") || strings.Contains(src, "_SX569_") ||
-			strings.Contains(src, "_SX522_") || strings.Contains(src, "_SX466_") {
-			return src
-		}
-	}
-
-	// Priority 3: Images with _AC_ prefix (auto-cropped, usually main product)
-	// but not tiny thumbnails
-	for _, src := range candidates {
-		if strings.Contains(src, "_AC_") &&
-			!strings.Contains(src, "_SS75_") &&
-			!strings.Contains(src, "_SR38,") &&
-			!strings.Contains(src, "_SX38_") &&
-			!strings.Contains(src, "_SY50_") {
-			return src
-		}
-	}
-
-	// Priority 4: Any image that's not a tiny thumbnail
-	for _, src := range candidates {
-		if !strings.Contains(src, "_SS75_") &&
-			!strings.Contains(src, "_SR38,") &&
-			!strings.Contains(src, "_SX38_") &&
-			!strings.Contains(src, "_SY50_") &&
-			!strings.Contains(src, "_SX50_") {
-			return src
-		}
-	}
-
-	// Fallback: first candidate
-	return candidates[0]
+// isAmazonProductImage checks if a URL matches the Amazon product image pattern.
+// Product images contain /I/ (image storage path), _SX (width), and _SY (height).
+func isAmazonProductImage(src string) bool {
+	return strings.Contains(src, "/I/") &&
+		strings.Contains(src, "_SX") &&
+		strings.Contains(src, "_SY")
 }
 
 // handleMetaTag extracts OGP and fallback metadata from meta tags
