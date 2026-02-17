@@ -261,6 +261,7 @@ export function TagInput({ value, onChange, disabled = false, placeholder = 'Ent
           onFocus={handleFocus}
           onBlur={handleBlur}
           disabled={disabled}
+          autoCapitalize="none"
           placeholder={selectedTags.length === 0 ? placeholder : ''}
           className="flex-1 min-w-[120px] outline-none bg-transparent text-sm disabled:cursor-not-allowed"
           aria-label="Tag input"

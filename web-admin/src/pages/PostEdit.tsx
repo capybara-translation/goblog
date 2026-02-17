@@ -247,6 +247,7 @@ export function PostEdit() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             required
+            autoCapitalize="none"
             className="w-full px-3 py-2 border border-primary-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             disabled={isSaving}
           />
@@ -265,6 +266,7 @@ export function PostEdit() {
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
             required
+            autoCapitalize="none"
             className="w-full px-3 py-2 border border-primary-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             disabled={isSaving}
             placeholder="my-first-post"
