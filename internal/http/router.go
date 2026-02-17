@@ -4,10 +4,34 @@ import (
 	"embed"
 	"io/fs"
 	"net/http"
+	"os"
 
 	"github.com/capybara-translation/goblog/internal/service"
 	"github.com/gorilla/mux"
 )
+
+// noDirListingFS wraps http.FileSystem to disable directory listing.
+// Returns 404 for directory access instead of listing files.
+type noDirListingFS struct {
+	fs http.FileSystem
+}
+
+func (n noDirListingFS) Open(name string) (http.File, error) {
+	f, err := n.fs.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	stat, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return nil, err
+	}
+	if stat.IsDir() {
+		f.Close()
+		return nil, os.ErrNotExist
+	}
+	return f, nil
+}
 
 // NewRouter creates the application router using embedded resources
 func NewRouter(postService service.PostService, authService service.AuthService, ogpService service.OGPService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, uploadDir string, maxUploadSize int64, templatesFS, staticFS embed.FS) *mux.Router {
@@ -35,8 +59,8 @@ func NewRouter(postService service.PostService, authService service.AuthService,
 	staticFileServer := http.FileServer(http.FS(staticSubFS))
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", staticFileServer))
 
-	// アップロードされた画像の配信（認証不要）
-	uploadsFileServer := http.FileServer(http.Dir(uploadDir))
+	// アップロードされた画像の配信（認証不要、ディレクトリリスティング無効）
+	uploadsFileServer := http.FileServer(noDirListingFS{http.Dir(uploadDir)})
 	r.PathPrefix("/uploads/").Handler(http.StripPrefix("/uploads/", uploadsFileServer))
 
 	// 公開ページ（SSR）
@@ -114,8 +138,8 @@ func NewRouterWithTemplates(postService service.PostService, authService service
 	staticFileServer := http.FileServer(http.Dir("internal/view/static"))
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", staticFileServer))
 
-	// Serve uploaded images (no authentication required)
-	uploadsFileServer := http.FileServer(http.Dir(uploadDir))
+	// Serve uploaded images (no authentication required, directory listing disabled)
+	uploadsFileServer := http.FileServer(noDirListingFS{http.Dir(uploadDir)})
 	r.PathPrefix("/uploads/").Handler(http.StripPrefix("/uploads/", uploadsFileServer))
 
 	// Public pages (SSR)
