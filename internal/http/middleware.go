@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"errors"
 	"log"
@@ -104,8 +105,8 @@ func CSRFMiddleware() func(http.Handler) http.Handler {
 				return
 			}
 
-			// Compare cookie and header tokens
-			if cookie.Value != headerToken {
+			// Compare cookie and header tokens (constant-time to prevent timing attacks)
+			if subtle.ConstantTimeCompare([]byte(cookie.Value), []byte(headerToken)) != 1 {
 				respondJSON(w, http.StatusForbidden, ErrorResponse{Error: "CSRF token mismatch"})
 				return
 			}
