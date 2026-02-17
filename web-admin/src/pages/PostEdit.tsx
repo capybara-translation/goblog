@@ -321,7 +321,10 @@ export function PostEdit() {
           />
         </div>
 
-        <div className="flex justify-end">
+        <div className="flex justify-between items-center">
+          <span className="text-xs text-primary-400">
+            Icons by <a href="https://icons8.jp/" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary-600">Icons8</a>
+          </span>
           <button
             type="submit"
             disabled={isSaving}

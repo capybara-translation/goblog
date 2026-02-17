@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import MDEditor, { commands, ICommand, TextState, TextAreaTextApi } from '@uiw/react-md-editor';
 import { apiClient } from '../api/client';
+import { ImageUploadIcon } from './icons/ImageUploadIcon';
+import { AmazonIcon } from './icons/AmazonIcon';
 
 // Allowed MIME types
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -10,6 +12,17 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024;
 // Get line number from cursor position (0-based)
 function getLineFromCursorPos(content: string, cursorPos: number): number {
   return content.slice(0, cursorPos).split('\n').length - 1;
+}
+
+// Shorten Amazon product URL to https://www.amazon.{tld}/dp/{ASIN}
+// Supports /dp/, /gp/product/, /gp/aw/d/, /o/ASIN/, /exec/obidos/ASIN/ patterns
+const AMAZON_ASIN_RE =
+  /https?:\/\/(?:www\.)?(amazon\.[^/]+)\/(?:[^/?#]+\/)?(?:dp|gp\/product|gp\/aw\/d|o\/ASIN|exec\/obidos\/ASIN)\/([A-Z0-9]{10})(?:[/?#]|$)/i;
+
+function shortenAmazonURL(text: string): string | null {
+  const match = text.match(AMAZON_ASIN_RE);
+  if (!match || !match[1] || !match[2]) return null;
+  return `https://www.${match[1]}/dp/${match[2].toUpperCase()}`;
 }
 
 interface MarkdownEditorProps {
@@ -29,6 +42,7 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [shortenAmazon, setShortenAmazon] = useState(true);
   const debounceTimerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textApiRef = useRef<TextAreaTextApi | null>(null);
@@ -169,15 +183,35 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
     name: 'image-upload',
     keyCommand: 'image-upload',
     buttonProps: { 'aria-label': 'Upload image', title: 'Upload image' },
-    icon: (
-      <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-      </svg>
-    ),
+    icon: <ImageUploadIcon />,
     execute: (_state: TextState, api: TextAreaTextApi) => {
       textApiRef.current = api;
       fileInputRef.current?.click();
     },
+  };
+
+  // Amazon URL shortening toggle command (toolbar checkbox)
+  const amazonShortenCommand: ICommand = {
+    name: 'amazon-shorten',
+    keyCommand: 'amazon-shorten',
+    render: () => (
+      <label
+        className="flex items-center gap-1 px-2 cursor-pointer"
+        title="Shorten Amazon URLs on paste"
+      >
+        <input
+          type="checkbox"
+          checked={shortenAmazon}
+          onChange={(e) => {
+            e.stopPropagation();
+            setShortenAmazon(e.target.checked);
+          }}
+          className="h-3 w-3"
+        />
+        <AmazonIcon opacity={shortenAmazon ? 1 : 0.4} />
+      </label>
+    ),
+    execute: () => {},
   };
 
   return (
@@ -223,7 +257,10 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
             commands.unorderedListCommand,
             commands.orderedListCommand,
             commands.checkedListCommand,
+            commands.divider,
+            amazonShortenCommand,
           ]}
+          extraCommands={[]}
           textareaProps={{
             disabled: disabled || isUploading,
             placeholder: `# Heading
@@ -251,6 +288,15 @@ Write your content here...
               if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
                 e.preventDefault();
                 onSave?.();
+              }
+            },
+            onPaste: (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+              if (!shortenAmazon) return;
+              const text = e.clipboardData.getData('text/plain').trim();
+              const shortened = shortenAmazonURL(text);
+              if (shortened) {
+                e.preventDefault();
+                document.execCommand('insertText', false, shortened);
               }
             },
           }}
