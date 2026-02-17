@@ -119,6 +119,10 @@ make build             # bin/goblog, bin/seed を生成
 - `PORT`: サーバーポート（デフォルト: 8080）
 - `SECURE_COOKIE`: Cookie Secure属性（本番: true）
 - `PASSWORD_POLICY`: NONE（開発）/STRONG（本番、15文字以上+大小英数記号）
+- `TRUSTED_PROXIES`: 信頼するプロキシのIP/CIDR（カンマ区切り、例: `127.0.0.1`）
+  - 設定されたIPからのリクエストのみ `X-Forwarded-For` / `X-Real-IP` ヘッダーを信頼する
+  - 未設定（デフォルト）: `RemoteAddr` のみ使用（X-Forwarded-For偽装を防止）
+  - nginx等リバースプロキシ背後で運用する場合は必ず設定すること
 - `DATABASE_PATH`: SQLiteファイルパス（デフォルト: data/goblog.db）
 - `BLOG_TITLE`: ブログタイトル
 - `BASE_URL`: サイトのベースURL（例: https://example.com）
@@ -129,7 +133,7 @@ make build             # bin/goblog, bin/seed を生成
   - ISO 8601形式（YYYY-MM-DD）+ タイムゾーン略称で表示（例: `2024-12-26 (JST)`）
   - デフォルト: システムのタイムゾーン
 
-**重要**: 本番環境では`SECURE_COOKIE=true`と`PASSWORD_POLICY=STRONG`と`BASE_URL`を必ず設定すること。
+**重要**: 本番環境では`SECURE_COOKIE=true`と`PASSWORD_POLICY=STRONG`と`BASE_URL`と`TRUSTED_PROXIES`を必ず設定すること。
 
 ## テスト戦略
 

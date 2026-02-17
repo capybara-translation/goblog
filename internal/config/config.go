@@ -24,6 +24,7 @@ type Config struct {
 	// Security settings
 	SecureCookie   bool           // true when using HTTPS
 	PasswordPolicy PasswordPolicy // Password policy
+	TrustedProxies []string       // Trusted proxy IPs/CIDRs for X-Forwarded-For
 
 	// Database settings
 	DatabasePath string
@@ -54,6 +55,7 @@ func Load() *Config {
 		Port:           port,
 		SecureCookie:   getEnvAsBool("SECURE_COOKIE", false), // Default: false (for development)
 		PasswordPolicy: getPasswordPolicy("PASSWORD_POLICY", PasswordPolicyNone),
+		TrustedProxies: getEnvAsStringSlice("TRUSTED_PROXIES"),
 		DatabasePath:   getEnv("DATABASE_PATH", "data/goblog.db"),
 		BlogTitle:      getEnv("BLOG_TITLE", "goblog"),
 		BaseURL:        baseURL,
@@ -94,6 +96,23 @@ func getEnvAsInt64(key string, defaultValue int64) int64 {
 		return defaultValue
 	}
 	return val
+}
+
+// getEnvAsStringSlice retrieves an environment variable as a string slice (comma-separated)
+func getEnvAsStringSlice(key string) []string {
+	valStr := os.Getenv(key)
+	if valStr == "" {
+		return nil
+	}
+	parts := strings.Split(valStr, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }
 
 // getPasswordPolicy retrieves the password policy from environment variable

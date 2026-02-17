@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 
@@ -17,16 +18,64 @@ const (
 
 // AuthHandlers is a struct that groups authentication-related HTTP handlers
 type AuthHandlers struct {
-	authService  service.AuthService
-	secureCookie bool // Cookie secure attribute (requires HTTPS)
+	authService    service.AuthService
+	secureCookie   bool       // Cookie secure attribute (requires HTTPS)
+	trustedProxies []*net.IPNet // Trusted proxy networks for X-Forwarded-For
 }
 
 // NewAuthHandlers creates a new AuthHandlers
-func NewAuthHandlers(authService service.AuthService, secureCookie bool) *AuthHandlers {
+func NewAuthHandlers(authService service.AuthService, secureCookie bool, trustedProxies []string) *AuthHandlers {
 	return &AuthHandlers{
-		authService:  authService,
-		secureCookie: secureCookie,
+		authService:    authService,
+		secureCookie:   secureCookie,
+		trustedProxies: parseTrustedProxies(trustedProxies),
 	}
+}
+
+// parseTrustedProxies parses IP addresses and CIDR ranges into net.IPNet slices
+func parseTrustedProxies(proxies []string) []*net.IPNet {
+	var nets []*net.IPNet
+	for _, p := range proxies {
+		// Try parsing as CIDR first
+		if strings.Contains(p, "/") {
+			_, ipNet, err := net.ParseCIDR(p)
+			if err != nil {
+				log.Printf("warning: invalid CIDR in TRUSTED_PROXIES: %s", p)
+				continue
+			}
+			nets = append(nets, ipNet)
+		} else {
+			// Single IP address — convert to /32 or /128
+			ip := net.ParseIP(p)
+			if ip == nil {
+				log.Printf("warning: invalid IP in TRUSTED_PROXIES: %s", p)
+				continue
+			}
+			mask := net.CIDRMask(128, 128)
+			if ip.To4() != nil {
+				mask = net.CIDRMask(32, 32)
+			}
+			nets = append(nets, &net.IPNet{IP: ip, Mask: mask})
+		}
+	}
+	return nets
+}
+
+// isTrustedProxy checks if the given IP address is in the trusted proxy list
+func (h *AuthHandlers) isTrustedProxy(ipStr string) bool {
+	if len(h.trustedProxies) == 0 {
+		return false
+	}
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return false
+	}
+	for _, n := range h.trustedProxies {
+		if n.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 // LoginRequest is the request body for login
@@ -50,7 +99,7 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get client IP address (for brute force protection)
-	ipAddress := getClientIP(r)
+	ipAddress := h.getClientIP(r)
 
 	// Authentication
 	sessionID, err := h.authService.Login(req.Username, req.Password, ipAddress)
@@ -186,31 +235,40 @@ func (h *AuthHandlers) HandleMe(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, user)
 }
 
-// getClientIP retrieves the client IP address from the request
-// For requests via proxy/load balancer, retrieves from X-Forwarded-For or X-Real-IP headers
-func getClientIP(r *http.Request) string {
-	// Check X-Forwarded-For header (for requests via proxy)
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// X-Forwarded-For format is "client, proxy1, proxy2"
-		// The first IP address is the client's IP
-		if idx := strings.Index(xff, ","); idx != -1 {
-			return strings.TrimSpace(xff[:idx])
+// getClientIP retrieves the client IP address from the request.
+// Only trusts X-Forwarded-For / X-Real-IP headers when the direct connection
+// comes from a trusted proxy (configured via TRUSTED_PROXIES env var).
+func (h *AuthHandlers) getClientIP(r *http.Request) string {
+	// Extract IP from RemoteAddr (always available, "IP:port" format)
+	remoteIP := extractIP(r.RemoteAddr)
+
+	// Only use proxy headers if the direct connection is from a trusted proxy
+	if h.isTrustedProxy(remoteIP) {
+		// Check X-Forwarded-For header
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			// X-Forwarded-For format is "client, proxy1, proxy2"
+			// The first IP address is the client's IP
+			if idx := strings.Index(xff, ","); idx != -1 {
+				return strings.TrimSpace(xff[:idx])
+			}
+			return strings.TrimSpace(xff)
 		}
-		return strings.TrimSpace(xff)
+
+		// Check X-Real-IP header (alternative proxy header)
+		if xri := r.Header.Get("X-Real-IP"); xri != "" {
+			return strings.TrimSpace(xri)
+		}
 	}
 
-	// Check X-Real-IP header (alternative proxy header)
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return strings.TrimSpace(xri)
-	}
+	return remoteIP
+}
 
-	// Get from RemoteAddr (fallback)
-	// RemoteAddr is in "IP:port" format, so extract only the IP
-	ip := r.RemoteAddr
-	if idx := strings.LastIndex(ip, ":"); idx != -1 {
-		return ip[:idx]
+// extractIP extracts the IP address from an "IP:port" string
+func extractIP(remoteAddr string) string {
+	if host, _, err := net.SplitHostPort(remoteAddr); err == nil {
+		return host
 	}
-	return ip
+	return remoteAddr
 }
 
 // respondJSON is a helper function that returns a JSON response

@@ -10,7 +10,7 @@ import (
 )
 
 // NewRouter creates the application router using embedded resources
-func NewRouter(postService service.PostService, authService service.AuthService, ogpService service.OGPService, secureCookie bool, blogTitle, baseURL, uploadDir string, maxUploadSize int64, templatesFS, staticFS embed.FS) *mux.Router {
+func NewRouter(postService service.PostService, authService service.AuthService, ogpService service.OGPService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, uploadDir string, maxUploadSize int64, templatesFS, staticFS embed.FS) *mux.Router {
 	r := mux.NewRouter()
 
 	// Initialize public page handlers (using embedded templates)
@@ -25,7 +25,7 @@ func NewRouter(postService service.PostService, authService service.AuthService,
 	apiHandlers := NewAPIHandlers(postService)
 
 	// Initialize auth handlers
-	authHandlers := NewAuthHandlers(authService, secureCookie)
+	authHandlers := NewAuthHandlers(authService, secureCookie, trustedProxies)
 
 	// Initialize image upload handlers
 	imageHandlers := NewImageHandlers(uploadDir, maxUploadSize)
@@ -90,7 +90,7 @@ func NewRouter(postService service.PostService, authService service.AuthService,
 }
 
 // NewRouterWithTemplates creates a router with specified template path (for testing)
-func NewRouterWithTemplates(postService service.PostService, authService service.AuthService, secureCookie bool, blogTitle, baseURL, templatePattern string, uploadDir string, maxUploadSize int64) *mux.Router {
+func NewRouterWithTemplates(postService service.PostService, authService service.AuthService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, templatePattern string, uploadDir string, maxUploadSize int64) *mux.Router {
 	r := mux.NewRouter()
 
 	// Initialize public page handlers (loading templates from filesystem)
@@ -105,7 +105,7 @@ func NewRouterWithTemplates(postService service.PostService, authService service
 	apiHandlers := NewAPIHandlers(postService)
 
 	// Initialize auth handlers
-	authHandlers := NewAuthHandlers(authService, secureCookie)
+	authHandlers := NewAuthHandlers(authService, secureCookie, trustedProxies)
 
 	// Initialize image upload handlers
 	imageHandlers := NewImageHandlers(uploadDir, maxUploadSize)

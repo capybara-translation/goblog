@@ -72,7 +72,7 @@ func TestHandleLogin_Success(t *testing.T) {
 		},
 	}
 
-	handlers := NewAuthHandlers(mockService, false)
+	handlers := NewAuthHandlers(mockService, false, nil)
 
 	// Create login request
 	reqBody := LoginRequest{
@@ -145,7 +145,7 @@ func TestHandleLogin_InvalidUsername(t *testing.T) {
 		},
 	}
 
-	handlers := NewAuthHandlers(mockService, false)
+	handlers := NewAuthHandlers(mockService, false, nil)
 
 	// Login with non-existent username
 	reqBody := LoginRequest{
@@ -183,7 +183,7 @@ func TestHandleLogin_InvalidPassword(t *testing.T) {
 		},
 	}
 
-	handlers := NewAuthHandlers(mockService, false)
+	handlers := NewAuthHandlers(mockService, false, nil)
 
 	// Login with wrong password
 	reqBody := LoginRequest{
@@ -212,7 +212,7 @@ func TestHandleLogin_MissingCredentials(t *testing.T) {
 		},
 	}
 
-	handlers := NewAuthHandlers(mockService, false)
+	handlers := NewAuthHandlers(mockService, false, nil)
 
 	tests := []struct {
 		name     string
@@ -264,7 +264,7 @@ func TestHandleLogin_InvalidJSON(t *testing.T) {
 		},
 	}
 
-	handlers := NewAuthHandlers(mockService, false)
+	handlers := NewAuthHandlers(mockService, false, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
@@ -288,7 +288,7 @@ func TestHandleLogout_Success(t *testing.T) {
 		},
 	}
 
-	handlers := NewAuthHandlers(mockService, false)
+	handlers := NewAuthHandlers(mockService, false, nil)
 
 	// Create logout request
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
@@ -362,7 +362,7 @@ func TestHandleLogout_NoCookie(t *testing.T) {
 		},
 	}
 
-	handlers := NewAuthHandlers(mockService, false)
+	handlers := NewAuthHandlers(mockService, false, nil)
 
 	// Logout without cookie
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
@@ -397,7 +397,7 @@ func TestHandleLogout_WithSecureCookie(t *testing.T) {
 	}
 
 	// Assuming production environment (secureCookie=true)
-	handlers := NewAuthHandlers(mockService, true)
+	handlers := NewAuthHandlers(mockService, true, nil)
 
 	// Create logout request
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
@@ -469,7 +469,7 @@ func TestHandleMe_Success(t *testing.T) {
 		},
 	}
 
-	handlers := NewAuthHandlers(mockService, false)
+	handlers := NewAuthHandlers(mockService, false, nil)
 
 	// Create /me request
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
@@ -524,7 +524,7 @@ func TestHandleMe_NotAuthenticated(t *testing.T) {
 		},
 	}
 
-	handlers := NewAuthHandlers(mockService, false)
+	handlers := NewAuthHandlers(mockService, false, nil)
 
 	// Request without cookie
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
@@ -556,7 +556,7 @@ func TestHandleMe_InvalidSession(t *testing.T) {
 		},
 	}
 
-	handlers := NewAuthHandlers(mockService, false)
+	handlers := NewAuthHandlers(mockService, false, nil)
 
 	// Request with invalid session ID
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
@@ -581,5 +581,112 @@ func TestHandleMe_InvalidSession(t *testing.T) {
 
 	if resp.Error != "Session expired or invalid" {
 		t.Errorf("expected error %q, got %q", "Session expired or invalid", resp.Error)
+	}
+}
+
+func TestGetClientIP(t *testing.T) {
+	tests := []struct {
+		name           string
+		trustedProxies []string
+		remoteAddr     string
+		xForwardedFor  string
+		xRealIP        string
+		expectedIP     string
+	}{
+		{
+			name:           "no trusted proxies - ignores X-Forwarded-For",
+			trustedProxies: nil,
+			remoteAddr:     "192.168.1.100:12345",
+			xForwardedFor:  "1.2.3.4",
+			expectedIP:     "192.168.1.100",
+		},
+		{
+			name:           "no trusted proxies - ignores X-Real-IP",
+			trustedProxies: nil,
+			remoteAddr:     "192.168.1.100:12345",
+			xRealIP:        "5.6.7.8",
+			expectedIP:     "192.168.1.100",
+		},
+		{
+			name:           "no trusted proxies - returns RemoteAddr",
+			trustedProxies: nil,
+			remoteAddr:     "10.0.0.1:54321",
+			expectedIP:     "10.0.0.1",
+		},
+		{
+			name:           "trusted proxy - uses X-Forwarded-For",
+			trustedProxies: []string{"127.0.0.1"},
+			remoteAddr:     "127.0.0.1:12345",
+			xForwardedFor:  "203.0.113.50",
+			expectedIP:     "203.0.113.50",
+		},
+		{
+			name:           "trusted proxy - uses X-Forwarded-For first IP",
+			trustedProxies: []string{"127.0.0.1"},
+			remoteAddr:     "127.0.0.1:12345",
+			xForwardedFor:  "203.0.113.50, 10.0.0.1",
+			expectedIP:     "203.0.113.50",
+		},
+		{
+			name:           "trusted proxy - uses X-Real-IP when no X-Forwarded-For",
+			trustedProxies: []string{"127.0.0.1"},
+			remoteAddr:     "127.0.0.1:12345",
+			xRealIP:        "203.0.113.50",
+			expectedIP:     "203.0.113.50",
+		},
+		{
+			name:           "trusted proxy - falls back to RemoteAddr when no headers",
+			trustedProxies: []string{"127.0.0.1"},
+			remoteAddr:     "127.0.0.1:12345",
+			expectedIP:     "127.0.0.1",
+		},
+		{
+			name:           "untrusted source - ignores X-Forwarded-For even with trusted proxies configured",
+			trustedProxies: []string{"127.0.0.1"},
+			remoteAddr:     "192.168.1.100:12345",
+			xForwardedFor:  "1.2.3.4",
+			expectedIP:     "192.168.1.100",
+		},
+		{
+			name:           "CIDR range - trusted",
+			trustedProxies: []string{"10.0.0.0/8"},
+			remoteAddr:     "10.0.0.5:12345",
+			xForwardedFor:  "203.0.113.50",
+			expectedIP:     "203.0.113.50",
+		},
+		{
+			name:           "CIDR range - not trusted",
+			trustedProxies: []string{"10.0.0.0/8"},
+			remoteAddr:     "192.168.1.1:12345",
+			xForwardedFor:  "1.2.3.4",
+			expectedIP:     "192.168.1.1",
+		},
+		{
+			name:           "multiple trusted proxies",
+			trustedProxies: []string{"127.0.0.1", "10.0.0.0/8"},
+			remoteAddr:     "10.0.0.5:12345",
+			xForwardedFor:  "203.0.113.50",
+			expectedIP:     "203.0.113.50",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handlers := NewAuthHandlers(nil, false, tt.trustedProxies)
+
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+			req.RemoteAddr = tt.remoteAddr
+			if tt.xForwardedFor != "" {
+				req.Header.Set("X-Forwarded-For", tt.xForwardedFor)
+			}
+			if tt.xRealIP != "" {
+				req.Header.Set("X-Real-IP", tt.xRealIP)
+			}
+
+			got := handlers.getClientIP(req)
+			if got != tt.expectedIP {
+				t.Errorf("getClientIP() = %q, want %q", got, tt.expectedIP)
+			}
+		})
 	}
 }

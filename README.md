@@ -81,6 +81,7 @@ Access http://localhost:8080 in your browser to verify.
 | `PORT` | Server port number | `8080` |
 | `SECURE_COOKIE` | Cookie Secure flag (set to `true` for HTTPS) | `false` |
 | `PASSWORD_POLICY` | Password policy (`NONE` or `STRONG`) | `NONE` |
+| `TRUSTED_PROXIES` | Trusted proxy IPs/CIDRs for X-Forwarded-For (comma-separated) | *(empty)* |
 | `DATABASE_PATH` | Database file path | `data/goblog.db` |
 | `BLOG_TITLE` | Blog title (displayed in header and page titles) | `goblog` |
 | `BASE_URL` | Site base URL (used for sitemap, etc.) | `http://localhost:{PORT}` |
@@ -118,6 +119,7 @@ echo "TZ=Asia/Tokyo" >> .env
 **Notes:**
 - For production (HTTPS-enabled server), always set `SECURE_COOKIE=true`. This ensures cookies are only sent over HTTPS connections.
 - Setting `PASSWORD_POLICY=STRONG` is highly recommended for production.
+- When running behind a reverse proxy (e.g., nginx), set `TRUSTED_PROXIES` to the proxy's IP (e.g., `127.0.0.1`). Without this setting, `X-Forwarded-For` headers are ignored to prevent IP spoofing attacks.
 - **For production, it is recommended to set system environment variables directly instead of using a `.env` file.**
 
 ### 6. Running Tests
@@ -219,6 +221,7 @@ sudo journalctl -u goblog -f
 |----------|-------------------|
 | `SECURE_COOKIE` | `true` (required) |
 | `PASSWORD_POLICY` | `STRONG` (recommended) |
+| `TRUSTED_PROXIES` | `127.0.0.1` (required when behind nginx) |
 | `BASE_URL` | `https://your-domain.com` |
 | `DATABASE_PATH` | `/var/lib/goblog/goblog.db` |
 | `UPLOAD_DIR` | `/var/lib/goblog/uploads` |

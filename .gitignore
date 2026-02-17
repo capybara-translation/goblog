@@ -44,3 +44,5 @@ web-admin/node_modules/
 web-admin/dist/
 web-admin/.vite/
 web-admin/.env
+
+tmp/

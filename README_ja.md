@@ -81,6 +81,7 @@ PORT=8000 BLOG_TITLE="開発ブログ" go run cmd/goblog/main.go
 | `PORT` | サーバーのポート番号 | `8080` |
 | `SECURE_COOKIE` | Cookie の Secure フラグ（HTTPS環境では `true` に設定） | `false` |
 | `PASSWORD_POLICY` | パスワードポリシー（`NONE` または `STRONG`） | `NONE` |
+| `TRUSTED_PROXIES` | 信頼するプロキシのIP/CIDR（カンマ区切り、X-Forwarded-For用） | *（空）* |
 | `DATABASE_PATH` | データベースファイルのパス | `data/goblog.db` |
 | `BLOG_TITLE` | ブログのタイトル（ヘッダーやページタイトルに表示） | `goblog` |
 | `BASE_URL` | サイトのベースURL（サイトマップ等で使用） | `http://localhost:{PORT}` |
@@ -118,6 +119,7 @@ echo "TZ=Asia/Tokyo" >> .env
 **注意:**
 - 本番環境（HTTPS対応サーバー）では必ず `SECURE_COOKIE=true` を設定してください。これにより Cookie が HTTPS 接続でのみ送信されるようになります。
 - 本番環境では `PASSWORD_POLICY=STRONG` を設定することを強く推奨します。
+- リバースプロキシ（nginx等）の背後で運用する場合、`TRUSTED_PROXIES` にプロキシのIPを設定してください（例: `127.0.0.1`）。未設定の場合、`X-Forwarded-For` ヘッダーは無視され、IPスプーフィング攻撃を防止します。
 - **本番環境では `.env` ファイルではなく、システムの環境変数を直接設定することを推奨します。**
 
 ### 6. テストの実行
@@ -219,6 +221,7 @@ sudo journalctl -u goblog -f
 |---------|-------------------|
 | `SECURE_COOKIE` | `true`（必須） |
 | `PASSWORD_POLICY` | `STRONG`（推奨） |
+| `TRUSTED_PROXIES` | `127.0.0.1`（nginx背後では必須） |
 | `BASE_URL` | `https://your-domain.com` |
 | `DATABASE_PATH` | `/var/lib/goblog/goblog.db` |
 | `UPLOAD_DIR` | `/var/lib/goblog/uploads` |
