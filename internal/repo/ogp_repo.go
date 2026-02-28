@@ -16,8 +16,8 @@ type OGPRepository interface {
 	FindByURL(url string) (*ogp.Data, error)
 	// Upsert inserts or updates OGP data
 	Upsert(data *ogp.Data) error
-	// DeleteExpired removes expired entries from the cache
-	DeleteExpired() (int64, error)
+	// DeleteExpired removes expired entries from the cache and returns deleted local image paths
+	DeleteExpired() ([]string, error)
 }
 
 // ogpRepository is the SQLite implementation of OGPRepository
@@ -49,8 +49,8 @@ func (r *ogpRepository) FindByURL(url string) (*ogp.Data, error) {
 // Upsert inserts or updates OGP data
 func (r *ogpRepository) Upsert(data *ogp.Data) error {
 	query := `
-		INSERT INTO ogp_cache (url, title, description, image_url, site_name, fetched_at, expires_at, error_msg)
-		VALUES (:url, :title, :description, :image_url, :site_name, :fetched_at, :expires_at, :error_msg)
+		INSERT INTO ogp_cache (url, title, description, image_url, site_name, fetched_at, expires_at, error_msg, local_image_path)
+		VALUES (:url, :title, :description, :image_url, :site_name, :fetched_at, :expires_at, :error_msg, :local_image_path)
 		ON CONFLICT(url) DO UPDATE SET
 			title = excluded.title,
 			description = excluded.description,
@@ -58,7 +58,8 @@ func (r *ogpRepository) Upsert(data *ogp.Data) error {
 			site_name = excluded.site_name,
 			fetched_at = excluded.fetched_at,
 			expires_at = excluded.expires_at,
-			error_msg = excluded.error_msg
+			error_msg = excluded.error_msg,
+			local_image_path = excluded.local_image_path
 	`
 
 	_, err := r.db.NamedExec(query, data)
@@ -69,19 +70,20 @@ func (r *ogpRepository) Upsert(data *ogp.Data) error {
 	return nil
 }
 
-// DeleteExpired removes expired entries from the cache
-func (r *ogpRepository) DeleteExpired() (int64, error) {
-	query := "DELETE FROM ogp_cache WHERE expires_at < ?"
-
-	result, err := r.db.Exec(query, time.Now())
-	if err != nil {
-		return 0, fmt.Errorf("failed to delete expired OGP data: %w", err)
+// DeleteExpired removes expired entries from the cache and returns deleted local image paths
+func (r *ogpRepository) DeleteExpired() ([]string, error) {
+	// First, collect local image paths of entries to be deleted
+	var paths []string
+	selectQuery := "SELECT local_image_path FROM ogp_cache WHERE expires_at < ? AND local_image_path != ''"
+	if err := r.db.Select(&paths, selectQuery, time.Now()); err != nil {
+		return nil, fmt.Errorf("failed to select expired OGP local images: %w", err)
 	}
 
-	count, err := result.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	// Then delete expired entries
+	deleteQuery := "DELETE FROM ogp_cache WHERE expires_at < ?"
+	if _, err := r.db.Exec(deleteQuery, time.Now()); err != nil {
+		return nil, fmt.Errorf("failed to delete expired OGP data: %w", err)
 	}
 
-	return count, nil
+	return paths, nil
 }

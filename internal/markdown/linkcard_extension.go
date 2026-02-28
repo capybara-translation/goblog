@@ -172,9 +172,13 @@ func (r *LinkCardRenderer) renderLinkCard(w util.BufWriter, targetURL string) {
 
 	_, _ = w.WriteString(`</div>`)
 
-	// Image (if available)
+	// Image (if available, prefer locally cached image)
 	if data.HasImage() {
-		escapedImageURL := html.EscapeString(data.ImageURL)
+		imageURL := data.ImageURL
+		if data.LocalImagePath != "" {
+			imageURL = data.LocalImagePath
+		}
+		escapedImageURL := html.EscapeString(imageURL)
 		_, _ = w.WriteString(`<img class="link-card-image" src="`)
 		_, _ = w.WriteString(escapedImageURL)
 		_, _ = w.WriteString(`" alt="" loading="lazy">`)

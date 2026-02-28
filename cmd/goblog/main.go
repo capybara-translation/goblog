@@ -35,7 +35,7 @@ func main() {
 	defer database.Close()
 
 	// Run migrations (from embedded files)
-	if err := db.RunMigrations(database, goblog.Migrations, "migrations/001_create_posts.sql", "migrations/002_create_users.sql", "migrations/003_add_is_pinned.sql", "migrations/004_create_ogp_cache.sql"); err != nil {
+	if err := db.RunMigrations(database, goblog.Migrations, "migrations/001_create_posts.sql", "migrations/002_create_users.sql", "migrations/003_add_is_pinned.sql", "migrations/004_create_ogp_cache.sql", "migrations/005_add_ogp_local_image.sql"); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
@@ -55,7 +55,7 @@ func main() {
 
 	// Initialize OGP service for link cards
 	ogpFetcher := ogp.NewFetcher(ogp.FetchTimeout)
-	ogpService := service.NewOGPService(ogpRepo, ogpFetcher)
+	ogpService := service.NewOGPService(ogpRepo, ogpFetcher, cfg.UploadDir)
 
 	// Create upload directory
 	if err := os.MkdirAll(cfg.UploadDir, 0755); err != nil {

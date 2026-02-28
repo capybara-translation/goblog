@@ -7,14 +7,15 @@ import (
 
 // Data represents Open Graph Protocol metadata for a URL
 type Data struct {
-	URL         string    `db:"url" json:"url"`
-	Title       string    `db:"title" json:"title"`
-	Description string    `db:"description" json:"description"`
-	ImageURL    string    `db:"image_url" json:"image_url"`
-	SiteName    string    `db:"site_name" json:"site_name"`
-	FetchedAt   time.Time `db:"fetched_at" json:"fetched_at"`
-	ExpiresAt   time.Time `db:"expires_at" json:"expires_at"`
-	ErrorMsg    string    `db:"error_msg" json:"error_msg,omitempty"`
+	URL            string    `db:"url" json:"url"`
+	Title          string    `db:"title" json:"title"`
+	Description    string    `db:"description" json:"description"`
+	ImageURL       string    `db:"image_url" json:"image_url"`
+	SiteName       string    `db:"site_name" json:"site_name"`
+	FetchedAt      time.Time `db:"fetched_at" json:"fetched_at"`
+	ExpiresAt      time.Time `db:"expires_at" json:"expires_at"`
+	ErrorMsg       string    `db:"error_msg" json:"error_msg,omitempty"`
+	LocalImagePath string    `db:"local_image_path" json:"local_image_path,omitempty"`
 }
 
 // IsError returns true if the OGP fetch resulted in an error

@@ -3,6 +3,8 @@ package markdown
 import (
 	"strings"
 	"testing"
+
+	"github.com/capybara-translation/goblog/internal/ogp"
 )
 
 func TestIsValidURL(t *testing.T) {
@@ -182,6 +184,61 @@ func TestLinkCardRenderer_HTMLStructure(t *testing.T) {
 		if !strings.Contains(result, element) {
 			t.Errorf("Link card HTML should contain %q\nResult: %s", element, result)
 		}
+	}
+}
+
+func TestLinkCardRenderer_LocalImagePathPreferred(t *testing.T) {
+	// When LocalImagePath is set, it should be used instead of ImageURL
+	ogpGetter := &mockOGPGetter{
+		data: map[string]*ogp.Data{
+			"https://example.com/local-cached": {
+				URL:            "https://example.com/local-cached",
+				Title:          "Locally Cached Page",
+				Description:    "Page with locally cached image",
+				ImageURL:       "https://example.com/image.jpg",
+				LocalImagePath: "/uploads/ogp-cache/abc123.jpg",
+				SiteName:       "example.com",
+			},
+		},
+	}
+	converter := NewConverterWithOGP(ogpGetter)
+
+	result, err := converter.Convert("https://example.com/local-cached")
+	if err != nil {
+		t.Fatalf("Convert() error = %v", err)
+	}
+
+	// Should use local path, not external URL
+	if !strings.Contains(result, `/uploads/ogp-cache/abc123.jpg`) {
+		t.Errorf("Link card should use LocalImagePath, got: %s", result)
+	}
+	if strings.Contains(result, `https://example.com/image.jpg`) {
+		t.Errorf("Link card should NOT use external ImageURL when LocalImagePath is set, got: %s", result)
+	}
+}
+
+func TestLinkCardRenderer_FallsBackToImageURL(t *testing.T) {
+	// When LocalImagePath is empty, should fall back to ImageURL
+	ogpGetter := &mockOGPGetter{
+		data: map[string]*ogp.Data{
+			"https://example.com/no-local": {
+				URL:         "https://example.com/no-local",
+				Title:       "No Local Cache",
+				Description: "Page without locally cached image",
+				ImageURL:    "https://example.com/fallback.jpg",
+				SiteName:    "example.com",
+			},
+		},
+	}
+	converter := NewConverterWithOGP(ogpGetter)
+
+	result, err := converter.Convert("https://example.com/no-local")
+	if err != nil {
+		t.Fatalf("Convert() error = %v", err)
+	}
+
+	if !strings.Contains(result, `https://example.com/fallback.jpg`) {
+		t.Errorf("Link card should use ImageURL when LocalImagePath is empty, got: %s", result)
 	}
 }
 

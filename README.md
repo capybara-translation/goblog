@@ -423,6 +423,73 @@ make clean-admin  # Delete admin SPA build artifacts
     main.tsx           # Entry point
 ```
 
+## Background Processes and Cache Lifecycle
+
+goblog starts several background goroutines at server startup to automatically clean up expired sessions and cache data.
+
+### Session Management
+
+```
+Login → Create session (in-memory) → Expires after 24h → Auto-deleted
+```
+
+| Item | Value |
+|------|-------|
+| Storage | In-memory (`sync.RWMutex` protected) |
+| TTL | 24 hours |
+| Auto-cleanup | Every 1 hour, expired sessions are deleted |
+| Manual deletion | On logout |
+
+**Note:** Sessions are stored in-memory, so all sessions are lost on server restart (re-login required).
+
+### Login Attempt Tracking (Brute Force Protection)
+
+```
+Login failure → Count per IP → Progressive delay → Reset on success
+```
+
+| Item | Value |
+|------|-------|
+| Storage | In-memory (per IP address) |
+| Delay | 3 failures → 2s, 5 → 5s, 10 → 30s |
+| Auto-cleanup | Every 10 min, entries older than 30 min are removed |
+| Reset | On successful login |
+
+### OGP Cache (for Link Cards)
+
+```
+URL → Fetch OGP metadata (5s timeout) → Download image → Store in SQLite
+                                                ↓
+                                     Saved to {UPLOAD_DIR}/ogp-cache/
+                                                ↓
+                                         Expires after 7 days
+                                                ↓
+                              Re-fetch → Delete old image → Update with new data
+```
+
+| Item | Value |
+|------|-------|
+| Storage | SQLite (`ogp_cache` table) |
+| Success TTL | 7 days |
+| Error TTL | 1 hour |
+| Image storage | `{UPLOAD_DIR}/ogp-cache/` (UUID v4 filenames) |
+| Max image size | 2MB |
+| Auto-cleanup | Every 1 hour, expired entries and local images are deleted |
+
+**Key points:**
+- OGP images are cached locally to avoid external service rate limits (HTTP 429)
+- On cache hit with missing local image, the image is downloaded on the spot
+- If image download fails, OGP data is still returned normally (falls back to external URL)
+- SSRF protection blocks requests to private IP addresses
+
+### Background Goroutine Summary
+
+| Goroutine | Interval | Action | Started by |
+|-----------|----------|--------|------------|
+| Session cleanup | 1 hour | Delete expired sessions | `auth.NewInMemorySessionStore()` |
+| Login attempt cleanup | 10 min | Delete old login failure records | `service.NewAuthService()` |
+| OGP cache cleanup | 1 hour | Delete expired OGP entries and local images | `service.NewOGPService()` |
+
 ## URL Design
 
 ### Public Pages

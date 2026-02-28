@@ -9,9 +9,12 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/net/html"
 )
 
@@ -19,6 +22,9 @@ import (
 type Fetcher interface {
 	// Fetch retrieves OGP data from the given URL
 	Fetch(ctx context.Context, url string) (*Data, error)
+	// DownloadImage downloads an image from the given URL and saves it to destDir
+	// Returns the relative path (e.g., "ogp-cache/uuid.jpg") or an error
+	DownloadImage(ctx context.Context, imageURL string, destDir string) (string, error)
 }
 
 // Common errors
@@ -32,6 +38,21 @@ var (
 
 // Maximum response body size (1MB)
 const maxBodySize = 1 * 1024 * 1024
+
+// Maximum image download size (2MB)
+const maxImageSize = 2 * 1024 * 1024
+
+// Allowed image content types and their extensions
+var imageContentTypes = map[string]string{
+	"image/jpeg": ".jpg",
+	"image/png":  ".png",
+	"image/gif":  ".gif",
+	"image/webp": ".webp",
+	"image/svg+xml": ".svg",
+}
+
+// ogpCacheDir is the subdirectory within uploadDir for cached OGP images
+const ogpCacheDir = "ogp-cache"
 
 // httpFetcher implements the Fetcher interface using HTTP
 type httpFetcher struct {
@@ -316,4 +337,80 @@ func handleMetaTag(n *html.Node, data *Data) {
 			data.Description = content
 		}
 	}
+}
+
+// DownloadImage downloads an image from the given URL and saves it to destDir/ogp-cache/
+// Returns the relative path from destDir (e.g., "ogp-cache/uuid.jpg") or an error
+func (f *httpFetcher) DownloadImage(ctx context.Context, imageURL string, destDir string) (string, error) {
+	// Validate and parse URL
+	parsedURL, err := url.Parse(imageURL)
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrInvalidURL, err)
+	}
+
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return "", fmt.Errorf("%w: unsupported scheme %s", ErrInvalidURL, parsedURL.Scheme)
+	}
+
+	// SSRF prevention
+	if err := validateHost(parsedURL.Host); err != nil {
+		return "", err
+	}
+
+	// Create request
+	req, err := http.NewRequestWithContext(ctx, "GET", imageURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrFetchFailed, err)
+	}
+
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "image/*,*/*;q=0.8")
+
+	// Execute request
+	resp, err := f.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrFetchFailed, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("%w: status code %d", ErrFetchFailed, resp.StatusCode)
+	}
+
+	// Determine file extension from Content-Type
+	contentType := resp.Header.Get("Content-Type")
+	// Handle content types like "image/png; charset=utf-8"
+	if idx := strings.Index(contentType, ";"); idx != -1 {
+		contentType = strings.TrimSpace(contentType[:idx])
+	}
+	ext, ok := imageContentTypes[contentType]
+	if !ok {
+		return "", fmt.Errorf("%w: unsupported content type %s", ErrFetchFailed, contentType)
+	}
+
+	// Read image data with size limit
+	limitedReader := io.LimitReader(resp.Body, maxImageSize+1)
+	data, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrFetchFailed, err)
+	}
+	if len(data) > maxImageSize {
+		return "", fmt.Errorf("%w: image too large (max %d bytes)", ErrFetchFailed, maxImageSize)
+	}
+
+	// Ensure ogp-cache directory exists
+	cacheDir := filepath.Join(destDir, ogpCacheDir)
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create ogp cache directory: %w", err)
+	}
+
+	// Save with UUID filename
+	filename := uuid.New().String() + ext
+	filePath := filepath.Join(cacheDir, filename)
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		return "", fmt.Errorf("failed to save image: %w", err)
+	}
+
+	// Return relative path from destDir
+	return filepath.Join(ogpCacheDir, filename), nil
 }

@@ -3,9 +3,11 @@ package ogp
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -441,5 +443,214 @@ func TestNewFetcher(t *testing.T) {
 	fetcher := NewFetcher(10 * time.Second)
 	if fetcher == nil {
 		t.Error("NewFetcher() returned nil")
+	}
+}
+
+func TestDownloadImage_Success(t *testing.T) {
+	imageData := []byte{0xFF, 0xD8, 0xFF, 0xE0} // Minimal JPEG header bytes
+	header := make(http.Header)
+	header.Set("Content-Type", "image/jpeg")
+
+	mockRT := &mockRoundTripper{
+		response: &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(bytes.NewReader(imageData)),
+			Header:     header,
+		},
+	}
+
+	fetcher := newTestFetcher(mockRT)
+	destDir := t.TempDir()
+	ctx := context.Background()
+
+	relativePath, err := fetcher.DownloadImage(ctx, "https://example.com/image.jpg", destDir)
+	if err != nil {
+		t.Fatalf("DownloadImage() error = %v", err)
+	}
+
+	// Verify relative path format: "ogp-cache/<uuid>.jpg"
+	if !strings.HasPrefix(relativePath, "ogp-cache/") {
+		t.Errorf("relativePath = %q, want prefix 'ogp-cache/'", relativePath)
+	}
+	if !strings.HasSuffix(relativePath, ".jpg") {
+		t.Errorf("relativePath = %q, want suffix '.jpg'", relativePath)
+	}
+
+	// Verify file exists on disk
+	fullPath := destDir + "/" + relativePath
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		t.Fatalf("saved file not found: %v", err)
+	}
+	if info.Size() != int64(len(imageData)) {
+		t.Errorf("file size = %d, want %d", info.Size(), len(imageData))
+	}
+}
+
+func TestDownloadImage_SuccessPNG(t *testing.T) {
+	imageData := []byte{0x89, 0x50, 0x4E, 0x47} // PNG magic bytes
+	header := make(http.Header)
+	header.Set("Content-Type", "image/png")
+
+	mockRT := &mockRoundTripper{
+		response: &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(bytes.NewReader(imageData)),
+			Header:     header,
+		},
+	}
+
+	fetcher := newTestFetcher(mockRT)
+	destDir := t.TempDir()
+	ctx := context.Background()
+
+	relativePath, err := fetcher.DownloadImage(ctx, "https://example.com/image.png", destDir)
+	if err != nil {
+		t.Fatalf("DownloadImage() error = %v", err)
+	}
+
+	if !strings.HasSuffix(relativePath, ".png") {
+		t.Errorf("relativePath = %q, want suffix '.png'", relativePath)
+	}
+}
+
+func TestDownloadImage_ContentTypeWithCharset(t *testing.T) {
+	imageData := []byte{0xFF, 0xD8, 0xFF, 0xE0}
+	header := make(http.Header)
+	header.Set("Content-Type", "image/jpeg; charset=utf-8")
+
+	mockRT := &mockRoundTripper{
+		response: &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(bytes.NewReader(imageData)),
+			Header:     header,
+		},
+	}
+
+	fetcher := newTestFetcher(mockRT)
+	destDir := t.TempDir()
+	ctx := context.Background()
+
+	relativePath, err := fetcher.DownloadImage(ctx, "https://example.com/image.jpg", destDir)
+	if err != nil {
+		t.Fatalf("DownloadImage() error = %v", err)
+	}
+
+	if !strings.HasSuffix(relativePath, ".jpg") {
+		t.Errorf("relativePath = %q, want suffix '.jpg'", relativePath)
+	}
+}
+
+func TestDownloadImage_TooLarge(t *testing.T) {
+	// Create data larger than maxImageSize (2MB)
+	largeData := make([]byte, maxImageSize+100)
+	header := make(http.Header)
+	header.Set("Content-Type", "image/jpeg")
+
+	mockRT := &mockRoundTripper{
+		response: &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(bytes.NewReader(largeData)),
+			Header:     header,
+		},
+	}
+
+	fetcher := newTestFetcher(mockRT)
+	destDir := t.TempDir()
+	ctx := context.Background()
+
+	_, err := fetcher.DownloadImage(ctx, "https://example.com/huge.jpg", destDir)
+	if err == nil {
+		t.Fatal("DownloadImage() should return error for oversized image")
+	}
+	if !strings.Contains(err.Error(), "image too large") {
+		t.Errorf("DownloadImage() error = %v, want error containing 'image too large'", err)
+	}
+}
+
+func TestDownloadImage_InvalidContentType(t *testing.T) {
+	header := make(http.Header)
+	header.Set("Content-Type", "text/html")
+
+	mockRT := &mockRoundTripper{
+		response: &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(bytes.NewBufferString("<html></html>")),
+			Header:     header,
+		},
+	}
+
+	fetcher := newTestFetcher(mockRT)
+	destDir := t.TempDir()
+	ctx := context.Background()
+
+	_, err := fetcher.DownloadImage(ctx, "https://example.com/notimage", destDir)
+	if err == nil {
+		t.Fatal("DownloadImage() should return error for non-image Content-Type")
+	}
+	if !strings.Contains(err.Error(), "unsupported content type") {
+		t.Errorf("DownloadImage() error = %v, want error containing 'unsupported content type'", err)
+	}
+}
+
+func TestDownloadImage_SSRFPrevention(t *testing.T) {
+	fetcher := NewFetcher(5 * time.Second)
+	ctx := context.Background()
+	destDir := t.TempDir()
+
+	tests := []struct {
+		name string
+		url  string
+	}{
+		{"localhost", "http://localhost/image.jpg"},
+		{"127.0.0.1", "http://127.0.0.1/image.jpg"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := fetcher.DownloadImage(ctx, tt.url, destDir)
+			if err == nil {
+				t.Errorf("DownloadImage(%q) should return error for private IP", tt.url)
+			}
+			if !errors.Is(err, ErrPrivateIP) {
+				t.Errorf("DownloadImage(%q) error = %v, want ErrPrivateIP", tt.url, err)
+			}
+		})
+	}
+}
+
+func TestDownloadImage_InvalidScheme(t *testing.T) {
+	fetcher := NewFetcher(5 * time.Second)
+	ctx := context.Background()
+	destDir := t.TempDir()
+
+	_, err := fetcher.DownloadImage(ctx, "ftp://example.com/image.jpg", destDir)
+	if err == nil {
+		t.Fatal("DownloadImage() should return error for ftp scheme")
+	}
+	if !strings.Contains(err.Error(), "unsupported scheme") {
+		t.Errorf("DownloadImage() error = %v, want error containing 'unsupported scheme'", err)
+	}
+}
+
+func TestDownloadImage_Non200Status(t *testing.T) {
+	mockRT := &mockRoundTripper{
+		response: &http.Response{
+			StatusCode: http.StatusForbidden,
+			Body:       io.NopCloser(bytes.NewBufferString("")),
+			Header:     make(http.Header),
+		},
+	}
+
+	fetcher := newTestFetcher(mockRT)
+	destDir := t.TempDir()
+	ctx := context.Background()
+
+	_, err := fetcher.DownloadImage(ctx, "https://example.com/forbidden.jpg", destDir)
+	if err == nil {
+		t.Fatal("DownloadImage() should return error for 403 status")
+	}
+	if !strings.Contains(err.Error(), "status code 403") {
+		t.Errorf("DownloadImage() error = %v, want error containing 'status code 403'", err)
 	}
 }

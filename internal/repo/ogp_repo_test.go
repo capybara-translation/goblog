@@ -25,7 +25,8 @@ func setupOGPTestDB(t *testing.T) *sqlx.DB {
 			site_name TEXT,
 			fetched_at DATETIME NOT NULL,
 			expires_at DATETIME NOT NULL,
-			error_msg TEXT
+			error_msg TEXT,
+			local_image_path TEXT
 		);
 		CREATE INDEX idx_ogp_cache_expires_at ON ogp_cache(expires_at);
 	`
@@ -165,12 +166,13 @@ func TestOGPRepository_DeleteExpired(t *testing.T) {
 
 	repo := NewOGPRepository(db)
 
-	// Insert expired data
+	// Insert expired data with local image
 	expiredData := &ogp.Data{
-		URL:       "https://example.com/expired",
-		Title:     "Expired",
-		FetchedAt: time.Now().Add(-48 * time.Hour),
-		ExpiresAt: time.Now().Add(-24 * time.Hour), // Expired 24 hours ago
+		URL:            "https://example.com/expired",
+		Title:          "Expired",
+		FetchedAt:      time.Now().Add(-48 * time.Hour),
+		ExpiresAt:      time.Now().Add(-24 * time.Hour), // Expired 24 hours ago
+		LocalImagePath: "/uploads/ogp-cache/old-image.jpg",
 	}
 	repo.Upsert(expiredData)
 
@@ -184,12 +186,12 @@ func TestOGPRepository_DeleteExpired(t *testing.T) {
 	repo.Upsert(validData)
 
 	// Delete expired
-	count, err := repo.DeleteExpired()
+	paths, err := repo.DeleteExpired()
 	if err != nil {
 		t.Errorf("DeleteExpired() error = %v", err)
 	}
-	if count != 1 {
-		t.Errorf("DeleteExpired() deleted %d rows, want 1", count)
+	if len(paths) != 1 || paths[0] != "/uploads/ogp-cache/old-image.jpg" {
+		t.Errorf("DeleteExpired() paths = %v, want [/uploads/ogp-cache/old-image.jpg]", paths)
 	}
 
 	// Verify expired is deleted
