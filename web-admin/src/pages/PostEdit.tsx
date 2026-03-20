@@ -25,7 +25,12 @@ export function PostEdit() {
 
   const [post, setPost] = useState<Post | null>(null);
   const [title, setTitle] = useState('');
-  const [slug, setSlug] = useState('');
+  const [slug, setSlug] = useState(() => {
+    if (!isEditMode) {
+      return formatInTimeZone(new Date(), BLOG_TIMEZONE, 'yyyy-MM-dd');
+    }
+    return '';
+  });
   const [content, setContent] = useState('');
   const [tags, setTags] = useState('');
   const [isPinned, setIsPinned] = useState(false);
