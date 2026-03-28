@@ -90,6 +90,12 @@ export function Login() {
             {isSubmitting ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
+
+        <p className="mt-6 text-center text-sm text-primary-400">
+          <a href="/" className="hover:text-primary-600 transition-colors">
+            ← Back to {BLOG_TITLE}
+          </a>
+        </p>
       </div>
     </div>
   );
