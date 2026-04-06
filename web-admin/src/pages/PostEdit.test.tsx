@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
@@ -6,6 +6,10 @@ import { PostEdit } from './PostEdit'
 import { ModalProvider } from '../hooks/useModal'
 import { apiClient } from '../api/client'
 import type { Post } from '../api/client'
+
+// Fixed date for deterministic tests (UTC: 2025-06-15)
+const FIXED_DATE = new Date('2025-06-15T12:00:00Z')
+const EXPECTED_DEFAULT_SLUG = '2025-06-15'
 
 // Mock apiClient
 vi.mock('../api/client', () => ({
@@ -59,12 +63,18 @@ describe('PostEdit', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(FIXED_DATE)
     // Mock for TagInput component
     vi.mocked(apiClient.getTags).mockResolvedValue([
       { name: 'Go', count: 5 },
       { name: 'React', count: 3 },
       { name: 'Testing', count: 2 },
     ])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   const renderCreateMode = async () => {
@@ -112,7 +122,7 @@ describe('PostEdit', () => {
     it('should render empty form fields', async () => {
       await renderCreateMode()
       expect(screen.getByLabelText(/Title/)).toHaveValue('')
-      expect(screen.getByLabelText(/Slug/)).toHaveValue('')
+      expect(screen.getByLabelText(/Slug/)).toHaveValue(EXPECTED_DEFAULT_SLUG)
       // TagInput component has different label association, so only verify label display
       expect(screen.getByText('Tags')).toBeInTheDocument()
       // MarkdownEditor component has different label association, so only verify label display
@@ -293,6 +303,7 @@ describe('PostEdit', () => {
       await renderCreateMode()
 
       const slugInput = screen.getByLabelText(/Slug/)
+      await user.clear(slugInput)
       await user.type(slugInput, 'new-post-slug')
 
       expect(slugInput).toHaveValue('new-post-slug')
@@ -354,6 +365,7 @@ describe('PostEdit', () => {
       await renderCreateMode()
 
       await user.type(screen.getByLabelText(/Title/), 'New Post')
+      await user.clear(screen.getByLabelText(/Slug/))
       await user.type(screen.getByLabelText(/Slug/), 'new-post')
       // Add tags via TagInput (separated by comma)
       await user.type(screen.getByLabelText('Tag input'), 'React,')

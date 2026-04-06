@@ -41,6 +41,7 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
   const [previewHtml, setPreviewHtml] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [shortenAmazon, setShortenAmazon] = useState(true);
   const debounceTimerRef = useRef<number | null>(null);
@@ -136,46 +137,64 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
     }
   }, [value, scrollToLine]);
 
-  // File selection handler
+  // File selection handler (supports multiple files)
   const handleFileSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
 
-    // Reset file input (to allow re-selecting the same file)
+    const fileList = Array.from(files);
+
+    // Reset file input after copying (to allow re-selecting the same files)
     event.target.value = '';
 
-    // Client-side validation
-    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-      setUploadError('Supported formats: JPEG, PNG, GIF, WebP only');
-      return;
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      setUploadError(`File size must be less than ${MAX_FILE_SIZE / 1024 / 1024}MB`);
-      return;
+    // Client-side validation for all files before uploading
+    for (const file of fileList) {
+      if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+        setUploadError(`${file.name}: Supported formats: JPEG, PNG, GIF, WebP only`);
+        return;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        setUploadError(`${file.name}: File size must be less than ${MAX_FILE_SIZE / 1024 / 1024}MB`);
+        return;
+      }
     }
 
     setUploadError(null);
     setIsUploading(true);
+    setUploadProgress({ current: 1, total: fileList.length });
 
-    try {
-      const response = await apiClient.uploadImage(file);
+    const markdownParts: string[] = [];
+    const errors: string[] = [];
 
-      // Insert Markdown image syntax
-      const imageMarkdown = `![${file.name}](${response.url})`;
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i]!;
+      setUploadProgress({ current: i + 1, total: fileList.length });
+      try {
+        const response = await apiClient.uploadImage(file);
+        markdownParts.push(`![${file.name}](${response.url})`);
+      } catch (error) {
+        console.error(`Failed to upload image: ${file.name}`, error);
+        errors.push(`${file.name}: ${error instanceof Error ? error.message : 'Failed to upload'}`);
+      }
+    }
 
+    // Insert successfully uploaded images
+    if (markdownParts.length > 0) {
+      const imageMarkdown = markdownParts.join('\n');
       if (textApiRef.current) {
         textApiRef.current.replaceSelection(imageMarkdown);
       } else {
-        // Fallback: append to end
         onChange(value + '\n' + imageMarkdown);
       }
-    } catch (error) {
-      console.error('Failed to upload image:', error);
-      setUploadError(error instanceof Error ? error.message : 'Failed to upload image');
-    } finally {
-      setIsUploading(false);
     }
+
+    // Show errors for failed uploads
+    if (errors.length > 0) {
+      setUploadError(errors.join('\n'));
+    }
+
+    setIsUploading(false);
+    setUploadProgress(null);
   }, [value, onChange]);
 
   // Image upload command
@@ -221,6 +240,7 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
         ref={fileInputRef}
         type="file"
         accept="image/jpeg,image/png,image/gif,image/webp"
+        multiple
         onChange={handleFileSelect}
         className="hidden"
         data-testid="image-file-input"
@@ -230,10 +250,16 @@ export function MarkdownEditor({ value, onChange, disabled = false, onSave }: Ma
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium text-primary-600 mb-2">
           Edit
-          {isUploading && <span className="ml-2 text-primary-400">(Uploading...)</span>}
+          {isUploading && (
+            <span className="ml-2 text-primary-400">
+              {uploadProgress && uploadProgress.total > 1
+                ? `(Uploading ${uploadProgress.current}/${uploadProgress.total}...)`
+                : '(Uploading...)'}
+            </span>
+          )}
         </div>
         {uploadError && (
-          <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
+          <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded text-red-600 text-sm whitespace-pre-wrap">
             {uploadError}
           </div>
         )}

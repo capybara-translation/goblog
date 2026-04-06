@@ -336,7 +336,7 @@ describe('MarkdownEditor', () => {
 
       // Error message is displayed
       await waitFor(() => {
-        expect(screen.getByText('Supported formats: JPEG, PNG, GIF, WebP only')).toBeInTheDocument();
+        expect(screen.getByText('test.txt: Supported formats: JPEG, PNG, GIF, WebP only')).toBeInTheDocument();
       });
     });
 
@@ -358,7 +358,7 @@ describe('MarkdownEditor', () => {
 
       // Error message is displayed
       await waitFor(() => {
-        expect(screen.getByText('File size must be less than 5MB')).toBeInTheDocument();
+        expect(screen.getByText('large.jpg: File size must be less than 5MB')).toBeInTheDocument();
       });
     });
 
@@ -407,7 +407,7 @@ describe('MarkdownEditor', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Upload failed')).toBeInTheDocument();
+        expect(screen.getByText('test.jpg: Upload failed')).toBeInTheDocument();
       });
 
       consoleError.mockRestore();
@@ -443,6 +443,163 @@ describe('MarkdownEditor', () => {
         const textarea = document.querySelector('textarea');
         expect(textarea).not.toHaveAttribute('disabled');
       });
+    });
+
+    it('uploads multiple files and inserts all markdown', async () => {
+      vi.useRealTimers();
+      const handleChange = vi.fn();
+      mockUploadImage
+        .mockResolvedValueOnce({ url: '/uploads/a.jpg', filename: 'a.jpg' })
+        .mockResolvedValueOnce({ url: '/uploads/b.png', filename: 'b.png' })
+        .mockResolvedValueOnce({ url: '/uploads/c.gif', filename: 'c.gif' });
+
+      render(<MarkdownEditor value="" onChange={handleChange} />);
+
+      const fileInput = screen.getByTestId('image-file-input');
+      const files = [
+        new File(['img1'], 'a.jpg', { type: 'image/jpeg' }),
+        new File(['img2'], 'b.png', { type: 'image/png' }),
+        new File(['img3'], 'c.gif', { type: 'image/gif' }),
+      ];
+
+      await act(async () => {
+        fireEvent.change(fileInput, { target: { files } });
+      });
+
+      await waitFor(() => {
+        expect(mockUploadImage).toHaveBeenCalledTimes(3);
+      });
+
+      await waitFor(() => {
+        const call = handleChange.mock.calls.find((c: string[]) =>
+          c[0]?.includes('![a.jpg](/uploads/a.jpg)') &&
+          c[0]?.includes('![b.png](/uploads/b.png)') &&
+          c[0]?.includes('![c.gif](/uploads/c.gif)')
+        );
+        expect(call).toBeTruthy();
+      });
+    });
+
+    it('inserts successful uploads and shows errors for failed ones', async () => {
+      vi.useRealTimers();
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const handleChange = vi.fn();
+      mockUploadImage
+        .mockResolvedValueOnce({ url: '/uploads/a.jpg', filename: 'a.jpg' })
+        .mockRejectedValueOnce(new Error('Server error'))
+        .mockResolvedValueOnce({ url: '/uploads/c.gif', filename: 'c.gif' });
+
+      render(<MarkdownEditor value="" onChange={handleChange} />);
+
+      const fileInput = screen.getByTestId('image-file-input');
+      const files = [
+        new File(['img1'], 'a.jpg', { type: 'image/jpeg' }),
+        new File(['img2'], 'b.png', { type: 'image/png' }),
+        new File(['img3'], 'c.gif', { type: 'image/gif' }),
+      ];
+
+      await act(async () => {
+        fireEvent.change(fileInput, { target: { files } });
+      });
+
+      // Successful files are inserted
+      await waitFor(() => {
+        const call = handleChange.mock.calls.find((c: string[]) =>
+          c[0]?.includes('![a.jpg](/uploads/a.jpg)') &&
+          c[0]?.includes('![c.gif](/uploads/c.gif)')
+        );
+        expect(call).toBeTruthy();
+      });
+
+      // Error for failed file is displayed
+      await waitFor(() => {
+        expect(screen.getByText(/b\.png: Server error/)).toBeInTheDocument();
+      });
+
+      consoleError.mockRestore();
+    });
+
+    it('rejects all files when one fails validation', async () => {
+      vi.useRealTimers();
+      render(<MarkdownEditor value="" onChange={() => {}} />);
+
+      const fileInput = screen.getByTestId('image-file-input');
+      const files = [
+        new File(['img1'], 'a.jpg', { type: 'image/jpeg' }),
+        new File(['text'], 'bad.txt', { type: 'text/plain' }),
+        new File(['img3'], 'c.png', { type: 'image/png' }),
+      ];
+
+      await act(async () => {
+        fireEvent.change(fileInput, { target: { files } });
+      });
+
+      expect(mockUploadImage).not.toHaveBeenCalled();
+
+      await waitFor(() => {
+        expect(screen.getByText('bad.txt: Supported formats: JPEG, PNG, GIF, WebP only')).toBeInTheDocument();
+      });
+    });
+
+    it('shows progress count for multiple files', async () => {
+      vi.useRealTimers();
+      const resolvers: Array<(value: { url: string; filename: string }) => void> = [];
+      mockUploadImage.mockImplementation(
+        () => new Promise((resolve) => { resolvers.push(resolve); })
+      );
+
+      render(<MarkdownEditor value="" onChange={() => {}} />);
+
+      const fileInput = screen.getByTestId('image-file-input');
+      const files = [
+        new File(['img1'], 'a.jpg', { type: 'image/jpeg' }),
+        new File(['img2'], 'b.png', { type: 'image/png' }),
+      ];
+
+      fireEvent.change(fileInput, { target: { files } });
+
+      // Should show progress with count for multiple files
+      await waitFor(() => {
+        expect(screen.getByText('(Uploading 1/2...)')).toBeInTheDocument();
+      });
+
+      // Complete first upload
+      await act(async () => {
+        resolvers[0]!({ url: '/uploads/a.jpg', filename: 'a.jpg' });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('(Uploading 2/2...)')).toBeInTheDocument();
+      });
+
+      // Complete second upload
+      await act(async () => {
+        resolvers[1]!({ url: '/uploads/b.png', filename: 'b.png' });
+      });
+
+      // Progress disappears
+      await waitFor(() => {
+        expect(screen.queryByText(/Uploading/)).not.toBeInTheDocument();
+      });
+    });
+
+    it('does nothing when no files are selected', async () => {
+      vi.useRealTimers();
+      render(<MarkdownEditor value="" onChange={() => {}} />);
+
+      const fileInput = screen.getByTestId('image-file-input');
+
+      await act(async () => {
+        fireEvent.change(fileInput, { target: { files: [] } });
+      });
+
+      expect(mockUploadImage).not.toHaveBeenCalled();
+    });
+
+    it('has multiple attribute on file input', () => {
+      render(<MarkdownEditor value="" onChange={() => {}} />);
+      const fileInput = screen.getByTestId('image-file-input');
+      expect(fileInput).toHaveAttribute('multiple');
     });
   });
 
