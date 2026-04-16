@@ -10,6 +10,7 @@ import type { Post } from '../api/client'
 // Fixed date for deterministic tests (UTC: 2025-06-15)
 const FIXED_DATE = new Date('2025-06-15T12:00:00Z')
 const EXPECTED_DEFAULT_SLUG = '2025-06-15'
+const EXPECTED_DEFAULT_TITLE = '2025.06.15'
 
 // Mock apiClient
 vi.mock('../api/client', () => ({
@@ -119,9 +120,9 @@ describe('PostEdit', () => {
       expect(screen.getByText('New Post')).toBeInTheDocument()
     })
 
-    it('should render empty form fields', async () => {
+    it('should render form fields with default values', async () => {
       await renderCreateMode()
-      expect(screen.getByLabelText(/Title/)).toHaveValue('')
+      expect(screen.getByLabelText(/Title/)).toHaveValue(EXPECTED_DEFAULT_TITLE)
       expect(screen.getByLabelText(/Slug/)).toHaveValue(EXPECTED_DEFAULT_SLUG)
       // TagInput component has different label association, so only verify label display
       expect(screen.getByText('Tags')).toBeInTheDocument()
@@ -158,6 +159,17 @@ describe('PostEdit', () => {
       vi.mocked(apiClient.getPost).mockReturnValue(new Promise(() => {}))
       await renderEditMode(1)
       expect(screen.getByText('Loading...')).toBeInTheDocument()
+    })
+
+    it('should not apply date defaults to title and slug in edit mode', async () => {
+      vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
+      await renderEditMode(1)
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Title/)).toHaveValue('Draft Post')
+      })
+      // Verify slug is from the post data, not a date default
+      expect(screen.getByLabelText(/Slug/)).toHaveValue('draft-post')
     })
 
     it('should render page title as "Edit Post"', async () => {
@@ -293,6 +305,7 @@ describe('PostEdit', () => {
       await renderCreateMode()
 
       const titleInput = screen.getByLabelText(/Title/)
+      await user.clear(titleInput)
       await user.type(titleInput, 'New Post Title')
 
       expect(titleInput).toHaveValue('New Post Title')
@@ -338,7 +351,9 @@ describe('PostEdit', () => {
       const user = userEvent.setup()
       await renderCreateMode()
 
+      await user.clear(screen.getByLabelText(/Title/))
       await user.type(screen.getByLabelText(/Title/), '   ')
+      await user.clear(screen.getByLabelText(/Slug/))
       await user.type(screen.getByLabelText(/Slug/), '   ')
       await user.click(screen.getByRole('button', { name: 'Save' }))
 
@@ -364,6 +379,7 @@ describe('PostEdit', () => {
 
       await renderCreateMode()
 
+      await user.clear(screen.getByLabelText(/Title/))
       await user.type(screen.getByLabelText(/Title/), 'New Post')
       await user.clear(screen.getByLabelText(/Slug/))
       await user.type(screen.getByLabelText(/Slug/), 'new-post')
@@ -402,6 +418,7 @@ describe('PostEdit', () => {
 
       await renderCreateMode()
 
+      await user.clear(screen.getByLabelText(/Title/))
       await user.type(screen.getByLabelText(/Title/), 'New Post')
       await user.type(screen.getByLabelText(/Slug/), 'duplicate-slug')
       await user.click(screen.getByRole('button', { name: 'Save' }))

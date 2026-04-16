@@ -24,13 +24,18 @@ export function PostEdit() {
   const isEditMode = Boolean(id);
 
   const [post, setPost] = useState<Post | null>(null);
-  const [title, setTitle] = useState('');
-  const [slug, setSlug] = useState(() => {
+  const [defaultTitle, defaultSlug] = (() => {
     if (!isEditMode) {
-      return formatInTimeZone(new Date(), BLOG_TIMEZONE, 'yyyy-MM-dd');
+      const now = new Date();
+      return [
+        formatInTimeZone(now, BLOG_TIMEZONE, 'yyyy.MM.dd'),
+        formatInTimeZone(now, BLOG_TIMEZONE, 'yyyy-MM-dd'),
+      ];
     }
-    return '';
-  });
+    return ['', ''];
+  })();
+  const [title, setTitle] = useState(defaultTitle);
+  const [slug, setSlug] = useState(defaultSlug);
   const [content, setContent] = useState('');
   const [tags, setTags] = useState('');
   const [isPinned, setIsPinned] = useState(false);
