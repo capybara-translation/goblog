@@ -1,4 +1,4 @@
-.PHONY: help run stop test test-v test-cover clean seed reset build install deps install-admin build-admin dev-admin clean-admin adduser build-css
+.PHONY: help run stop test test-v test-cover clean seed reset build deploy install deps install-admin build-admin dev-admin clean-admin adduser build-css
 
 # Default target: show help
 help:
@@ -12,6 +12,7 @@ help:
 	@echo "  make seed         - Insert test data"
 	@echo "  make reset        - Reset database and insert test data (also rebuilds admin SPA)"
 	@echo "  make build        - Build everything for production (install deps, build frontend, build backend)"
+	@echo "  make deploy       - Build and deploy to /opt/goblog (requires sudo)"
 	@echo "  make install      - Install npm dependencies (Tailwind CLI)"
 	@echo "  make install-admin - Install admin SPA npm dependencies"
 	@echo "  make deps         - Download Go dependencies"
@@ -76,6 +77,15 @@ build: install install-admin build-admin build-css
 	go build -o bin/seed cmd/seed/main.go
 	go build -o bin/adduser cmd/adduser/main.go
 	@echo "Build complete: bin/goblog, bin/seed, bin/adduser"
+
+# Build and deploy to /opt/goblog (Linux production server only)
+deploy: build
+	@echo "Deploying to /opt/goblog..."
+	sudo mkdir -p /opt/goblog/bin
+	sudo cp bin/goblog bin/adduser bin/seed /opt/goblog/bin/
+	sudo chown root:root /opt/goblog/bin/goblog /opt/goblog/bin/adduser /opt/goblog/bin/seed
+	sudo systemctl restart goblog
+	@echo "Deploy complete"
 
 # Install npm dependencies (Tailwind CLI for public pages)
 install:

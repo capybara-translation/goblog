@@ -182,7 +182,7 @@ cd goblog
 make build
 
 # バイナリを配置
-sudo mv bin/goblog bin/adduser bin/seed /opt/goblog/bin/
+sudo cp bin/goblog bin/adduser bin/seed /opt/goblog/bin/
 sudo chown root:root /opt/goblog/bin/goblog /opt/goblog/bin/adduser /opt/goblog/bin/seed
 ```
 
