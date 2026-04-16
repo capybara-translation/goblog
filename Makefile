@@ -82,7 +82,7 @@ build: install install-admin build-admin build-css
 deploy: build
 	@echo "Deploying to /opt/goblog..."
 	sudo mkdir -p /opt/goblog/bin
-	sudo cp bin/goblog bin/adduser bin/seed /opt/goblog/bin/
+	sudo mv bin/goblog bin/adduser bin/seed /opt/goblog/bin/
 	sudo chown root:root /opt/goblog/bin/goblog /opt/goblog/bin/adduser /opt/goblog/bin/seed
 	sudo systemctl restart goblog
 	@echo "Deploy complete"

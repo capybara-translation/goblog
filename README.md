@@ -182,7 +182,7 @@ cd goblog
 make build
 
 # Deploy binaries
-sudo cp bin/goblog bin/adduser bin/seed /opt/goblog/bin/
+sudo mv bin/goblog bin/adduser bin/seed /opt/goblog/bin/
 sudo chown root:root /opt/goblog/bin/goblog /opt/goblog/bin/adduser /opt/goblog/bin/seed
 ```
 
