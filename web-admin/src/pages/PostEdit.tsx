@@ -231,6 +231,10 @@ export function PostEdit() {
                 {formatDateTime(post.published_at)}
               </div>
             )}
+            <div>
+              <span className="font-medium">Views:</span>{' '}
+              {post.view_count.toLocaleString()}
+            </div>
           </div>
         </div>
       )}

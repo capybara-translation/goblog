@@ -114,7 +114,7 @@ func TestHandleAdminSPA_ViaRouter(t *testing.T) {
 	// Test via the actual router to ensure routing is set up correctly
 	mockService := &mockPostService{}
 	mockAuthService := &mockAuthService{}
-	router := NewRouterWithTemplates(mockService, mockAuthService, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+	router := NewRouterWithTemplates(mockService, nil, mockAuthService, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 	tests := []struct {
 		name           string

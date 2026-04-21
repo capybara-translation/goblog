@@ -209,6 +209,9 @@ export function PostList() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-primary-700 uppercase tracking-wider">
                   Published
                 </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-primary-700 uppercase tracking-wider">
+                  Views
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-primary-200">
@@ -249,6 +252,9 @@ export function PostList() {
                     title={formatDateDetail(post.published_at)}
                   >
                     {formatDate(post.published_at)}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-primary-600 text-right">
+                    {post.view_count.toLocaleString()}
                   </td>
                 </tr>
               ))}

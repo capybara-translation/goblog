@@ -26,6 +26,7 @@ import (
 // PublicHandlers is a struct that groups handlers for public pages
 type PublicHandlers struct {
 	postService      service.PostService
+	postViewService  service.PostViewService
 	ogpService       service.OGPService
 	mdConverter      markdown.Converter
 	blogTitle        string // Blog title
@@ -239,7 +240,7 @@ func renderMarkdownWithHighlight(content string, query string) template.HTML {
 }
 
 // NewPublicHandlers creates PublicHandlers from embedded templates
-func NewPublicHandlers(postService service.PostService, ogpService service.OGPService, blogTitle, baseURL string, templatesFS embed.FS) *PublicHandlers {
+func NewPublicHandlers(postService service.PostService, postViewService service.PostViewService, ogpService service.OGPService, blogTitle, baseURL string, templatesFS embed.FS) *PublicHandlers {
 	// Create markdown converter with OGP support
 	var converter markdown.Converter
 	if ogpService != nil {
@@ -316,6 +317,7 @@ func NewPublicHandlers(postService service.PostService, ogpService service.OGPSe
 
 	return &PublicHandlers{
 		postService:      postService,
+		postViewService:  postViewService,
 		ogpService:       ogpService,
 		mdConverter:      converter,
 		blogTitle:        blogTitle,
@@ -330,7 +332,7 @@ func NewPublicHandlers(postService service.PostService, ogpService service.OGPSe
 }
 
 // NewPublicHandlersFromPath creates PublicHandlers by loading templates from the filesystem (for testing)
-func NewPublicHandlersFromPath(postService service.PostService, blogTitle, baseURL, templatePattern string) *PublicHandlers {
+func NewPublicHandlersFromPath(postService service.PostService, postViewService service.PostViewService, blogTitle, baseURL, templatePattern string) *PublicHandlers {
 	dir := filepath.Dir(templatePattern)
 	layoutPath := filepath.Join(dir, "layout.html")
 
@@ -356,6 +358,7 @@ func NewPublicHandlersFromPath(postService service.PostService, blogTitle, baseU
 
 	return &PublicHandlers{
 		postService:      postService,
+		postViewService:  postViewService,
 		blogTitle:        blogTitle,
 		baseURL:          baseURL,
 		homeTemplate:     homeTemplate,
@@ -498,6 +501,18 @@ func (h *PublicHandlers) HandlePostDetail(w http.ResponseWriter, r *http.Request
 	if post == nil {
 		h.renderNotFound(w, r)
 		return
+	}
+
+	// Record view asynchronously
+	if h.postViewService != nil {
+		ip := extractIP(r.RemoteAddr)
+		ua := r.UserAgent()
+		postID := post.ID
+		go func() {
+			if err := h.postViewService.RecordView(postID, ip, ua); err != nil {
+				log.Printf("failed to record view for post %d: %v", postID, err)
+			}
+		}()
 	}
 
 	data := map[string]any{

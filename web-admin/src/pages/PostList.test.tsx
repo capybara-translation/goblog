@@ -26,6 +26,7 @@ describe('PostList', () => {
       created_at: '2024-01-01T00:00:00Z',
       updated_at: '2024-01-05T00:00:00Z',
       published_at: '2024-01-02T00:00:00Z',
+      view_count: 0,
     },
     {
       id: 2,
@@ -38,6 +39,7 @@ describe('PostList', () => {
       created_at: '2024-01-03T00:00:00Z',
       updated_at: '2024-01-06T00:00:00Z',
       published_at: null,
+      view_count: 0,
     },
     {
       id: 3,
@@ -50,6 +52,7 @@ describe('PostList', () => {
       created_at: '2024-01-04T00:00:00Z',
       updated_at: '2024-01-07T00:00:00Z',
       published_at: '2024-01-05T00:00:00Z',
+      view_count: 0,
     },
   ]
 
@@ -264,6 +267,7 @@ describe('PostList', () => {
           created_at: '2024-01-01T00:00:00Z',
           updated_at: '2024-01-01T00:00:00Z',
           published_at: '2024-01-01T00:00:00Z',
+      view_count: 0,
         },
         {
           id: 2,
@@ -276,6 +280,7 @@ describe('PostList', () => {
           created_at: '2024-01-02T00:00:00Z',
           updated_at: '2024-01-02T00:00:00Z',
           published_at: '2024-01-02T00:00:00Z',
+      view_count: 0,
         },
       ]
 
@@ -302,6 +307,7 @@ describe('PostList', () => {
           created_at: '2024-01-01T00:00:00Z',
           updated_at: '2024-01-01T00:00:00Z',
           published_at: '2024-01-01T00:00:00Z',
+      view_count: 0,
         },
         {
           id: 2,
@@ -314,6 +320,7 @@ describe('PostList', () => {
           created_at: '2024-01-02T00:00:00Z',
           updated_at: '2024-01-02T00:00:00Z',
           published_at: '2024-01-02T00:00:00Z',
+      view_count: 0,
         },
       ]
 
@@ -475,6 +482,7 @@ describe('PostList', () => {
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-01T00:00:00Z',
         published_at: '2024-01-01T00:00:00Z',
+      view_count: 0,
       }))
       return { posts, total: count }
     }
@@ -795,6 +803,7 @@ describe('PostList', () => {
           created_at: '2024-01-01T00:00:00Z',
           updated_at: '2024-01-01T00:00:00Z',
           published_at: '2024-01-01T00:00:00Z',
+      view_count: 0,
         }))
         return { posts, total: count }
       }
@@ -923,6 +932,7 @@ describe('PostList', () => {
           created_at: '2024-12-25T15:30:00Z',
           updated_at: '2024-12-25T15:30:00Z',
           published_at: '2024-12-25T15:30:00Z',
+      view_count: 0,
         },
       ]
 

@@ -34,11 +34,11 @@ func (n noDirListingFS) Open(name string) (http.File, error) {
 }
 
 // NewRouter creates the application router using embedded resources
-func NewRouter(postService service.PostService, authService service.AuthService, ogpService service.OGPService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, uploadDir string, maxUploadSize int64, templatesFS, staticFS embed.FS) *mux.Router {
+func NewRouter(postService service.PostService, postViewService service.PostViewService, authService service.AuthService, ogpService service.OGPService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, uploadDir string, maxUploadSize int64, templatesFS, staticFS embed.FS) *mux.Router {
 	r := mux.NewRouter()
 
 	// Initialize public page handlers (using embedded templates)
-	publicHandlers := NewPublicHandlers(postService, ogpService, blogTitle, baseURL, templatesFS)
+	publicHandlers := NewPublicHandlers(postService, postViewService, ogpService, blogTitle, baseURL, templatesFS)
 
 	// Display custom 404 page for non-existent routes
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -46,7 +46,7 @@ func NewRouter(postService service.PostService, authService service.AuthService,
 	})
 
 	// Initialize admin API handlers
-	apiHandlers := NewAPIHandlers(postService)
+	apiHandlers := NewAPIHandlers(postService, postViewService)
 
 	// Initialize auth handlers
 	authHandlers := NewAuthHandlers(authService, secureCookie, trustedProxies)
@@ -114,11 +114,11 @@ func NewRouter(postService service.PostService, authService service.AuthService,
 }
 
 // NewRouterWithTemplates creates a router with specified template path (for testing)
-func NewRouterWithTemplates(postService service.PostService, authService service.AuthService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, templatePattern string, uploadDir string, maxUploadSize int64) *mux.Router {
+func NewRouterWithTemplates(postService service.PostService, postViewService service.PostViewService, authService service.AuthService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, templatePattern string, uploadDir string, maxUploadSize int64) *mux.Router {
 	r := mux.NewRouter()
 
 	// Initialize public page handlers (loading templates from filesystem)
-	publicHandlers := NewPublicHandlersFromPath(postService, blogTitle, baseURL, templatePattern)
+	publicHandlers := NewPublicHandlersFromPath(postService, postViewService, blogTitle, baseURL, templatePattern)
 
 	// Display custom 404 page for non-existent routes
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -126,7 +126,7 @@ func NewRouterWithTemplates(postService service.PostService, authService service
 	})
 
 	// Initialize admin API handlers
-	apiHandlers := NewAPIHandlers(postService)
+	apiHandlers := NewAPIHandlers(postService, postViewService)
 
 	// Initialize auth handlers
 	authHandlers := NewAuthHandlers(authService, secureCookie, trustedProxies)

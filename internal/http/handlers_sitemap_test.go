@@ -48,7 +48,7 @@ func TestHandleSitemap(t *testing.T) {
 		},
 	}
 
-	router := NewRouterWithTemplates(mockService, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+	router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 	t.Run("sitemap.xml is generated correctly", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/sitemap.xml", nil)
@@ -148,7 +148,7 @@ func TestHandleSitemap(t *testing.T) {
 			},
 		}
 
-		router := NewRouterWithTemplates(emptyMockService, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+		router := NewRouterWithTemplates(emptyMockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 		req := httptest.NewRequest(http.MethodGet, "/sitemap.xml", nil)
 		w := httptest.NewRecorder()

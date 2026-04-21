@@ -22,6 +22,7 @@ vi.mock('../api/client', () => ({
     unpublishPost: vi.fn(),
     deletePost: vi.fn(),
     getTags: vi.fn(),
+    previewMarkdown: vi.fn().mockResolvedValue(''),
   },
 }))
 
@@ -47,6 +48,7 @@ describe('PostEdit', () => {
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     published_at: null,
+    view_count: 0,
   }
 
   const mockPublishedPost: Post = {
@@ -60,6 +62,7 @@ describe('PostEdit', () => {
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     published_at: '2024-01-01T10:00:00Z',
+    view_count: 42,
   }
 
   beforeEach(() => {

@@ -18,13 +18,15 @@ import (
 
 // APIHandlers is a struct that groups handlers for admin panel API
 type APIHandlers struct {
-	postService service.PostService
+	postService     service.PostService
+	postViewService service.PostViewService
 }
 
 // NewAPIHandlers creates a new APIHandlers
-func NewAPIHandlers(postService service.PostService) *APIHandlers {
+func NewAPIHandlers(postService service.PostService, postViewService service.PostViewService) *APIHandlers {
 	return &APIHandlers{
-		postService: postService,
+		postService:     postService,
+		postViewService: postViewService,
 	}
 }
 
@@ -187,6 +189,13 @@ func (h *APIHandlers) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
 		posts = []*domain.Post{}
 	}
 
+	// Attach view counts
+	if h.postViewService != nil {
+		if err := h.postViewService.AttachViewCounts(posts); err != nil {
+			log.Printf("failed to attach view counts: %v", err)
+		}
+	}
+
 	writeJSON(w, http.StatusOK, PostsResponse{
 		Posts: posts,
 		Total: total,
@@ -215,6 +224,16 @@ func (h *APIHandlers) HandleGetPost(w http.ResponseWriter, r *http.Request) {
 	if post == nil {
 		writeError(w, http.StatusNotFound, "Post not found")
 		return
+	}
+
+	// Attach view count
+	if h.postViewService != nil {
+		count, err := h.postViewService.GetViewCount(post.ID)
+		if err != nil {
+			log.Printf("failed to get view count: %v", err)
+		} else {
+			post.ViewCount = count
+		}
 	}
 
 	writeJSON(w, http.StatusOK, post)

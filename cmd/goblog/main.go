@@ -35,7 +35,7 @@ func main() {
 	defer database.Close()
 
 	// Run migrations (from embedded files)
-	if err := db.RunMigrations(database, goblog.Migrations, "migrations/001_create_posts.sql", "migrations/002_create_users.sql", "migrations/003_add_is_pinned.sql", "migrations/004_create_ogp_cache.sql", "migrations/005_add_ogp_local_image.sql"); err != nil {
+	if err := db.RunMigrations(database, goblog.Migrations, "migrations/001_create_posts.sql", "migrations/002_create_users.sql", "migrations/003_add_is_pinned.sql", "migrations/004_create_ogp_cache.sql", "migrations/005_add_ogp_local_image.sql", "migrations/006_add_post_views.sql"); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
@@ -43,6 +43,7 @@ func main() {
 
 	// Initialize repository layer
 	postRepo := repo.NewPostRepository(database)
+	postViewRepo := repo.NewPostViewRepository(database)
 	userRepo := repo.NewUserRepository(database)
 	ogpRepo := repo.NewOGPRepository(database)
 
@@ -51,6 +52,7 @@ func main() {
 
 	// Initialize service layer
 	postService := service.NewPostService(postRepo)
+	postViewService := service.NewPostViewService(postViewRepo)
 	authService := service.NewAuthService(userRepo, sessionStore, cfg.PasswordPolicy)
 
 	// Initialize OGP service for link cards
@@ -63,7 +65,7 @@ func main() {
 	}
 
 	// Initialize router (using embedded resources)
-	r := gobloghttp.NewRouter(postService, authService, ogpService, cfg.SecureCookie, cfg.TrustedProxies, cfg.BlogTitle, cfg.BaseURL, cfg.UploadDir, cfg.MaxUploadSize, goblog.Templates, goblog.StaticFiles)
+	r := gobloghttp.NewRouter(postService, postViewService, authService, ogpService, cfg.SecureCookie, cfg.TrustedProxies, cfg.BlogTitle, cfg.BaseURL, cfg.UploadDir, cfg.MaxUploadSize, goblog.Templates, goblog.StaticFiles)
 
 	// Start server
 	port := ":" + cfg.Port

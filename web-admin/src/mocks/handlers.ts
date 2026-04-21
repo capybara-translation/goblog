@@ -21,6 +21,7 @@ interface Post {
   created_at: string;
   updated_at: string;
   published_at: string | null;
+  view_count: number;
 }
 
 interface Tag {
@@ -67,6 +68,7 @@ let mockPosts: Post[] = [
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     published_at: '2024-01-01T10:00:00Z',
+    view_count: 42,
   },
   {
     id: 2,
@@ -79,6 +81,7 @@ let mockPosts: Post[] = [
     created_at: '2024-01-02T00:00:00Z',
     updated_at: '2024-01-02T00:00:00Z',
     published_at: null,
+    view_count: 0,
   },
   {
     id: 3,
@@ -91,6 +94,7 @@ let mockPosts: Post[] = [
     created_at: '2024-01-03T00:00:00Z',
     updated_at: '2024-01-03T00:00:00Z',
     published_at: '2024-01-03T12:00:00Z',
+    view_count: 157,
   },
 ];
 
@@ -195,6 +199,7 @@ export const handlers = [
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       published_at: null,
+      view_count: 0,
     };
 
     mockPosts.push(newPost);
