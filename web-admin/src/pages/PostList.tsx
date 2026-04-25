@@ -125,7 +125,7 @@ export function PostList() {
                 onCompositionStart={handleCompositionStart}
                 onCompositionEnd={handleCompositionEnd}
                 placeholder="Search by title or content..."
-                className="flex-1 px-3 py-2 border border-primary-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                className="flex-1 min-w-0 px-3 py-2 border border-primary-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               />
               {searchQuery && (
                 <button
@@ -187,9 +187,9 @@ export function PostList() {
             : 'No posts found'}
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <table className="min-w-full divide-y divide-primary-200">
-            <thead className="bg-primary-50">
+        <div className="sm:bg-white sm:rounded-lg sm:shadow-sm sm:overflow-x-auto max-sm:overflow-x-hidden">
+          <table className="min-w-full max-sm:block sm:divide-y sm:divide-primary-200">
+            <thead className="bg-primary-50 max-sm:hidden">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-primary-700 uppercase tracking-wider">
                   Title
@@ -214,46 +214,58 @@ export function PostList() {
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-primary-200">
+            <tbody className="bg-white sm:divide-y sm:divide-primary-200 max-sm:block max-sm:bg-transparent max-sm:space-y-3">
               {posts.map((post) => (
                 <tr
                   key={post.id}
-                  className="hover:bg-primary-50 transition-colors"
+                  className="sm:hover:bg-primary-50 transition-colors max-sm:block max-sm:bg-white max-sm:rounded-lg max-sm:shadow-sm max-sm:p-4 max-sm:space-y-2"
                 >
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 max-sm:p-0 max-sm:block">
                     <Link
                       to={`/posts/${post.id}/edit`}
-                      className="text-primary-900 hover:text-primary-700 font-medium"
+                      className="text-primary-900 hover:text-primary-700 font-medium max-sm:text-base max-sm:font-semibold max-sm:break-words"
                     >
                       {post.title}
                     </Link>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 max-sm:p-0 max-sm:block">
                     <StatusBadge status={post.status} />
                   </td>
-                  <td className="px-6 py-4 text-center">
+                  <td
+                    aria-label={post.is_pinned ? 'Pinned' : undefined}
+                    className={
+                      post.is_pinned
+                        ? 'px-6 py-4 text-center max-sm:p-0 max-sm:block max-sm:text-left'
+                        : 'px-6 py-4 text-center max-sm:hidden'
+                    }
+                  >
                     {post.is_pinned && (
                       <span title="Pinned posts appear in the header">
                         📌
                       </span>
                     )}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 max-sm:p-0 max-sm:block">
                     <TagList tags={post.tags} />
                   </td>
                   <td
-                    className="px-6 py-4 text-sm text-primary-600"
+                    aria-label={`Updated: ${formatDate(post.updated_at)}`}
+                    className="px-6 py-4 text-sm text-primary-600 max-sm:p-0 max-sm:block max-sm:before:content-['Updated_'] max-sm:before:uppercase max-sm:before:text-xs max-sm:before:text-primary-500 max-sm:before:font-medium max-sm:before:mr-2"
                     title={formatDateDetail(post.updated_at)}
                   >
                     {formatDate(post.updated_at)}
                   </td>
                   <td
-                    className="px-6 py-4 text-sm text-primary-600"
+                    aria-label={post.published_at ? `Published: ${formatDate(post.published_at)}` : 'Not published'}
+                    className="px-6 py-4 text-sm text-primary-600 max-sm:p-0 max-sm:block max-sm:before:content-['Published_'] max-sm:before:uppercase max-sm:before:text-xs max-sm:before:text-primary-500 max-sm:before:font-medium max-sm:before:mr-2"
                     title={formatDateDetail(post.published_at)}
                   >
                     {formatDate(post.published_at)}
                   </td>
-                  <td className="px-6 py-4 text-sm text-primary-600 text-right">
+                  <td
+                    aria-label={`Views: ${post.view_count.toLocaleString()}`}
+                    className="px-6 py-4 text-sm text-primary-600 text-right max-sm:p-0 max-sm:block max-sm:text-left max-sm:before:content-['Views_'] max-sm:before:uppercase max-sm:before:text-xs max-sm:before:text-primary-500 max-sm:before:font-medium max-sm:before:mr-2"
+                  >
                     {post.view_count.toLocaleString()}
                   </td>
                 </tr>

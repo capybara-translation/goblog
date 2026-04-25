@@ -19,35 +19,32 @@ export function Header() {
   return (
     <header className="bg-white border-b border-primary-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          {/* Left side - App title and navigation */}
-          <div className="flex items-center gap-8">
-            <a
-              href="/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xl font-sans font-bold text-primary-900 hover:text-primary-700 transition-colors"
-            >
-              {BLOG_TITLE}
-            </a>
-            <nav className="flex gap-4">
-              <Link
-                to="/posts"
-                className="text-sm font-medium text-primary-700 hover:text-primary-900 transition-colors"
-              >
-                Posts
-              </Link>
-              <Link
-                to="/posts/new"
-                className="text-sm font-medium text-primary-700 hover:text-primary-900 transition-colors"
-              >
-                New Post
-              </Link>
-            </nav>
-          </div>
+        <div className="flex flex-wrap items-center gap-x-4 sm:gap-x-8 gap-y-2 py-3 sm:py-0 sm:h-16 sm:flex-nowrap">
+          <a
+            href="/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xl font-sans font-bold text-primary-900 hover:text-primary-700 transition-colors order-1 truncate min-w-0"
+          >
+            {BLOG_TITLE}
+          </a>
 
-          {/* Right side - User info and logout */}
-          <div className="flex items-center gap-4">
+          <nav className="flex gap-4 basis-full sm:basis-auto order-3 sm:order-2">
+            <Link
+              to="/posts"
+              className="text-sm font-medium text-primary-700 hover:text-primary-900 transition-colors"
+            >
+              Posts
+            </Link>
+            <Link
+              to="/posts/new"
+              className="text-sm font-medium text-primary-700 hover:text-primary-900 transition-colors"
+            >
+              New Post
+            </Link>
+          </nav>
+
+          <div className="flex items-center gap-2 sm:gap-4 ml-auto order-2 sm:order-3 shrink-0">
             <span className="text-sm text-primary-600">{user?.username}</span>
             <button
               onClick={handleLogout}

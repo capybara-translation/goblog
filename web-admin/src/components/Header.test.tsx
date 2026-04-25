@@ -88,6 +88,30 @@ describe('Header', () => {
       const newPostLink = screen.getByText('New Post').closest('a')
       expect(newPostLink).toHaveAttribute('href', '/posts/new')
     })
+
+    it('should have keyboard tab order matching desktop visual order (Brand -> Posts -> New Post -> Logout)', async () => {
+      const user = userEvent.setup()
+      renderHeader()
+
+      const titleLink = screen.getAllByRole('link').find(
+        (el) => el.getAttribute('target') === '_blank'
+      )
+      const postsLink = screen.getByText('Posts').closest('a')
+      const newPostLink = screen.getByText('New Post').closest('a')
+      const logoutButton = screen.getByRole('button', { name: 'Logout' })
+
+      await user.tab()
+      expect(titleLink).toHaveFocus()
+
+      await user.tab()
+      expect(postsLink).toHaveFocus()
+
+      await user.tab()
+      expect(newPostLink).toHaveFocus()
+
+      await user.tab()
+      expect(logoutButton).toHaveFocus()
+    })
   })
 
   describe('Logout functionality', () => {
