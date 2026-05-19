@@ -2255,3 +2255,73 @@ func TestPinnedPostsInHeader(t *testing.T) {
 		})
 	}
 }
+
+func TestLayout_SearchFormInHeader(t *testing.T) {
+	tests := []struct {
+		name         string
+		url          string
+		containsText []string
+		notContains  []string
+	}{
+		{
+			name: "search form is present in the header on the home page",
+			url:  "/",
+			containsText: []string{
+				`<form action="/" method="GET"`,
+				`name="q"`,
+				`placeholder="Search posts..."`,
+			},
+			notContains: []string{
+				`<a href="/posts"`, // legacy nav link should be gone
+			},
+		},
+		{
+			name: "search form pre-fills with the current query",
+			url:  "/?q=Go",
+			containsText: []string{
+				`value="Go"`,
+				`<form action="/" method="GET"`,
+			},
+		},
+		{
+			name: "search form appears on the tags page too (global header)",
+			url:  "/tags",
+			containsText: []string{
+				`<form action="/" method="GET"`,
+				`name="q"`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := &mockPostService{
+				getPublishedPostsFunc: func(limit, offset int) ([]*domain.Post, error) {
+					return []*domain.Post{}, nil
+				},
+				getPublishedTagsFunc: func() (map[string]int, error) {
+					return map[string]int{}, nil
+				},
+			}
+			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("expected status 200, got %d", w.Code)
+			}
+			body := w.Body.String()
+			for _, text := range tt.containsText {
+				if !strings.Contains(body, text) {
+					t.Errorf("expected body to contain %q", text)
+				}
+			}
+			for _, text := range tt.notContains {
+				if strings.Contains(body, text) {
+					t.Errorf("expected body NOT to contain %q", text)
+				}
+			}
+		})
+	}
+}
