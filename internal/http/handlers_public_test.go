@@ -218,7 +218,7 @@ func TestHandleHome(t *testing.T) {
 				}, nil
 			},
 			expectedStatus: http.StatusOK,
-			containsText:   []string{"Go intro", "Search results for"},
+			containsText:   []string{"/posts/go-intro", "Search results for"},
 		},
 		{
 			name: "search with no matches shows search-aware empty message",

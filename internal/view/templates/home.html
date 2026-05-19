@@ -17,7 +17,7 @@
         <article class="bg-primary-100 rounded-lg shadow-sm p-5">
             {{if .Title}}
             <h2 class="text-lg font-sans font-semibold mb-2">
-                <a href="/posts/{{.Slug}}" class="text-primary-800 hover:text-primary-600 transition-colors">{{.Title}}</a>
+                <a href="/posts/{{.Slug}}" class="text-primary-800 hover:text-primary-600 transition-colors">{{if $.Query}}{{highlightQuery .Title $.Query}}{{else}}{{.Title}}{{end}}</a>
             </h2>
             {{end}}
             <div class="markdown-content text-primary-700 leading-relaxed">
