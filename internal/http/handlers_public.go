@@ -396,19 +396,53 @@ func (h *PublicHandlers) renderNotFound(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-// HandleHome displays the home page
+// HandleHome displays the home page (posts list, page 1 by default)
 func (h *PublicHandlers) HandleHome(w http.ResponseWriter, r *http.Request) {
-	// Get the 5 most recent posts
-	posts, err := h.postService.GetPublishedPosts(5, 0)
+	pageStr := r.URL.Query().Get("page")
+	queryStr := r.URL.Query().Get("q")
+	page := 1
+	if pageStr != "" {
+		if parsed, err := strconv.Atoi(pageStr); err == nil && parsed > 0 {
+			page = parsed
+		}
+	}
+
+	const maxQueryLength = 200
+	if len(queryStr) > maxQueryLength {
+		http.Error(w, "Search query too long", http.StatusBadRequest)
+		return
+	}
+
+	const perPage = 20
+	offset := (page - 1) * perPage
+
+	var posts []*domain.Post
+	var err error
+	if queryStr != "" {
+		posts, err = h.postService.SearchPublishedPosts(queryStr, perPage+1, offset)
+	} else {
+		posts, err = h.postService.GetPublishedPosts(perPage+1, offset)
+	}
 	if err != nil {
 		log.Printf("failed to get published posts: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
+	hasNext := len(posts) > perPage
+	if hasNext {
+		posts = posts[:perPage]
+	}
+
 	data := map[string]any{
 		"SiteTitle":   h.blogTitle,
 		"Posts":       posts,
+		"CurrentPage": page,
+		"HasPrev":     page > 1,
+		"HasNext":     hasNext,
+		"PrevPage":    page - 1,
+		"NextPage":    page + 1,
+		"Query":       queryStr,
 		"PinnedPosts": h.getPinnedPosts(),
 		"OGP":         h.defaultOGP(h.blogTitle, r.URL.Path, h.blogTitle),
 	}
