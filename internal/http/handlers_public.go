@@ -386,6 +386,7 @@ func (h *PublicHandlers) renderNotFound(w http.ResponseWriter, r *http.Request) 
 		"SiteTitle":   h.blogTitle,
 		"PinnedPosts": h.getPinnedPosts(),
 		"OGP":         h.defaultOGP("Not Found - "+h.blogTitle, r.URL.Path, h.blogTitle),
+		"Query":       "",
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -554,6 +555,7 @@ func (h *PublicHandlers) HandlePostDetail(w http.ResponseWriter, r *http.Request
 		"Post":        post,
 		"PinnedPosts": h.getPinnedPosts(),
 		"OGP":         h.postOGP(post, r.URL.Path),
+		"Query":       "",
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -604,6 +606,7 @@ func (h *PublicHandlers) HandleTags(w http.ResponseWriter, r *http.Request) {
 		"Tags":        tags,
 		"PinnedPosts": h.getPinnedPosts(),
 		"OGP":         h.defaultOGP("Tags - "+h.blogTitle, r.URL.Path, "Tags from "+h.blogTitle),
+		"Query":       "",
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -668,6 +671,7 @@ func (h *PublicHandlers) HandleTagPosts(w http.ResponseWriter, r *http.Request) 
 		"NextPage":    page + 1,
 		"PinnedPosts": h.getPinnedPosts(),
 		"OGP":         h.defaultOGP(tag+" - "+h.blogTitle, r.URL.Path, "Posts tagged with "+tag),
+		"Query":       "",
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
