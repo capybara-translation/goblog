@@ -455,69 +455,13 @@ func (h *PublicHandlers) HandleHome(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// HandlePosts displays the posts list page
+// HandlePosts redirects /posts (with any query) to / (page 1 of the home posts list)
 func (h *PublicHandlers) HandlePosts(w http.ResponseWriter, r *http.Request) {
-	// Get page and q from query parameters
-	pageStr := r.URL.Query().Get("page")
-	queryStr := r.URL.Query().Get("q")
-	page := 1
-	if pageStr != "" {
-		if parsed, err := strconv.Atoi(pageStr); err == nil && parsed > 0 {
-			page = parsed
-		}
+	target := "/"
+	if raw := r.URL.RawQuery; raw != "" {
+		target = "/?" + raw
 	}
-
-	// Search query length limit
-	const maxQueryLength = 200
-	if len(queryStr) > maxQueryLength {
-		http.Error(w, "Search query too long", http.StatusBadRequest)
-		return
-	}
-
-	// Number of posts per page
-	const perPage = 20
-	offset := (page - 1) * perPage
-
-	var posts []*domain.Post
-	var err error
-
-	// Fetch perPage+1 items to determine if there is a next page
-	if queryStr != "" {
-		// Search mode
-		posts, err = h.postService.SearchPublishedPosts(queryStr, perPage+1, offset)
-	} else {
-		posts, err = h.postService.GetPublishedPosts(perPage+1, offset)
-	}
-	if err != nil {
-		log.Printf("failed to get published posts: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	// Determine if there is a next page
-	hasNext := len(posts) > perPage
-	if hasNext {
-		posts = posts[:perPage] // Trim to perPage items for display
-	}
-
-	data := map[string]any{
-		"SiteTitle":   h.blogTitle,
-		"Posts":       posts,
-		"CurrentPage": page,
-		"HasPrev":     page > 1,
-		"HasNext":     hasNext,
-		"PrevPage":    page - 1,
-		"NextPage":    page + 1,
-		"Query":       queryStr,
-		"PinnedPosts": h.getPinnedPosts(),
-		"OGP":         h.defaultOGP("Posts - "+h.blogTitle, r.URL.Path, "Posts from "+h.blogTitle),
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := h.postsTemplate.ExecuteTemplate(w, "posts", data); err != nil {
-		log.Printf("failed to execute template: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-	}
+	http.Redirect(w, r, target, http.StatusMovedPermanently)
 }
 
 // HandlePostDetail displays the post detail page

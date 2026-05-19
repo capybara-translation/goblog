@@ -2325,3 +2325,66 @@ func TestLayout_SearchFormInHeader(t *testing.T) {
 		})
 	}
 }
+
+func TestPostsRedirectsToHome(t *testing.T) {
+	tests := []struct {
+		name         string
+		url          string
+		wantStatus   int
+		wantLocation string
+	}{
+		{"bare /posts redirects to /", "/posts", http.StatusMovedPermanently, "/"},
+		{"/posts?page=2 preserves page", "/posts?page=2", http.StatusMovedPermanently, "/?page=2"},
+		{"/posts?q=foo preserves query", "/posts?q=foo", http.StatusMovedPermanently, "/?q=foo"},
+		{"/posts?q=foo&page=3 preserves both", "/posts?q=foo&page=3", http.StatusMovedPermanently, "/?q=foo&page=3"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := &mockPostService{}
+			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			if w.Code != tt.wantStatus {
+				t.Errorf("expected status %d, got %d", tt.wantStatus, w.Code)
+			}
+			got := w.Header().Get("Location")
+			if got != tt.wantLocation {
+				t.Errorf("expected Location %q, got %q", tt.wantLocation, got)
+			}
+		})
+	}
+}
+
+func TestPostDetailNotAffectedByRedirect(t *testing.T) {
+	// /posts/{slug} must still be served as a post detail, not redirected.
+	publishedAt := time.Now()
+	mockService := &mockPostService{
+		getPostBySlugFunc: func(slug string) (*domain.Post, error) {
+			if slug != "live-post" {
+				t.Errorf("unexpected slug: %q", slug)
+			}
+			return &domain.Post{
+				ID:          1,
+				Title:       "Live Post",
+				Slug:        "live-post",
+				Status:      domain.PostStatusPublished,
+				Content:     "body",
+				PublishedAt: &publishedAt,
+			}, nil
+		},
+	}
+	router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+	req := httptest.NewRequest(http.MethodGet, "/posts/live-post", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 OK for /posts/{slug}, got %d", w.Code)
+	}
+	if loc := w.Header().Get("Location"); loc != "" {
+		t.Errorf("expected no Location header, got %q", loc)
+	}
+}
