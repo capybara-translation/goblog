@@ -46,7 +46,6 @@ func (h *PublicHandlers) HandleSitemap(w http.ResponseWriter, r *http.Request) {
 	// 3. Build URL list
 	urls := []SitemapURL{
 		{Loc: h.baseURL + "/", ChangeFreq: "weekly", Priority: 1.0},
-		{Loc: h.baseURL + "/posts", ChangeFreq: "daily", Priority: 0.8},
 		{Loc: h.baseURL + "/tags", ChangeFreq: "weekly", Priority: 0.6},
 	}
 

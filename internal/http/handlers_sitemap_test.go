@@ -81,9 +81,6 @@ func TestHandleSitemap(t *testing.T) {
 		if !strings.Contains(body, testBaseURL+"/") {
 			t.Error("expected root URL")
 		}
-		if !strings.Contains(body, testBaseURL+"/posts") {
-			t.Error("expected posts URL")
-		}
 		if !strings.Contains(body, testBaseURL+"/tags") {
 			t.Error("expected tags URL")
 		}
@@ -119,9 +116,6 @@ func TestHandleSitemap(t *testing.T) {
 		if !strings.Contains(body, "<changefreq>weekly</changefreq>") {
 			t.Error("expected changefreq weekly")
 		}
-		if !strings.Contains(body, "<changefreq>daily</changefreq>") {
-			t.Error("expected changefreq daily")
-		}
 		if !strings.Contains(body, "<changefreq>monthly</changefreq>") {
 			t.Error("expected changefreq monthly")
 		}
@@ -130,11 +124,13 @@ func TestHandleSitemap(t *testing.T) {
 		if !strings.Contains(body, "<priority>1</priority>") {
 			t.Error("expected priority 1")
 		}
-		if !strings.Contains(body, "<priority>0.8</priority>") {
-			t.Error("expected priority 0.8")
-		}
 		if !strings.Contains(body, "<priority>0.7</priority>") {
 			t.Error("expected priority 0.7")
+		}
+
+		// /posts is no longer in the sitemap (it 301-redirects to /)
+		if strings.Contains(body, "<loc>"+testBaseURL+"/posts</loc>") {
+			t.Errorf("sitemap should not list /posts (now a redirect), but it did. Body: %s", body)
 		}
 	})
 
@@ -164,9 +160,6 @@ func TestHandleSitemap(t *testing.T) {
 		// Static URLs are included
 		if !strings.Contains(body, testBaseURL+"/") {
 			t.Error("expected root URL even with no posts")
-		}
-		if !strings.Contains(body, testBaseURL+"/posts") {
-			t.Error("expected posts URL even with no posts")
 		}
 		if !strings.Contains(body, testBaseURL+"/tags") {
 			t.Error("expected tags URL even with no posts")
