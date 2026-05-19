@@ -32,7 +32,6 @@ type PublicHandlers struct {
 	blogTitle        string // Blog title
 	baseURL          string // Site base URL (for sitemap)
 	homeTemplate     *template.Template
-	postsTemplate    *template.Template
 	postTemplate     *template.Template
 	tagsTemplate     *template.Template
 	tagPostsTemplate *template.Template
@@ -309,7 +308,6 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 
 	// Create independent template sets for each page
 	homeTemplate := parseTemplates("layout.html", "home.html")
-	postsTemplate := parseTemplates("layout.html", "posts.html")
 	postTemplate := parseTemplates("layout.html", "post.html")
 	tagsTemplate := parseTemplates("layout.html", "tags.html")
 	tagPostsTemplate := parseTemplates("layout.html", "tag_posts.html")
@@ -323,7 +321,6 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 		blogTitle:        blogTitle,
 		baseURL:          baseURL,
 		homeTemplate:     homeTemplate,
-		postsTemplate:    postsTemplate,
 		postTemplate:     postTemplate,
 		tagsTemplate:     tagsTemplate,
 		tagPostsTemplate: tagPostsTemplate,
@@ -350,7 +347,6 @@ func NewPublicHandlersFromPath(postService service.PostService, postViewService 
 
 	// Create independent template sets for each page
 	homeTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "home.html")))
-	postsTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "posts.html")))
 	postTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "post.html")))
 	tagsTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "tags.html")))
 	tagPostsTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "tag_posts.html")))
@@ -362,7 +358,6 @@ func NewPublicHandlersFromPath(postService service.PostService, postViewService 
 		blogTitle:        blogTitle,
 		baseURL:          baseURL,
 		homeTemplate:     homeTemplate,
-		postsTemplate:    postsTemplate,
 		postTemplate:     postTemplate,
 		tagsTemplate:     tagsTemplate,
 		tagPostsTemplate: tagPostsTemplate,
