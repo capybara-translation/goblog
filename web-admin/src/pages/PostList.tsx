@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { formatInTimeZone } from 'date-fns-tz';
 import { apiClient, Post } from '../api/client';
 import { StatusBadge } from '../components/StatusBadge';
@@ -8,64 +8,178 @@ import { TagList } from '../components/TagList';
 const POSTS_PER_PAGE = 20;
 const BLOG_TIMEZONE = import.meta.env.VITE_BLOG_TIMEZONE || 'UTC';
 
+type StatusFilter = 'all' | 'draft' | 'published';
+
+function parseStatus(raw: string | null): StatusFilter {
+  return raw === 'draft' || raw === 'published' ? raw : 'all';
+}
+
+function parsePage(raw: string | null): number {
+  const n = raw == null ? NaN : parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
 export function PostList() {
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // URL-derived state (single source of truth for filters/page)
+  const debouncedQuery = searchParams.get('q') ?? '';
+  const statusFilter = parseStatus(searchParams.get('status'));
+  const currentPage = parsePage(searchParams.get('page'));
+
   const [posts, setPosts] = useState<Post[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'published'>('all');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
+
+  // Local input state for the controlled search box. Kept separate from the
+  // URL-bound debouncedQuery so typing stays smooth and IME composition can
+  // suspend the URL sync without freezing the input.
+  const [searchInput, setSearchInput] = useState(debouncedQuery);
   const [isComposing, setIsComposing] = useState(false);
 
+  // Mutate the URL while preserving unrelated params. Empty values are dropped
+  // so the canonical URL omits defaults (no `?q=`, `?page=1`, `?status=all`).
+  // User-initiated calls push onto history so the browser back button steps
+  // through distinct filter states; programmatic corrections (e.g. clamping
+  // an out-of-range page) pass `replace: true` to avoid back-button traps.
+  const updateParams = useCallback(
+    (patch: Record<string, string | null>, options?: { replace?: boolean }) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          for (const [key, value] of Object.entries(patch)) {
+            if (value == null || value === '') {
+              next.delete(key);
+            } else {
+              next.set(key, value);
+            }
+          }
+          return next;
+        },
+        { replace: options?.replace },
+      );
+    },
+    [setSearchParams],
+  );
 
-  // Debounce search query (does not trigger during IME composition)
+  // Canonicalize the URL: drop or normalize params that don't match their
+  // canonical form (defaults, empty values, unparseable values). Uses replace
+  // so back doesn't bounce to the non-canonical form. Settles in one rewrite
+  // because the canonical state has nothing left to fix on the next pass.
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    let changed = false;
+
+    if (next.has('q') && next.get('q') === '') {
+      next.delete('q');
+      changed = true;
+    }
+
+    if (next.has('status') && parseStatus(next.get('status')) === 'all') {
+      next.delete('status');
+      changed = true;
+    }
+
+    if (next.has('page')) {
+      const raw = next.get('page')!;
+      const parsed = parsePage(raw);
+      if (parsed === 1) {
+        next.delete('page');
+        changed = true;
+      } else if (raw !== String(parsed)) {
+        next.set('page', String(parsed));
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  // Resync the local input when the URL changes externally (back/forward).
+  useEffect(() => {
+    setSearchInput(debouncedQuery);
+  }, [debouncedQuery]);
+
+  // Debounced search → URL. The debounce coalesces a burst of keystrokes
+  // into one history entry; intentional pauses (>300ms) create separate
+  // entries the user can step through with browser back.
   useEffect(() => {
     if (isComposing) return;
+    if (searchInput === debouncedQuery) return;
 
     const timer = setTimeout(() => {
-      setDebouncedQuery(searchQuery);
-      setCurrentPage(1);
+      updateParams({ q: searchInput, page: null });
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery, isComposing]);
+  }, [searchInput, isComposing, debouncedQuery, updateParams]);
 
-  const loadPosts = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError('');
-      const offset = (currentPage - 1) * POSTS_PER_PAGE;
-      const data = await apiClient.getPosts({
-        status: statusFilter === 'all' ? undefined : statusFilter,
-        q: debouncedQuery || undefined,
-        limit: POSTS_PER_PAGE,
-        offset,
-      });
-      setPosts(data.posts);
-      setTotalCount(data.total);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load posts');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [currentPage, statusFilter, debouncedQuery]);
-
+  // Fetch posts whenever the URL-derived filters change. A cancelled flag in
+  // the cleanup discards stale responses so a slow fetch cannot overwrite the
+  // result of a newer one (e.g. when back/forward triggers rapid changes).
   useEffect(() => {
-    loadPosts();
-  }, [loadPosts]);
+    let cancelled = false;
 
-  // Reset to page 1 when status filter changes
-  const handleStatusChange = (newStatus: 'all' | 'draft' | 'published') => {
-    setStatusFilter(newStatus);
-    setCurrentPage(1);
+    (async () => {
+      try {
+        setIsLoading(true);
+        setError('');
+        const offset = (currentPage - 1) * POSTS_PER_PAGE;
+        const data = await apiClient.getPosts({
+          status: statusFilter === 'all' ? undefined : statusFilter,
+          q: debouncedQuery || undefined,
+          limit: POSTS_PER_PAGE,
+          offset,
+        });
+        if (cancelled) return;
+
+        // If the requested page is past the end (URL was edited or stale)
+        // normalize back to page 1. Use replace so back from the corrected
+        // URL does not bounce the user straight back to the bad page (which
+        // would normalize again, trapping the back button). Skip toggling
+        // isLoading off so the re-running effect owns the loading state.
+        if (data.posts.length === 0 && currentPage > 1) {
+          updateParams({ page: null }, { replace: true });
+          return;
+        }
+
+        setPosts(data.posts);
+        setTotalCount(data.total);
+        setIsLoading(false);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : 'Failed to load posts');
+        setIsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentPage, statusFilter, debouncedQuery, updateParams]);
+
+  // Explicit user actions push onto history.
+  const handleStatusChange = (newStatus: StatusFilter) => {
+    updateParams({
+      status: newStatus === 'all' ? null : newStatus,
+      page: null,
+    });
   };
 
-  // Clear search
   const handleClearSearch = () => {
-    setSearchQuery('');
-    setDebouncedQuery('');
-    setCurrentPage(1);
+    setSearchInput('');
+    updateParams({ q: null, page: null });
+  };
+
+  const handlePrevPage = () => {
+    const prev = Math.max(1, currentPage - 1);
+    updateParams({ page: prev === 1 ? null : String(prev) });
+  };
+
+  const handleNextPage = () => {
+    updateParams({ page: String(currentPage + 1) });
   };
 
   // IME composition handlers
@@ -119,15 +233,15 @@ export function PostList() {
               <input
                 id="search-input"
                 type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 autoCapitalize="none"
                 onCompositionStart={handleCompositionStart}
                 onCompositionEnd={handleCompositionEnd}
                 placeholder="Search by title or content..."
                 className="flex-1 min-w-0 px-3 py-2 border border-primary-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               />
-              {searchQuery && (
+              {searchInput && (
                 <button
                   onClick={handleClearSearch}
                   className="px-3 py-2 text-primary-600 border border-primary-300 rounded-md hover:bg-primary-50 transition-colors"
@@ -150,9 +264,7 @@ export function PostList() {
             <select
               id="status-filter"
               value={statusFilter}
-              onChange={(e) =>
-                handleStatusChange(e.target.value as 'all' | 'draft' | 'published')
-              }
+              onChange={(e) => handleStatusChange(e.target.value as StatusFilter)}
               className="w-full px-3 py-2 border border-primary-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             >
               <option value="all">All</option>
@@ -279,7 +391,7 @@ export function PostList() {
       {totalPages > 1 && (
         <div className="flex justify-center gap-2">
           <button
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            onClick={handlePrevPage}
             disabled={currentPage === 1}
             className="px-4 py-2 border border-primary-300 rounded-md text-sm font-medium text-primary-700 hover:bg-primary-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
@@ -289,7 +401,7 @@ export function PostList() {
             {currentPage} / {totalPages}
           </span>
           <button
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            onClick={handleNextPage}
             disabled={currentPage === totalPages}
             className="px-4 py-2 border border-primary-300 rounded-md text-sm font-medium text-primary-700 hover:bg-primary-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >

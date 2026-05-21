@@ -1,10 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation, useNavigationType } from 'react-router-dom'
 import { PostList } from './PostList'
 import { apiClient } from '../api/client'
 import type { Post, PostsResponse } from '../api/client'
+
+// Helper that exposes the current router location and navigation type so
+// URL-sync tests can assert both the resulting URL and whether the last
+// transition pushed or replaced.
+function LocationProbe() {
+  const location = useLocation()
+  const navType = useNavigationType()
+  return (
+    <>
+      <div data-testid="location">
+        {location.pathname}
+        {location.search}
+      </div>
+      <div data-testid="nav-type">{navType}</div>
+    </>
+  )
+}
 
 // Mock apiClient
 vi.mock('../api/client', () => ({
@@ -956,6 +973,294 @@ describe('PostList', () => {
         })
         expect(hasDateWithTimezoneInTitle).toBe(true)
       })
+    })
+  })
+
+  describe('URL synchronization', () => {
+    const renderWithLocation = (initialEntries: string[] = ['/']) =>
+      render(
+        <MemoryRouter initialEntries={initialEntries}>
+          <PostList />
+          <LocationProbe />
+        </MemoryRouter>,
+      )
+
+    it('initializes state from URL search params', async () => {
+      vi.mocked(apiClient.getPosts).mockResolvedValue({
+        posts: mockPosts,
+        total: 100,
+      })
+      renderWithLocation(['/?q=foo&status=draft&page=3'])
+
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenCalledWith({
+          status: 'draft',
+          q: 'foo',
+          limit: 20,
+          offset: 40,
+        })
+      })
+
+      const searchInput = screen.getByLabelText('Search') as HTMLInputElement
+      expect(searchInput.value).toBe('foo')
+
+      const statusSelect = screen.getByLabelText('Status') as HTMLSelectElement
+      expect(statusSelect.value).toBe('draft')
+
+      expect(screen.getByText('3 / 5')).toBeInTheDocument()
+    })
+
+    it('ignores invalid page/status query params and falls back to defaults', async () => {
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
+      renderWithLocation(['/?page=abc&status=bogus'])
+
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenCalledWith({
+          status: undefined,
+          q: undefined,
+          limit: 20,
+          offset: 0,
+        })
+      })
+
+      const statusSelect = screen.getByLabelText('Status') as HTMLSelectElement
+      expect(statusSelect.value).toBe('all')
+    })
+
+    it('updates URL when status filter changes (no defaults persisted)', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
+      renderWithLocation()
+
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenCalled()
+      })
+
+      const statusSelect = screen.getByLabelText('Status') as HTMLSelectElement
+      await user.selectOptions(statusSelect, 'draft')
+
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe('/?status=draft')
+      })
+
+      // Switching back to "all" should drop the param entirely.
+      await user.selectOptions(statusSelect, 'all')
+
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe('/')
+      })
+    })
+
+    it('updates URL when Next/Prev are clicked', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getPosts).mockResolvedValue({
+        posts: mockPosts,
+        total: 60,
+      })
+      renderWithLocation()
+
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenCalled()
+      })
+
+      await user.click(screen.getByText('Next'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe('/?page=2')
+      })
+
+      await user.click(screen.getByText('Prev'))
+
+      // Page 1 is the default, so the param is removed instead of set to "1".
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe('/')
+      })
+    })
+
+    it('writes q to the URL after the search input debounces', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
+      renderWithLocation()
+
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenCalled()
+      })
+
+      const searchInput = screen.getByLabelText('Search')
+      await user.type(searchInput, 'react')
+
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('location').textContent).toBe('/?q=react')
+        },
+        { timeout: 1500 },
+      )
+    })
+
+    it('clearing the search drops both q and page from the URL', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
+      renderWithLocation(['/?q=foo&page=2'])
+
+      const clearButton = await screen.findByTitle('Clear search')
+      await user.click(clearButton)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe('/')
+      })
+    })
+
+    it('changing the status filter resets the page in the URL', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getPosts).mockResolvedValue({
+        posts: mockPosts,
+        total: 60,
+      })
+      renderWithLocation(['/?page=3'])
+
+      const statusSelect = await screen.findByLabelText('Status') as HTMLSelectElement
+      await user.selectOptions(statusSelect, 'published')
+
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe('/?status=published')
+      })
+    })
+
+    it.each([
+      ['/?page=0', 'zero'],
+      ['/?page=-3', 'negative'],
+      ['/?page=', 'empty'],
+      ['/?page=abc', 'non-numeric'],
+      ['/?page=1.9', 'decimal'],
+    ])('invalid page param %s (%s) falls back to page 1', async (url) => {
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
+      renderWithLocation([url])
+
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenCalledWith({
+          status: undefined,
+          q: undefined,
+          limit: 20,
+          offset: 0,
+        })
+      })
+    })
+
+    it('normalizes the URL when the requested page is past the end (via replace, no back-button trap)', async () => {
+      // First fetch (page=999) returns empty; the component should rewrite
+      // the URL to drop ?page= and re-fetch page 1.
+      vi.mocked(apiClient.getPosts)
+        .mockResolvedValueOnce({ posts: [], total: 5 })
+        .mockResolvedValue(mockResponse)
+      renderWithLocation(['/?page=999'])
+
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe('/')
+      })
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenCalledWith({
+          status: undefined,
+          q: undefined,
+          limit: 20,
+          offset: 0,
+        })
+      })
+
+      // Replace, not push: if this normalization pushed, pressing Back would
+      // return to ?page=999, which would normalize again, trapping the user.
+      expect(screen.getByTestId('nav-type').textContent).toBe('REPLACE')
+    })
+
+    it('does not update the URL while IME composition is active', async () => {
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
+      renderWithLocation()
+
+      // Initial fetch is async via microtasks; settle it with real timers
+      // before switching to fake timers so that waitFor can poll.
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenCalled()
+      })
+
+      // Fake timers from here on so debounce timing is deterministic.
+      vi.useFakeTimers()
+      try {
+        const searchInput = screen.getByLabelText('Search')
+
+        fireEvent.compositionStart(searchInput)
+        fireEvent.change(searchInput, { target: { value: 'こんにちは' } })
+
+        // Advance well past the 300ms debounce; URL must remain unchanged.
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(500)
+        })
+        expect(screen.getByTestId('location').textContent).toBe('/')
+
+        fireEvent.compositionEnd(searchInput)
+
+        // After compositionend the effect re-schedules the debounce timer.
+        // Run it to completion and let React flush the resulting state update.
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(500)
+        })
+        expect(screen.getByTestId('location').textContent).toContain('q=')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('Clear keeps the status filter intact in the URL', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
+      renderWithLocation(['/?status=draft&q=foo'])
+
+      const clearButton = await screen.findByTitle('Clear search')
+      await user.click(clearButton)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe('/?status=draft')
+      })
+    })
+
+    it.each([
+      ['/?page=1', '/', 'explicit default page'],
+      ['/?status=all', '/', 'explicit default status'],
+      ['/?q=', '/', 'empty query'],
+      ['/?page=abc', '/', 'unparseable page'],
+      ['/?page=1.9', '/', 'decimal page that truncates to 1'],
+      ['/?page=02', '/?page=2', 'page with leading zero'],
+      ['/?page=2.5', '/?page=2', 'decimal page that truncates to >1'],
+      ['/?page=2&status=all&q=', '/?page=2', 'mixed defaults alongside a kept param'],
+    ])('canonicalizes %s to %s (%s)', async (initialUrl, expectedUrl) => {
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
+      renderWithLocation([initialUrl])
+
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe(expectedUrl)
+      })
+
+      // Canonicalization uses replace so back doesn't bounce to the
+      // non-canonical form.
+      expect(screen.getByTestId('nav-type').textContent).toBe('REPLACE')
+    })
+
+    it.each([
+      '/?page=2',
+      '/?status=draft',
+      '/?q=foo',
+      '/?page=3&status=published&q=react',
+    ])('leaves already-canonical URL %s untouched', async (url) => {
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
+      renderWithLocation([url])
+
+      // Wait long enough that any pending canon rewrite would have shown up.
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenCalled()
+      })
+
+      expect(screen.getByTestId('location').textContent).toBe(url)
+      // Initial mount navigation type is POP, not REPLACE — confirms no
+      // rewrite happened.
+      expect(screen.getByTestId('nav-type').textContent).toBe('POP')
     })
   })
 })
