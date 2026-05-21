@@ -188,6 +188,10 @@ func (m *mockAuthServiceForPublic) CreateUser(username, password string) (*domai
 	return nil, nil
 }
 
+func (m *mockAuthServiceForPublic) SessionTTL() time.Duration {
+	return 24 * time.Hour
+}
+
 var _ service.AuthService = (*mockAuthServiceForPublic)(nil)
 
 // validAdminAuthService returns a mock that recognizes the literal session id

@@ -209,6 +209,10 @@ func (m *mockAuthServiceForAPI) CreateUser(username, password string) (*domain.U
 	return nil, nil
 }
 
+func (m *mockAuthServiceForAPI) SessionTTL() time.Duration {
+	return 24 * time.Hour
+}
+
 var _ service.AuthService = (*mockAuthServiceForAPI)(nil)
 
 // createTestAuthService creates an authentication service for testing.

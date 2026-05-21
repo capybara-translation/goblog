@@ -18,6 +18,7 @@ type mockAuthService struct {
 	logoutFunc           func(sessionID string) error
 	getUserBySessionFunc func(sessionID string) (*domain.User, error)
 	createUserFunc       func(username, password string) (*domain.User, error)
+	sessionTTL           time.Duration
 }
 
 func (m *mockAuthService) Login(username, password, ipAddress string) (string, error) {
@@ -46,6 +47,13 @@ func (m *mockAuthService) CreateUser(username, password string) (*domain.User, e
 		return m.createUserFunc(username, password)
 	}
 	return nil, nil
+}
+
+func (m *mockAuthService) SessionTTL() time.Duration {
+	if m.sessionTTL > 0 {
+		return m.sessionTTL
+	}
+	return 24 * time.Hour
 }
 
 var _ service.AuthService = (*mockAuthService)(nil)
@@ -135,6 +143,56 @@ func TestHandleLogin_Success(t *testing.T) {
 
 	if sessionCookie.SameSite != http.SameSiteLaxMode {
 		t.Errorf("expected SameSite=Lax, got %v", sessionCookie.SameSite)
+	}
+}
+
+func TestHandleLogin_CookieMaxAgeMatchesSessionTTL(t *testing.T) {
+	tests := []struct {
+		name       string
+		ttl        time.Duration
+		wantMaxAge int
+	}{
+		{"default 24h", 24 * time.Hour, 24 * 60 * 60},
+		{"short 30 minutes", 30 * time.Minute, 30 * 60},
+		{"long 7 days", 7 * 24 * time.Hour, 7 * 24 * 60 * 60},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := &mockAuthService{
+				loginFunc: func(username, password, ipAddress string) (string, error) {
+					return "test-session-id", nil
+				},
+				getUserBySessionFunc: func(sessionID string) (*domain.User, error) {
+					return &domain.User{ID: 1, Username: "u"}, nil
+				},
+				sessionTTL: tt.ttl,
+			}
+			handlers := NewAuthHandlers(mockService, false, nil)
+
+			reqBody := LoginRequest{Username: "u", Password: "p"}
+			body, _ := json.Marshal(reqBody)
+			req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+
+			handlers.HandleLogin(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("expected status 200, got %d", rec.Code)
+			}
+
+			cookies := rec.Result().Cookies()
+			for _, c := range cookies {
+				if c.Name != sessionCookieName && c.Name != csrfCookieName {
+					continue
+				}
+				if c.MaxAge != tt.wantMaxAge {
+					t.Errorf("%s cookie MaxAge = %d, want %d (SessionTTL=%v)",
+						c.Name, c.MaxAge, tt.wantMaxAge, tt.ttl)
+				}
+			}
+		})
 	}
 }
 

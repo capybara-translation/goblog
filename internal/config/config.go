@@ -4,6 +4,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // PasswordPolicy represents the type of password policy
@@ -39,6 +40,9 @@ type Config struct {
 
 	// Pagination settings
 	PostsPerPage int // Number of posts per page on the home and tag listings
+
+	// Session settings
+	SessionTTL time.Duration // How long an authenticated session remains valid
 }
 
 // Default maximum upload size (5MB)
@@ -48,6 +52,12 @@ const DefaultMaxUploadSize int64 = 5 * 1024 * 1024
 const (
 	DefaultPostsPerPage = 20
 	MaxPostsPerPage     = 100
+)
+
+// Session defaults and bounds
+const (
+	DefaultSessionTTL = 24 * time.Hour
+	MinSessionTTL     = time.Minute // Below this the value is almost certainly a mistake
 )
 
 // Load loads configuration from environment variables
@@ -71,7 +81,27 @@ func Load() *Config {
 		UploadDir:      getEnv("UPLOAD_DIR", "data/uploads"),
 		MaxUploadSize:  getEnvAsInt64("MAX_UPLOAD_SIZE", DefaultMaxUploadSize),
 		PostsPerPage:   getEnvAsIntInRange("POSTS_PER_PAGE", DefaultPostsPerPage, 1, MaxPostsPerPage),
+		SessionTTL:     getEnvAsDurationAtLeast("SESSION_TTL", DefaultSessionTTL, MinSessionTTL),
 	}
+}
+
+// getEnvAsDurationAtLeast retrieves an env var as a time.Duration parsed with
+// time.ParseDuration. Falls back to defaultValue when unset, unparseable, or
+// below the minimum (which guards against typos like "1" — interpreted as 1ns
+// — or "0").
+func getEnvAsDurationAtLeast(key string, defaultValue, minDuration time.Duration) time.Duration {
+	valStr := os.Getenv(key)
+	if valStr == "" {
+		return defaultValue
+	}
+	d, err := time.ParseDuration(valStr)
+	if err != nil {
+		return defaultValue
+	}
+	if d < minDuration {
+		return defaultValue
+	}
+	return d
 }
 
 // getEnvAsIntInRange retrieves an env var as int, falling back to defaultValue

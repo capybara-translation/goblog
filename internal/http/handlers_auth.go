@@ -131,6 +131,11 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Cookie MaxAge mirrors the server-side session TTL so the cookie and
+	// the session expire together. Reading via the service avoids two
+	// independent "24h" constants drifting apart.
+	cookieMaxAge := int(h.authService.SessionTTL().Seconds())
+
 	// Set session ID in cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
@@ -138,8 +143,8 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		Path:     sessionCookiePath,
 		HttpOnly: true,                 // Not accessible from JavaScript
 		SameSite: http.SameSiteLaxMode, // CSRF protection
-		MaxAge:   24 * 60 * 60,         // 24 hours
-		Secure:   h.secureCookie,       // Requires HTTPS (true in production)
+		MaxAge:   cookieMaxAge,
+		Secure:   h.secureCookie, // Requires HTTPS (true in production)
 	})
 
 	// Generate CSRF token and set in cookie
@@ -156,8 +161,8 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		Path:     sessionCookiePath,
 		HttpOnly: false,                // Accessible from JavaScript (for Double Submit Cookie method)
 		SameSite: http.SameSiteLaxMode, // CSRF protection
-		MaxAge:   24 * 60 * 60,         // 24 hours
-		Secure:   h.secureCookie,       // Requires HTTPS (true in production)
+		MaxAge:   cookieMaxAge,
+		Secure:   h.secureCookie, // Requires HTTPS (true in production)
 	})
 
 	// Return user information (PasswordHash is excluded via json:"-")

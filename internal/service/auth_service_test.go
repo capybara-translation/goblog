@@ -122,7 +122,7 @@ func TestAuthService_Login(t *testing.T) {
 		},
 	}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone, 24*time.Hour)
 
 	// Login with correct password
 	sessionID, err := authService.Login("testuser", "password123", "127.0.0.1")
@@ -150,7 +150,7 @@ func TestAuthService_Login_InvalidUsername(t *testing.T) {
 		},
 	}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone, 24*time.Hour)
 
 	// Login with non-existent username
 	sessionID, err := authService.Login("nonexistent", "password123", "127.0.0.1")
@@ -187,7 +187,7 @@ func TestAuthService_Login_InvalidPassword(t *testing.T) {
 		},
 	}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone, 24*time.Hour)
 
 	// Login with wrong password
 	sessionID, err := authService.Login("testuser", "wrongpassword", "127.0.0.1")
@@ -211,7 +211,7 @@ func TestAuthService_Logout(t *testing.T) {
 		},
 	}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone, 24*time.Hour)
 
 	err := authService.Logout("test-session-id")
 	if err != nil {
@@ -248,7 +248,7 @@ func TestAuthService_GetUserBySession_Success(t *testing.T) {
 		},
 	}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone, 24*time.Hour)
 
 	user, err := authService.GetUserBySession("valid-session")
 	if err != nil {
@@ -277,7 +277,7 @@ func TestAuthService_GetUserBySession_NotFound(t *testing.T) {
 		},
 	}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone, 24*time.Hour)
 
 	user, err := authService.GetUserBySession("nonexistent-session-id")
 	if err != nil {
@@ -306,7 +306,7 @@ func TestAuthService_GetUserBySession_UserNotFoundInDB(t *testing.T) {
 		},
 	}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone, 24*time.Hour)
 
 	user, err := authService.GetUserBySession("valid-session")
 	if err == nil {
@@ -340,7 +340,7 @@ func TestAuthService_CreateUser(t *testing.T) {
 
 	mockSessionStore := &mockSessionStore{}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone, 24*time.Hour)
 
 	user, err := authService.CreateUser("newuser", "password123")
 	if err != nil {
@@ -402,7 +402,7 @@ func TestAuthService_CreateUser_DuplicateUsername(t *testing.T) {
 
 	mockSessionStore := &mockSessionStore{}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone, 24*time.Hour)
 
 	_, err := authService.CreateUser("duplicate", "password123")
 	if !errors.Is(err, ErrUsernameAlreadyExists) {
@@ -430,7 +430,7 @@ func TestAuthService_CreateUser_PasswordHashing(t *testing.T) {
 
 	mockSessionStore := &mockSessionStore{}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone, 24*time.Hour)
 
 	// Create two users with the same password
 	_, err := authService.CreateUser("user1", "samepassword")
@@ -473,7 +473,7 @@ func TestAuthService_PasswordPolicy_None(t *testing.T) {
 
 	mockSessionStore := &mockSessionStore{}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone, 24*time.Hour)
 
 	// With NONE policy, short passwords are OK
 	tests := []struct {
@@ -509,7 +509,7 @@ func TestAuthService_PasswordPolicy_Strong_Valid(t *testing.T) {
 
 	mockSessionStore := &mockSessionStore{}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyStrong)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyStrong, 24*time.Hour)
 
 	// Passwords that meet STRONG policy requirements
 	validPasswords := []string{
@@ -543,7 +543,7 @@ func TestAuthService_PasswordPolicy_Strong_Invalid(t *testing.T) {
 
 	mockSessionStore := &mockSessionStore{}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyStrong)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyStrong, 24*time.Hour)
 
 	tests := []struct {
 		name     string
@@ -598,7 +598,7 @@ func TestAuthService_BruteForce_MultipleFailures(t *testing.T) {
 		},
 	}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone, 24*time.Hour)
 
 	ipAddress := "192.168.1.100"
 
@@ -660,7 +660,7 @@ func TestAuthService_BruteForce_SuccessResetsCounter(t *testing.T) {
 		},
 	}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone, 24*time.Hour)
 
 	ipAddress := "192.168.1.101"
 
@@ -719,7 +719,7 @@ func TestAuthService_BruteForce_DifferentIPsIndependent(t *testing.T) {
 		},
 	}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone, 24*time.Hour)
 
 	// Fail 3 times from IP1 (triggers delay state)
 	ip1 := "192.168.1.100"
@@ -771,7 +771,7 @@ func TestAuthService_BruteForce_EmptyIPAddress(t *testing.T) {
 		},
 	}
 
-	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone)
+	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone, 24*time.Hour)
 
 	// When IP address is empty, brute force protection is disabled
 	// No delay no matter how many failures
