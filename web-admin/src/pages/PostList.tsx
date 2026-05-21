@@ -97,7 +97,8 @@ export function PostList() {
         if (cancelled) return;
 
         // If the requested page is past the end (URL was edited or stale)
-        // normalize back to page 1. The URL change re-runs this effect.
+        // normalize back to page 1. Skip toggling isLoading off so the
+        // re-running effect owns the loading state and we avoid a flash.
         if (data.posts.length === 0 && currentPage > 1) {
           updateParams({ page: null });
           return;
@@ -105,13 +106,11 @@ export function PostList() {
 
         setPosts(data.posts);
         setTotalCount(data.total);
+        setIsLoading(false);
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : 'Failed to load posts');
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
+        setIsLoading(false);
       }
     })();
 
