@@ -1,10 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { PostList } from './PostList'
 import { apiClient } from '../api/client'
 import type { Post, PostsResponse } from '../api/client'
+
+// Helper that exposes the current router location for URL-sync assertions.
+function LocationProbe() {
+  const location = useLocation()
+  return (
+    <div data-testid="location">
+      {location.pathname}
+      {location.search}
+    </div>
+  )
+}
 
 // Mock apiClient
 vi.mock('../api/client', () => ({
@@ -955,6 +966,157 @@ describe('PostList', () => {
           return /\d{4}-\d{2}-\d{2} \d{2}:\d{2} \([A-Z+\-\d:]+\)/.test(title)
         })
         expect(hasDateWithTimezoneInTitle).toBe(true)
+      })
+    })
+  })
+
+  describe('URL synchronization', () => {
+    const renderWithLocation = (initialEntries: string[] = ['/']) =>
+      render(
+        <MemoryRouter initialEntries={initialEntries}>
+          <PostList />
+          <LocationProbe />
+        </MemoryRouter>,
+      )
+
+    it('initializes state from URL search params', async () => {
+      vi.mocked(apiClient.getPosts).mockResolvedValue({
+        posts: mockPosts,
+        total: 100,
+      })
+      renderWithLocation(['/?q=foo&status=draft&page=3'])
+
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenCalledWith({
+          status: 'draft',
+          q: 'foo',
+          limit: 20,
+          offset: 40,
+        })
+      })
+
+      const searchInput = screen.getByLabelText('Search') as HTMLInputElement
+      expect(searchInput.value).toBe('foo')
+
+      const statusSelect = screen.getByLabelText('Status') as HTMLSelectElement
+      expect(statusSelect.value).toBe('draft')
+
+      expect(screen.getByText('3 / 5')).toBeInTheDocument()
+    })
+
+    it('ignores invalid page/status query params and falls back to defaults', async () => {
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
+      renderWithLocation(['/?page=abc&status=bogus'])
+
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenCalledWith({
+          status: undefined,
+          q: undefined,
+          limit: 20,
+          offset: 0,
+        })
+      })
+
+      const statusSelect = screen.getByLabelText('Status') as HTMLSelectElement
+      expect(statusSelect.value).toBe('all')
+    })
+
+    it('updates URL when status filter changes (no defaults persisted)', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
+      renderWithLocation()
+
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenCalled()
+      })
+
+      const statusSelect = screen.getByLabelText('Status') as HTMLSelectElement
+      await user.selectOptions(statusSelect, 'draft')
+
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe('/?status=draft')
+      })
+
+      // Switching back to "all" should drop the param entirely.
+      await user.selectOptions(statusSelect, 'all')
+
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe('/')
+      })
+    })
+
+    it('updates URL when Next/Prev are clicked', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getPosts).mockResolvedValue({
+        posts: mockPosts,
+        total: 60,
+      })
+      renderWithLocation()
+
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenCalled()
+      })
+
+      await user.click(screen.getByText('Next'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe('/?page=2')
+      })
+
+      await user.click(screen.getByText('Prev'))
+
+      // Page 1 is the default, so the param is removed instead of set to "1".
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe('/')
+      })
+    })
+
+    it('writes q to the URL after the search input debounces', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
+      renderWithLocation()
+
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenCalled()
+      })
+
+      const searchInput = screen.getByLabelText('Search')
+      await user.type(searchInput, 'react')
+
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('location').textContent).toBe('/?q=react')
+        },
+        { timeout: 1500 },
+      )
+    })
+
+    it('clearing the search drops both q and page from the URL', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
+      renderWithLocation(['/?q=foo&page=2'])
+
+      const clearButton = await screen.findByTitle('Clear search')
+      await user.click(clearButton)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe('/')
+      })
+    })
+
+    it('changing the status filter resets the page in the URL', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getPosts).mockResolvedValue({
+        posts: mockPosts,
+        total: 60,
+      })
+      renderWithLocation(['/?page=3'])
+
+      const statusSelect = await screen.findByLabelText('Status') as HTMLSelectElement
+      await user.selectOptions(statusSelect, 'published')
+
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe('/?status=published')
       })
     })
   })
