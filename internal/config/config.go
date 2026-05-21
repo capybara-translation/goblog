@@ -87,8 +87,14 @@ func Load() *Config {
 
 // getEnvAsDurationAtLeast retrieves an env var as a time.Duration parsed with
 // time.ParseDuration. Falls back to defaultValue when unset, unparseable, or
-// below the minimum (which guards against typos like "1" — interpreted as 1ns
-// — or "0").
+// below the minimum.
+//
+// Two distinct fallback paths matter:
+//   - time.ParseDuration requires a unit suffix, so unit-less values such as
+//     "1" or "24" return an error and take the unparseable path.
+//   - Parseable but very small durations (e.g. "500ms", "30s") are caught by
+//     the minimum check, which exists as a sanity floor against typos that
+//     would otherwise lock the admin out almost immediately.
 func getEnvAsDurationAtLeast(key string, defaultValue, minDuration time.Duration) time.Duration {
 	valStr := os.Getenv(key)
 	if valStr == "" {
