@@ -63,6 +63,41 @@ export function PostList() {
     [setSearchParams],
   );
 
+  // Canonicalize the URL: drop or normalize params that don't match their
+  // canonical form (defaults, empty values, unparseable values). Uses replace
+  // so back doesn't bounce to the non-canonical form. Settles in one rewrite
+  // because the canonical state has nothing left to fix on the next pass.
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    let changed = false;
+
+    if (next.has('q') && next.get('q') === '') {
+      next.delete('q');
+      changed = true;
+    }
+
+    if (next.has('status') && parseStatus(next.get('status')) === 'all') {
+      next.delete('status');
+      changed = true;
+    }
+
+    if (next.has('page')) {
+      const raw = next.get('page')!;
+      const parsed = parsePage(raw);
+      if (parsed === 1) {
+        next.delete('page');
+        changed = true;
+      } else if (raw !== String(parsed)) {
+        next.set('page', String(parsed));
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
   // Resync the local input when the URL changes externally (back/forward).
   useEffect(() => {
     setSearchInput(debouncedQuery);

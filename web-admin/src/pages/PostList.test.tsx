@@ -1220,5 +1220,47 @@ describe('PostList', () => {
         expect(screen.getByTestId('location').textContent).toBe('/?status=draft')
       })
     })
+
+    it.each([
+      ['/?page=1', '/', 'explicit default page'],
+      ['/?status=all', '/', 'explicit default status'],
+      ['/?q=', '/', 'empty query'],
+      ['/?page=abc', '/', 'unparseable page'],
+      ['/?page=1.9', '/', 'decimal page that truncates to 1'],
+      ['/?page=02', '/?page=2', 'page with leading zero'],
+      ['/?page=2.5', '/?page=2', 'decimal page that truncates to >1'],
+      ['/?page=2&status=all&q=', '/?page=2', 'mixed defaults alongside a kept param'],
+    ])('canonicalizes %s to %s (%s)', async (initialUrl, expectedUrl) => {
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
+      renderWithLocation([initialUrl])
+
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe(expectedUrl)
+      })
+
+      // Canonicalization uses replace so back doesn't bounce to the
+      // non-canonical form.
+      expect(screen.getByTestId('nav-type').textContent).toBe('REPLACE')
+    })
+
+    it.each([
+      '/?page=2',
+      '/?status=draft',
+      '/?q=foo',
+      '/?page=3&status=published&q=react',
+    ])('leaves already-canonical URL %s untouched', async (url) => {
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
+      renderWithLocation([url])
+
+      // Wait long enough that any pending canon rewrite would have shown up.
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenCalled()
+      })
+
+      expect(screen.getByTestId('location').textContent).toBe(url)
+      // Initial mount navigation type is POP, not REPLACE — confirms no
+      // rewrite happened.
+      expect(screen.getByTestId('nav-type').textContent).toBe('POP')
+    })
   })
 })
