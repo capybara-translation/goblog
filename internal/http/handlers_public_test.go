@@ -21,6 +21,7 @@ const (
 	testSecureCookie    = false                     // Secure Cookie is disabled in tests
 	testBlogTitle       = "goblog"                  // Blog title for testing
 	testBaseURL         = "http://localhost:8080"   // Base URL for testing
+	testPostsPerPage    = 20                        // Posts per page for testing
 )
 
 // mockPostService is a mock implementation of PostService
@@ -247,7 +248,7 @@ func TestHandleHome(t *testing.T) {
 				getPublishedPostsFunc:    tt.getPublishedPostsFunc,
 				searchPublishedPostsFunc: tt.searchPublishedPostsFunc,
 			}
-			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 
 			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
 			w := httptest.NewRecorder()
@@ -334,7 +335,7 @@ func TestHandleHome_BlogTitle(t *testing.T) {
 			mockService := &mockPostService{
 				getPublishedPostsFunc: tt.mockFunc,
 			}
-			router := NewRouterWithTemplates(mockService, nil, nil, false, nil, tt.blogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+			router := NewRouterWithTemplates(mockService, nil, nil, false, nil, tt.blogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			w := httptest.NewRecorder()
@@ -573,7 +574,7 @@ func TestHandleHome_Pagination(t *testing.T) {
 			mockService := &mockPostService{
 				getPublishedPostsFunc: tt.mockFunc,
 			}
-			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 
 			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
 			w := httptest.NewRecorder()
@@ -606,7 +607,7 @@ func TestHandleHome_Error(t *testing.T) {
 			return nil, fmt.Errorf("database connection error")
 		},
 	}
-	router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+	router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
@@ -707,7 +708,7 @@ func TestHandlePostDetail(t *testing.T) {
 			mockService := &mockPostService{
 				getPostBySlugFunc: tt.mockFunc,
 			}
-			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 
 			req := httptest.NewRequest(http.MethodGet, "/posts/"+tt.slug, nil)
 			w := httptest.NewRecorder()
@@ -819,7 +820,7 @@ func TestHandlePostDetail_BlogTitle(t *testing.T) {
 			mockService := &mockPostService{
 				getPostBySlugFunc: tt.mockFunc,
 			}
-			router := NewRouterWithTemplates(mockService, nil, nil, false, nil, tt.blogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+			router := NewRouterWithTemplates(mockService, nil, nil, false, nil, tt.blogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 
 			req := httptest.NewRequest(http.MethodGet, "/posts/"+tt.slug, nil)
 			w := httptest.NewRecorder()
@@ -977,7 +978,7 @@ func TestHandleTags(t *testing.T) {
 			mockService := &mockPostService{
 				getPublishedTagsFunc: tt.mockFunc,
 			}
-			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 
 			req := httptest.NewRequest(http.MethodGet, "/tags", nil)
 			w := httptest.NewRecorder()
@@ -1082,7 +1083,7 @@ func TestHandleTagPosts(t *testing.T) {
 			mockService := &mockPostService{
 				getPublishedPostsByTagFunc: tt.mockFunc,
 			}
-			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 
 			req := httptest.NewRequest(http.MethodGet, "/tags/"+tt.tag, nil)
 			w := httptest.NewRecorder()
@@ -1192,7 +1193,7 @@ func TestHandleTagPosts_Pagination(t *testing.T) {
 			mockService := &mockPostService{
 				getPublishedPostsByTagFunc: tt.mockFunc,
 			}
-			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 
 			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
 			w := httptest.NewRecorder()
@@ -1480,7 +1481,7 @@ func TestHandleHome_Search(t *testing.T) {
 				searchPublishedPostsFunc: tt.mockSearch,
 				countSearchPublishedFunc: tt.mockCount,
 			}
-			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 
 			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
 			w := httptest.NewRecorder()
@@ -1510,7 +1511,7 @@ func TestHandleHome_Search(t *testing.T) {
 func TestHandleHome_SearchQueryLimit(t *testing.T) {
 	t.Run("Error when search query is too long", func(t *testing.T) {
 		mockService := &mockPostService{}
-		router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+		router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 
 		// 201-character query (limit is 200 characters)
 		longQuery := strings.Repeat("a", 201)
@@ -1533,7 +1534,7 @@ func TestHandleHome_SearchQueryLimit(t *testing.T) {
 				return 0, nil
 			},
 		}
-		router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+		router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 
 		// 200-character query (exactly at the limit)
 		exactQuery := strings.Repeat("a", 200)
@@ -1570,7 +1571,7 @@ func TestFormatDateWithTZ_Integration(t *testing.T) {
 			},
 		}
 
-		router := NewRouterWithTemplates(mockService, nil, nil, false, nil, "Test Blog", testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+		router := NewRouterWithTemplates(mockService, nil, nil, false, nil, "Test Blog", testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
@@ -1611,7 +1612,7 @@ func TestFormatDateWithTZ_Integration(t *testing.T) {
 			},
 		}
 
-		router := NewRouterWithTemplates(mockService, nil, nil, false, nil, "Test Blog", testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+		router := NewRouterWithTemplates(mockService, nil, nil, false, nil, "Test Blog", testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
@@ -1813,7 +1814,7 @@ func TestHandleHome_SearchHighlight(t *testing.T) {
 					return tt.mockSearch("", limit, offset)
 				},
 			}
-			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 
 			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
 			w := httptest.NewRecorder()
@@ -1936,7 +1937,7 @@ func TestCustom404Page(t *testing.T) {
 			mockService := &mockPostService{}
 			tt.setup(mockService)
 
-			router := NewRouterWithTemplates(mockService, nil, nil, false, nil, tt.blogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+			router := NewRouterWithTemplates(mockService, nil, nil, false, nil, tt.blogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 
 			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
 			w := httptest.NewRecorder()
@@ -2023,7 +2024,7 @@ func TestPinnedPostsInHeader(t *testing.T) {
 				},
 			}
 
-			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			w := httptest.NewRecorder()
@@ -2097,7 +2098,7 @@ func TestLayout_SearchFormInHeader(t *testing.T) {
 					return map[string]int{}, nil
 				},
 			}
-			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
@@ -2137,7 +2138,7 @@ func TestPostsRedirectsToHome(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockService := &mockPostService{}
-			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
@@ -2171,7 +2172,7 @@ func TestPostDetailNotAffectedByRedirect(t *testing.T) {
 			}, nil
 		},
 	}
-	router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+	router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 	req := httptest.NewRequest(http.MethodGet, "/posts/live-post", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -2190,7 +2191,7 @@ func TestSearchInput_EscapesQueryValue(t *testing.T) {
 			return []*domain.Post{}, nil
 		},
 	}
-	router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+	router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 
 	req := httptest.NewRequest(http.MethodGet, "/?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E", nil)
 	w := httptest.NewRecorder()
@@ -2228,7 +2229,7 @@ func TestHandleHome_NoIndexForSearchAndDeepPages(t *testing.T) {
 					return []*domain.Post{}, nil
 				},
 			}
-			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
@@ -2244,7 +2245,7 @@ func TestHandleHome_NoIndexForSearchAndDeepPages(t *testing.T) {
 
 func TestNotFound_RendersSearchForm(t *testing.T) {
 	mockService := &mockPostService{}
-	router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+	router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 
 	req := httptest.NewRequest(http.MethodGet, "/this-route-does-not-exist", nil)
 	w := httptest.NewRecorder()
@@ -2260,5 +2261,59 @@ func TestNotFound_RendersSearchForm(t *testing.T) {
 	}
 	if !strings.Contains(body, `name="q"`) {
 		t.Errorf("404 page search form is missing the q input, body: %s", body)
+	}
+}
+
+func TestHandleHome_PostsPerPageIsConfigurable(t *testing.T) {
+	const customPerPage = 5
+
+	var gotLimit, gotOffset int
+	mockService := &mockPostService{
+		getPublishedPostsFunc: func(limit, offset int) ([]*domain.Post, error) {
+			gotLimit = limit
+			gotOffset = offset
+			return []*domain.Post{}, nil
+		},
+	}
+	router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, customPerPage)
+
+	req := httptest.NewRequest(http.MethodGet, "/?page=3", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// hasNext look-ahead: limit should be perPage + 1
+	if gotLimit != customPerPage+1 {
+		t.Errorf("limit = %d, want %d (perPage+1)", gotLimit, customPerPage+1)
+	}
+	// offset for page 3 should be (3-1) * perPage = 10
+	wantOffset := (3 - 1) * customPerPage
+	if gotOffset != wantOffset {
+		t.Errorf("offset = %d, want %d", gotOffset, wantOffset)
+	}
+}
+
+func TestHandleTagPosts_PostsPerPageIsConfigurable(t *testing.T) {
+	const customPerPage = 7
+
+	var gotLimit, gotOffset int
+	mockService := &mockPostService{
+		getPublishedPostsByTagFunc: func(tag string, limit, offset int) ([]*domain.Post, error) {
+			gotLimit = limit
+			gotOffset = offset
+			return []*domain.Post{}, nil
+		},
+	}
+	router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, customPerPage)
+
+	req := httptest.NewRequest(http.MethodGet, "/tags/Go?page=2", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if gotLimit != customPerPage+1 {
+		t.Errorf("limit = %d, want %d (perPage+1)", gotLimit, customPerPage+1)
+	}
+	wantOffset := (2 - 1) * customPerPage
+	if gotOffset != wantOffset {
+		t.Errorf("offset = %d, want %d", gotOffset, wantOffset)
 	}
 }

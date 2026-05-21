@@ -31,6 +31,7 @@ type PublicHandlers struct {
 	mdConverter      markdown.Converter
 	blogTitle        string // Blog title
 	baseURL          string // Site base URL (for sitemap)
+	postsPerPage     int    // Posts per page on listing views
 	homeTemplate     *template.Template
 	postTemplate     *template.Template
 	tagsTemplate     *template.Template
@@ -239,7 +240,7 @@ func renderMarkdownWithHighlight(content string, query string) template.HTML {
 }
 
 // NewPublicHandlers creates PublicHandlers from embedded templates
-func NewPublicHandlers(postService service.PostService, postViewService service.PostViewService, ogpService service.OGPService, blogTitle, baseURL string, templatesFS embed.FS) *PublicHandlers {
+func NewPublicHandlers(postService service.PostService, postViewService service.PostViewService, ogpService service.OGPService, blogTitle, baseURL string, postsPerPage int, templatesFS embed.FS) *PublicHandlers {
 	// Create markdown converter with OGP support
 	var converter markdown.Converter
 	if ogpService != nil {
@@ -320,6 +321,7 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 		mdConverter:      converter,
 		blogTitle:        blogTitle,
 		baseURL:          baseURL,
+		postsPerPage:     postsPerPage,
 		homeTemplate:     homeTemplate,
 		postTemplate:     postTemplate,
 		tagsTemplate:     tagsTemplate,
@@ -329,7 +331,7 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 }
 
 // NewPublicHandlersFromPath creates PublicHandlers by loading templates from the filesystem (for testing)
-func NewPublicHandlersFromPath(postService service.PostService, postViewService service.PostViewService, blogTitle, baseURL, templatePattern string) *PublicHandlers {
+func NewPublicHandlersFromPath(postService service.PostService, postViewService service.PostViewService, blogTitle, baseURL, templatePattern string, postsPerPage int) *PublicHandlers {
 	dir := filepath.Dir(templatePattern)
 	layoutPath := filepath.Join(dir, "layout.html")
 
@@ -357,6 +359,7 @@ func NewPublicHandlersFromPath(postService service.PostService, postViewService 
 		postViewService:  postViewService,
 		blogTitle:        blogTitle,
 		baseURL:          baseURL,
+		postsPerPage:     postsPerPage,
 		homeTemplate:     homeTemplate,
 		postTemplate:     postTemplate,
 		tagsTemplate:     tagsTemplate,
@@ -409,7 +412,7 @@ func (h *PublicHandlers) HandleHome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	const perPage = 20
+	perPage := h.postsPerPage
 	offset := (page - 1) * perPage
 
 	var posts []*domain.Post
@@ -583,7 +586,7 @@ func (h *PublicHandlers) HandleTagPosts(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	const perPage = 20
+	perPage := h.postsPerPage
 	offset := (page - 1) * perPage
 
 	// Get posts

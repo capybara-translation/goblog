@@ -421,4 +421,38 @@ func clearEnv(t *testing.T) {
 	os.Unsetenv("BLOG_TITLE")
 	os.Unsetenv("UPLOAD_DIR")
 	os.Unsetenv("MAX_UPLOAD_SIZE")
+	os.Unsetenv("POSTS_PER_PAGE")
+}
+
+func TestLoad_PostsPerPage(t *testing.T) {
+	tests := []struct {
+		name string
+		env  string
+		want int
+	}{
+		{"unset falls back to default", "", DefaultPostsPerPage},
+		{"valid value is honored", "30", 30},
+		{"lower bound (1) is honored", "1", 1},
+		{"upper bound (100) is honored", "100", 100},
+		{"zero falls back to default", "0", DefaultPostsPerPage},
+		{"negative falls back to default", "-5", DefaultPostsPerPage},
+		{"above max falls back to default", "101", DefaultPostsPerPage},
+		{"non-numeric falls back to default", "abc", DefaultPostsPerPage},
+		{"empty string treated as unset", "  ", DefaultPostsPerPage},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clearEnv(t)
+			if tt.env != "" {
+				t.Setenv("POSTS_PER_PAGE", tt.env)
+			}
+
+			cfg := Load()
+
+			if cfg.PostsPerPage != tt.want {
+				t.Errorf("PostsPerPage = %d, want %d", cfg.PostsPerPage, tt.want)
+			}
+		})
+	}
 }
