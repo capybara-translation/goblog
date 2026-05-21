@@ -4,6 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {{- if .NoIndex}}
+    <meta name="robots" content="noindex,follow">
+    {{- end}}
     <title>{{block "title" .}}{{.SiteTitle}}{{end}}</title>
     {{- with .OGP}}
     <meta property="og:title" content="{{.Title}}">

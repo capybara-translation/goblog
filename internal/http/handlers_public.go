@@ -439,6 +439,7 @@ func (h *PublicHandlers) HandleHome(w http.ResponseWriter, r *http.Request) {
 		"PrevPage":    page - 1,
 		"NextPage":    page + 1,
 		"Query":       queryStr,
+		"NoIndex":     queryStr != "" || page > 1,
 		"PinnedPosts": h.getPinnedPosts(),
 		"OGP":         h.defaultOGP(h.blogTitle, r.URL.Path, h.blogTitle),
 	}

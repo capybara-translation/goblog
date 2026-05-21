@@ -2205,6 +2205,42 @@ func TestSearchInput_EscapesQueryValue(t *testing.T) {
 	}
 }
 
+func TestHandleHome_NoIndexForSearchAndDeepPages(t *testing.T) {
+	tests := []struct {
+		name           string
+		url            string
+		wantNoIndexTag bool
+	}{
+		{"home page 1 no query is indexable", "/", false},
+		{"page 2 emits noindex", "/?page=2", true},
+		{"search results emit noindex", "/?q=Go", true},
+		{"search + pagination emits noindex", "/?q=Go&page=2", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := &mockPostService{
+				getPublishedPostsFunc: func(limit, offset int) ([]*domain.Post, error) {
+					return []*domain.Post{}, nil
+				},
+				searchPublishedPostsFunc: func(query string, limit, offset int) ([]*domain.Post, error) {
+					return []*domain.Post{}, nil
+				},
+			}
+			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			body := w.Body.String()
+			hasMeta := strings.Contains(body, `<meta name="robots" content="noindex,follow">`)
+			if hasMeta != tt.wantNoIndexTag {
+				t.Errorf("noindex meta tag presence = %v, want %v\nbody: %s", hasMeta, tt.wantNoIndexTag, body)
+			}
+		})
+	}
+}
+
 func TestNotFound_RendersSearchForm(t *testing.T) {
 	mockService := &mockPostService{}
 	router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
