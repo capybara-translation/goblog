@@ -95,7 +95,6 @@ Database (SQLite)
     templates/         # HTMLテンプレート
       layout.html
       home.html
-      posts.html
       post.html
       tags.html
       tag_posts.html
@@ -230,9 +229,9 @@ func (m *mockPostRepository) FindAll(status *domain.PostStatus, limit, offset in
 ## ルーティング設計
 
 ### 公開ページ（SSR）
-- `GET /` - トップページ
+- `GET /` - トップページ（記事一覧ページ1。`?page=N` / `?q=` 対応）
 - `GET /sitemap.xml` - サイトマップ（XML形式）
-- `GET /posts` - 記事一覧
+- `GET /posts` - 301リダイレクト → `/`（`?page=` / `?q=` を保持）
 - `GET /posts/{slug}` - 記事詳細
 - `GET /tags` - タグ一覧
 - `GET /tags/{tag}` - タグ別記事一覧

@@ -2182,3 +2182,46 @@ func TestPostDetailNotAffectedByRedirect(t *testing.T) {
 		t.Errorf("expected no Location header, got %q", loc)
 	}
 }
+
+func TestSearchInput_EscapesQueryValue(t *testing.T) {
+	mockService := &mockPostService{
+		searchPublishedPostsFunc: func(query string, limit, offset int) ([]*domain.Post, error) {
+			return []*domain.Post{}, nil
+		},
+	}
+	router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+
+	req := httptest.NewRequest(http.MethodGet, "/?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	if strings.Contains(body, "<script>alert(1)</script>") {
+		t.Errorf("unescaped <script> tag found in body — XSS regression. Body: %s", body)
+	}
+	if !strings.Contains(body, `value="&lt;script&gt;alert(1)&lt;/script&gt;"`) {
+		t.Errorf("expected HTML-escaped value attribute in search input, body: %s", body)
+	}
+}
+
+func TestNotFound_RendersSearchForm(t *testing.T) {
+	mockService := &mockPostService{}
+	router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+
+	req := httptest.NewRequest(http.MethodGet, "/this-route-does-not-exist", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, `<form action="/" method="GET"`) {
+		t.Errorf("404 page must render the global header search form, body: %s", body)
+	}
+	if !strings.Contains(body, `name="q"`) {
+		t.Errorf("404 page search form is missing the q input, body: %s", body)
+	}
+}

@@ -49,9 +49,11 @@
                 <a href="/tags" class="hover:text-primary-700 transition-colors duration-200">Tags</a>
                 {{range .PinnedPosts}}<a href="/posts/{{.Slug}}" class="hover:text-primary-700 transition-colors duration-200">{{.Title}}</a>{{end}}
             </nav>
-            <form action="/" method="GET" class="flex gap-2 font-sans">
+            <form action="/" method="GET" role="search" aria-label="Site search" class="flex gap-2 font-sans">
+                <label for="site-search" class="sr-only">Search posts</label>
                 <input
-                    type="text"
+                    id="site-search"
+                    type="search"
                     name="q"
                     value="{{.Query}}"
                     placeholder="Search posts..."
@@ -64,6 +66,15 @@
                 >
                     Search
                 </button>
+                {{if .Query}}
+                <a
+                    href="/"
+                    aria-label="Clear search"
+                    class="px-3 py-2 text-sm text-primary-600 border border-primary-300 rounded hover:border-primary-400 hover:text-primary-700 transition-colors"
+                >
+                    Clear
+                </a>
+                {{end}}
             </form>
         </div>
     </header>
