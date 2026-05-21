@@ -2373,7 +2373,7 @@ func TestHandleHome_AdminEditLink(t *testing.T) {
 	t.Run("Edit link is shown when an admin session cookie is present", func(t *testing.T) {
 		router := NewRouterWithTemplates(mockService, nil, validAdminAuthService(), testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		req.AddCookie(&http.Cookie{Name: "session_id", Value: "valid"})
+		req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "valid"})
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -2398,7 +2398,7 @@ func TestHandleHome_AdminEditLink(t *testing.T) {
 	t.Run("Edit link is absent for invalid session cookies", func(t *testing.T) {
 		router := NewRouterWithTemplates(mockService, nil, validAdminAuthService(), testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		req.AddCookie(&http.Cookie{Name: "session_id", Value: "nonsense"})
+		req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "nonsense"})
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -2428,7 +2428,7 @@ func TestHandlePostDetail_AdminEditLink(t *testing.T) {
 	t.Run("Edit link visible to admin", func(t *testing.T) {
 		router := NewRouterWithTemplates(mockService, nil, validAdminAuthService(), testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 		req := httptest.NewRequest(http.MethodGet, "/posts/detailed", nil)
-		req.AddCookie(&http.Cookie{Name: "session_id", Value: "valid"})
+		req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "valid"})
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -2465,7 +2465,7 @@ func TestHandleTagPosts_AdminEditLink(t *testing.T) {
 	t.Run("Edit link visible to admin on tag listing", func(t *testing.T) {
 		router := NewRouterWithTemplates(mockService, nil, validAdminAuthService(), testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 		req := httptest.NewRequest(http.MethodGet, "/tags/Go", nil)
-		req.AddCookie(&http.Cookie{Name: "session_id", Value: "valid"})
+		req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "valid"})
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -2507,7 +2507,7 @@ func TestHandleHome_AdminEditLink_AuthServiceErrors(t *testing.T) {
 		}
 		router := NewRouterWithTemplates(mockService, nil, failingAuth, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		req.AddCookie(&http.Cookie{Name: "session_id", Value: "valid"})
+		req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "valid"})
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -2517,6 +2517,33 @@ func TestHandleHome_AdminEditLink_AuthServiceErrors(t *testing.T) {
 		body := w.Body.String()
 		if strings.Contains(body, `/admin/posts/7/edit`) {
 			t.Errorf("auth error must conservatively hide the edit link, body: %s", body)
+		}
+	})
+
+	t.Run("Stale session (ErrUserNotFound) hides the edit link", func(t *testing.T) {
+		mockService := &mockPostService{
+			getPublishedPostsFunc: func(limit, offset int) ([]*domain.Post, error) {
+				return posts, nil
+			},
+		}
+		// ErrUserNotFound is an expected condition (session existed for a user
+		// that was later deleted). The handler must treat it as non-admin and
+		// not raise a noisy operational log line — verified by code review on
+		// isAdminRequest; here we just confirm the user-visible behavior.
+		staleAuth := &mockAuthServiceForPublic{
+			getUserBySessionFunc: func(sessionID string) (*domain.User, error) {
+				return nil, service.ErrUserNotFound
+			},
+		}
+		router := NewRouterWithTemplates(mockService, nil, staleAuth, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "valid"})
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		body := w.Body.String()
+		if strings.Contains(body, `/admin/posts/7/edit`) {
+			t.Errorf("stale session must not surface edit links, body: %s", body)
 		}
 	})
 
@@ -2530,7 +2557,7 @@ func TestHandleHome_AdminEditLink_AuthServiceErrors(t *testing.T) {
 		// Confirm a cookie does not promote the request to admin in that mode.
 		router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		req.AddCookie(&http.Cookie{Name: "session_id", Value: "valid"})
+		req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "valid"})
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 

@@ -2,6 +2,7 @@ package http
 
 import (
 	"embed"
+	"errors"
 	"fmt"
 	"html"
 	"html/template"
@@ -391,6 +392,10 @@ func (h *PublicHandlers) getPinnedPosts() []*domain.Post {
 // effectively nothing. A request with a valid admin cookie pays one
 // userRepo.FindByID per page load; acceptable for the expected single-admin
 // use case but worth revisiting if the session store moves to Redis.
+//
+// ErrUserNotFound is treated as a normal "stale session" condition and is
+// not logged; anything else (e.g. DB failure) is logged so it can be
+// detected operationally.
 func (h *PublicHandlers) isAdminRequest(r *http.Request) bool {
 	if h.authService == nil {
 		return false
@@ -401,7 +406,9 @@ func (h *PublicHandlers) isAdminRequest(r *http.Request) bool {
 	}
 	user, err := h.authService.GetUserBySession(cookie.Value)
 	if err != nil {
-		log.Printf("isAdminRequest: GetUserBySession failed: %v", err)
+		if !errors.Is(err, service.ErrUserNotFound) {
+			log.Printf("isAdminRequest: GetUserBySession failed: %v", err)
+		}
 		return false
 	}
 	return user != nil
