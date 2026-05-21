@@ -2128,6 +2128,7 @@ func TestPostsRedirectsToHome(t *testing.T) {
 		wantLocation string
 	}{
 		{"bare /posts redirects to /", "/posts", http.StatusMovedPermanently, "/"},
+		{"/posts/ trailing slash also redirects", "/posts/", http.StatusMovedPermanently, "/"},
 		{"/posts?page=2 preserves page", "/posts?page=2", http.StatusMovedPermanently, "/?page=2"},
 		{"/posts?q=foo preserves query", "/posts?q=foo", http.StatusMovedPermanently, "/?q=foo"},
 		{"/posts?q=foo&page=3 preserves both", "/posts?q=foo&page=3", http.StatusMovedPermanently, "/?q=foo&page=3"},
