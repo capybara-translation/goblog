@@ -30,6 +30,9 @@
                     <a href="/tags/{{.}}" class="text-primary-500 hover:text-primary-700 transition-colors">#{{.}}</a>
                     {{end}}
                     <a href="/posts/{{.Slug}}" class="ml-auto text-primary-500 hover:text-primary-700 transition-colors">permalink</a>
+                    {{if $.IsAdmin}}
+                    <a href="/admin/posts/{{.ID}}/edit" target="_blank" rel="noopener noreferrer" title="Edit this post" aria-label="Edit this post" class="text-primary-500 hover:text-primary-700 transition-colors">✏️</a>
+                    {{end}}
                 </div>
             </footer>
         </article>

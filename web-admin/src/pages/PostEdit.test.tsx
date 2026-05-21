@@ -248,6 +248,32 @@ describe('PostEdit', () => {
         expect(screen.getByText('Draft')).toBeInTheDocument()
       })
     })
+
+    it('renders View ↗ as a clickable link that opens the public page in a new tab for a published post', async () => {
+      vi.mocked(apiClient.getPost).mockResolvedValue(mockPublishedPost)
+      await renderEditMode(2)
+
+      const viewLink = await screen.findByRole('link', { name: /View/ })
+      expect(viewLink).toHaveAttribute('href', '/posts/published-post')
+      expect(viewLink).toHaveAttribute('target', '_blank')
+      expect(viewLink).toHaveAttribute('rel', expect.stringContaining('noopener'))
+    })
+
+    it('renders View ↗ as a disabled span for a draft post', async () => {
+      vi.mocked(apiClient.getPost).mockResolvedValue(mockDraftPost)
+      await renderEditMode(1)
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Title/)).toHaveValue('Draft Post')
+      })
+
+      // No link role — a draft View label is a non-interactive span.
+      expect(screen.queryByRole('link', { name: /View/ })).not.toBeInTheDocument()
+
+      const viewLabel = screen.getByText(/View ↗/)
+      expect(viewLabel.tagName).toBe('SPAN')
+      expect(viewLabel).toHaveAttribute('aria-disabled', 'true')
+    })
   })
 
   describe('Post metadata display', () => {

@@ -2,6 +2,7 @@ package http
 
 import (
 	"embed"
+	"errors"
 	"fmt"
 	"html"
 	"html/template"
@@ -28,6 +29,7 @@ type PublicHandlers struct {
 	postService      service.PostService
 	postViewService  service.PostViewService
 	ogpService       service.OGPService
+	authService      service.AuthService // Optional; nil disables admin-only UI (edit links, etc.)
 	mdConverter      markdown.Converter
 	blogTitle        string // Blog title
 	baseURL          string // Site base URL (for sitemap)
@@ -240,7 +242,7 @@ func renderMarkdownWithHighlight(content string, query string) template.HTML {
 }
 
 // NewPublicHandlers creates PublicHandlers from embedded templates
-func NewPublicHandlers(postService service.PostService, postViewService service.PostViewService, ogpService service.OGPService, blogTitle, baseURL string, postsPerPage int, templatesFS embed.FS) *PublicHandlers {
+func NewPublicHandlers(postService service.PostService, postViewService service.PostViewService, ogpService service.OGPService, authService service.AuthService, blogTitle, baseURL string, postsPerPage int, templatesFS embed.FS) *PublicHandlers {
 	// Create markdown converter with OGP support
 	var converter markdown.Converter
 	if ogpService != nil {
@@ -318,6 +320,7 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 		postService:      postService,
 		postViewService:  postViewService,
 		ogpService:       ogpService,
+		authService:      authService,
 		mdConverter:      converter,
 		blogTitle:        blogTitle,
 		baseURL:          baseURL,
@@ -331,7 +334,7 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 }
 
 // NewPublicHandlersFromPath creates PublicHandlers by loading templates from the filesystem (for testing)
-func NewPublicHandlersFromPath(postService service.PostService, postViewService service.PostViewService, blogTitle, baseURL, templatePattern string, postsPerPage int) *PublicHandlers {
+func NewPublicHandlersFromPath(postService service.PostService, postViewService service.PostViewService, authService service.AuthService, blogTitle, baseURL, templatePattern string, postsPerPage int) *PublicHandlers {
 	dir := filepath.Dir(templatePattern)
 	layoutPath := filepath.Join(dir, "layout.html")
 
@@ -357,6 +360,7 @@ func NewPublicHandlersFromPath(postService service.PostService, postViewService 
 	return &PublicHandlers{
 		postService:      postService,
 		postViewService:  postViewService,
+		authService:      authService,
 		blogTitle:        blogTitle,
 		baseURL:          baseURL,
 		postsPerPage:     postsPerPage,
@@ -376,6 +380,38 @@ func (h *PublicHandlers) getPinnedPosts() []*domain.Post {
 		return []*domain.Post{}
 	}
 	return pinnedPosts
+}
+
+// isAdminRequest reports whether the request carries a valid admin session
+// cookie. Used to surface admin-only UI (e.g. edit links) on public pages.
+// Returns false when authService is not wired, when the cookie is missing,
+// or when the session cannot be resolved to a user.
+//
+// Performance: GetUserBySession short-circuits on a session-store miss
+// (in-memory map lookup, no DB), so requests without a valid cookie cost
+// effectively nothing. A request with a valid admin cookie pays one
+// userRepo.FindByID per page load; acceptable for the expected single-admin
+// use case but worth revisiting if the session store moves to Redis.
+//
+// ErrUserNotFound is treated as a normal "stale session" condition and is
+// not logged; anything else (e.g. DB failure) is logged so it can be
+// detected operationally.
+func (h *PublicHandlers) isAdminRequest(r *http.Request) bool {
+	if h.authService == nil {
+		return false
+	}
+	cookie, err := r.Cookie(sessionCookieName)
+	if err != nil {
+		return false
+	}
+	user, err := h.authService.GetUserBySession(cookie.Value)
+	if err != nil {
+		if !errors.Is(err, service.ErrUserNotFound) {
+			log.Printf("isAdminRequest: GetUserBySession failed: %v", err)
+		}
+		return false
+	}
+	return user != nil
 }
 
 // renderNotFound renders the 404 page
@@ -445,6 +481,7 @@ func (h *PublicHandlers) HandleHome(w http.ResponseWriter, r *http.Request) {
 		"NoIndex":     queryStr != "" || page > 1,
 		"PinnedPosts": h.getPinnedPosts(),
 		"OGP":         h.defaultOGP(h.blogTitle, r.URL.Path, h.blogTitle),
+		"IsAdmin":     h.isAdminRequest(r),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -499,6 +536,7 @@ func (h *PublicHandlers) HandlePostDetail(w http.ResponseWriter, r *http.Request
 		"PinnedPosts": h.getPinnedPosts(),
 		"OGP":         h.postOGP(post, r.URL.Path),
 		"Query":       "",
+		"IsAdmin":     h.isAdminRequest(r),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -615,6 +653,7 @@ func (h *PublicHandlers) HandleTagPosts(w http.ResponseWriter, r *http.Request) 
 		"PinnedPosts": h.getPinnedPosts(),
 		"OGP":         h.defaultOGP(tag+" - "+h.blogTitle, r.URL.Path, "Posts tagged with "+tag),
 		"Query":       "",
+		"IsAdmin":     h.isAdminRequest(r),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

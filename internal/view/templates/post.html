@@ -19,6 +19,9 @@
                 {{range splitTags .Post.Tags}}
                 <a href="/tags/{{.}}" class="text-primary-500 hover:text-primary-700 transition-colors">#{{.}}</a>
                 {{end}}
+                {{if .IsAdmin}}
+                <a href="/admin/posts/{{.Post.ID}}/edit" target="_blank" rel="noopener noreferrer" title="Edit this post" aria-label="Edit this post" class="ml-auto text-primary-500 hover:text-primary-700 transition-colors">✏️</a>
+                {{end}}
             </div>
         </footer>
     </article>
