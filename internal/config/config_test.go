@@ -426,32 +426,78 @@ func clearEnv(t *testing.T) {
 
 func TestLoad_PostsPerPage(t *testing.T) {
 	tests := []struct {
-		name string
-		env  string
-		want int
+		name     string
+		setEnv   bool
+		envValue string
+		want     int
 	}{
-		{"unset falls back to default", "", DefaultPostsPerPage},
-		{"valid value is honored", "30", 30},
-		{"lower bound (1) is honored", "1", 1},
-		{"upper bound (100) is honored", "100", 100},
-		{"zero falls back to default", "0", DefaultPostsPerPage},
-		{"negative falls back to default", "-5", DefaultPostsPerPage},
-		{"above max falls back to default", "101", DefaultPostsPerPage},
-		{"non-numeric falls back to default", "abc", DefaultPostsPerPage},
-		{"empty string treated as unset", "  ", DefaultPostsPerPage},
+		{"unset falls back to default", false, "", DefaultPostsPerPage},
+		{"explicit empty string falls back to default", true, "", DefaultPostsPerPage},
+		{"whitespace value falls back to default", true, "  ", DefaultPostsPerPage},
+		{"valid value is honored", true, "30", 30},
+		{"lower bound (1) is honored", true, "1", 1},
+		{"upper bound (100) is honored", true, "100", 100},
+		{"zero falls back to default", true, "0", DefaultPostsPerPage},
+		{"negative falls back to default", true, "-5", DefaultPostsPerPage},
+		{"above max falls back to default", true, "101", DefaultPostsPerPage},
+		{"non-numeric falls back to default", true, "abc", DefaultPostsPerPage},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			clearEnv(t)
-			if tt.env != "" {
-				t.Setenv("POSTS_PER_PAGE", tt.env)
+			if tt.setEnv {
+				t.Setenv("POSTS_PER_PAGE", tt.envValue)
 			}
 
 			cfg := Load()
 
 			if cfg.PostsPerPage != tt.want {
 				t.Errorf("PostsPerPage = %d, want %d", cfg.PostsPerPage, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetEnvAsIntInRange(t *testing.T) {
+	const (
+		key      = "POSTS_PER_PAGE_TEST_HELPER"
+		defValue = 20
+		lo       = 1
+		hi       = 100
+	)
+
+	tests := []struct {
+		name     string
+		setEnv   bool
+		envValue string
+		want     int
+	}{
+		{"unset returns default", false, "", defValue},
+		{"explicit empty returns default", true, "", defValue},
+		{"valid mid-range value is honored", true, "42", 42},
+		{"lower bound is honored", true, "1", 1},
+		{"upper bound is honored", true, "100", 100},
+		{"below lower bound returns default", true, "0", defValue},
+		{"negative returns default", true, "-1", defValue},
+		{"above upper bound returns default", true, "101", defValue},
+		{"non-numeric returns default", true, "abc", defValue},
+		{"whitespace returns default", true, "  ", defValue},
+		{"trailing junk returns default", true, "10abc", defValue},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Unsetenv(key)
+			if tt.setEnv {
+				t.Setenv(key, tt.envValue)
+			}
+
+			got := getEnvAsIntInRange(key, defValue, lo, hi)
+
+			if got != tt.want {
+				t.Errorf("getEnvAsIntInRange(%q, %d, %d, %d) = %d, want %d",
+					key, defValue, lo, hi, got, tt.want)
 			}
 		})
 	}

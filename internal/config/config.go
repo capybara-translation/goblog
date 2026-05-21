@@ -75,8 +75,8 @@ func Load() *Config {
 }
 
 // getEnvAsIntInRange retrieves an env var as int, falling back to defaultValue
-// when unset, unparseable, or outside [min, max] (inclusive).
-func getEnvAsIntInRange(key string, defaultValue, min, max int) int {
+// when unset, unparseable, or outside [lo, hi] (inclusive).
+func getEnvAsIntInRange(key string, defaultValue, lo, hi int) int {
 	valStr := os.Getenv(key)
 	if valStr == "" {
 		return defaultValue
@@ -85,7 +85,7 @@ func getEnvAsIntInRange(key string, defaultValue, min, max int) int {
 	if err != nil {
 		return defaultValue
 	}
-	if val < min || val > max {
+	if val < lo || val > hi {
 		return defaultValue
 	}
 	return val
