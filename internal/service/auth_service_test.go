@@ -789,3 +789,54 @@ func TestAuthService_BruteForce_EmptyIPAddress(t *testing.T) {
 		t.Errorf("expected failures with empty IP to complete quickly (no brute force protection), took %v", elapsed)
 	}
 }
+
+func TestAuthService_SessionTTL_PropagatesConstructorArg(t *testing.T) {
+	tests := []struct {
+		name string
+		ttl  time.Duration
+	}{
+		{"default", 24 * time.Hour},
+		{"short", 30 * time.Minute},
+		{"long", 7 * 24 * time.Hour},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := NewAuthService(&mockUserRepository{}, &mockSessionStore{}, config.PasswordPolicyNone, tt.ttl)
+			if got := svc.SessionTTL(); got != tt.ttl {
+				t.Errorf("SessionTTL() = %v, want %v", got, tt.ttl)
+			}
+		})
+	}
+}
+
+func TestAuthService_Login_PassesSessionTTLToStore(t *testing.T) {
+	const wantTTL = 90 * time.Minute
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatalf("bcrypt.GenerateFromPassword: %v", err)
+	}
+
+	mockUserRepo := &mockUserRepository{
+		findByUsernameFunc: func(username string) (*domain.User, error) {
+			return &domain.User{ID: 1, Username: username, PasswordHash: string(hashedPassword)}, nil
+		},
+	}
+	var capturedTTL time.Duration
+	mockSessionStore := &mockSessionStore{
+		createFunc: func(userID int64, ttl time.Duration) (string, error) {
+			capturedTTL = ttl
+			return "session-id", nil
+		},
+	}
+
+	svc := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone, wantTTL)
+	if _, err := svc.Login("user", "password123", "1.2.3.4"); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+
+	if capturedTTL != wantTTL {
+		t.Errorf("sessionStore.Create received ttl=%v, want %v", capturedTTL, wantTTL)
+	}
+}

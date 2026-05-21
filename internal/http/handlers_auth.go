@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/capybara-translation/goblog/internal/service"
 )
@@ -133,8 +134,11 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Cookie MaxAge mirrors the server-side session TTL so the cookie and
 	// the session expire together. Reading via the service avoids two
-	// independent "24h" constants drifting apart.
-	cookieMaxAge := int(h.authService.SessionTTL().Seconds())
+	// independent "24h" constants drifting apart. Integer division keeps
+	// the conversion exact for all values reachable through SESSION_TTL
+	// (the config layer rejects anything below 1m, so sub-second values
+	// never reach this path).
+	cookieMaxAge := int(h.authService.SessionTTL() / time.Second)
 
 	// Set session ID in cookie
 	http.SetCookie(w, &http.Cookie{

@@ -183,14 +183,23 @@ func TestHandleLogin_CookieMaxAgeMatchesSessionTTL(t *testing.T) {
 			}
 
 			cookies := rec.Result().Cookies()
+			var sawSession, sawCSRF bool
 			for _, c := range cookies {
-				if c.Name != sessionCookieName && c.Name != csrfCookieName {
+				switch c.Name {
+				case sessionCookieName:
+					sawSession = true
+				case csrfCookieName:
+					sawCSRF = true
+				default:
 					continue
 				}
 				if c.MaxAge != tt.wantMaxAge {
 					t.Errorf("%s cookie MaxAge = %d, want %d (SessionTTL=%v)",
 						c.Name, c.MaxAge, tt.wantMaxAge, tt.ttl)
 				}
+			}
+			if !sawSession || !sawCSRF {
+				t.Fatalf("missing required cookies: session=%v csrf=%v", sawSession, sawCSRF)
 			}
 		})
 	}

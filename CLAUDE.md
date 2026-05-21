@@ -166,7 +166,7 @@ make build-admin       # プロダクションビルド
 - `UPLOAD_DIR`: 画像アップロード先ディレクトリ（デフォルト: data/uploads）
 - `MAX_UPLOAD_SIZE`: 最大アップロードサイズ（デフォルト: 5242880 = 5MB）
 - `POSTS_PER_PAGE`: トップページ (`/`) とタグ別記事一覧 (`/tags/{tag}`) の 1 ページあたり件数（デフォルト: 20、有効範囲: 1-100、範囲外/パース不能な値はデフォルトに silent fallback）
-- `SESSION_TTL`: 管理者セッションの有効期限（`time.ParseDuration` 形式: `24h`、`30m`、`168h` 等）。デフォルト: `24h`、最小: `1m`、不正値/未満は silent fallback。サーバ側セッション TTL とログインクッキーの `MaxAge` の両方をこの値から導出するため、片方だけがズレることはない
+- `SESSION_TTL`: 管理者セッションの有効期限（`time.ParseDuration` 形式: `24h`、`30m`、`168h` 等）。デフォルト: `24h`、最小: `1m`、不正値/未満は silent fallback。サーバ側セッション TTL とログインクッキーの `MaxAge` の両方をこの値から導出するため、片方だけがズレることはない。**注意**: 変更は次回ログイン以降に発行されるセッションにのみ適用される。既存セッションは発行時の TTL を保持したまま残るため、即座に全員ログアウトさせたい場合はサーバを再起動する（インメモリストアなのでセッションは消える）
 
 **重要**: 本番環境では`SECURE_COOKIE=true`と`PASSWORD_POLICY=STRONG`と`BASE_URL`と`TRUSTED_PROXIES`を必ず設定すること。
 
