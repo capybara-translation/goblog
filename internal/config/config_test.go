@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"testing"
+	"time"
 )
 
 func TestLoad_DefaultValues(t *testing.T) {
@@ -422,6 +423,7 @@ func clearEnv(t *testing.T) {
 	os.Unsetenv("UPLOAD_DIR")
 	os.Unsetenv("MAX_UPLOAD_SIZE")
 	os.Unsetenv("POSTS_PER_PAGE")
+	os.Unsetenv("SESSION_TTL")
 }
 
 func TestLoad_PostsPerPage(t *testing.T) {
@@ -454,6 +456,84 @@ func TestLoad_PostsPerPage(t *testing.T) {
 
 			if cfg.PostsPerPage != tt.want {
 				t.Errorf("PostsPerPage = %d, want %d", cfg.PostsPerPage, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoad_SessionTTL(t *testing.T) {
+	tests := []struct {
+		name     string
+		setEnv   bool
+		envValue string
+		want     time.Duration
+	}{
+		{"unset falls back to default", false, "", DefaultSessionTTL},
+		{"explicit empty string falls back to default", true, "", DefaultSessionTTL},
+		{"valid duration is honored (hours)", true, "8h", 8 * time.Hour},
+		{"valid duration is honored (mixed)", true, "1h30m", 90 * time.Minute},
+		{"valid duration is honored (long)", true, "720h", 720 * time.Hour},
+		{"minimum boundary (1m) is honored", true, "1m", time.Minute},
+		{"just below minimum falls back to default", true, "59s", DefaultSessionTTL},
+		{"zero falls back to default", true, "0s", DefaultSessionTTL},
+		{"negative falls back to default", true, "-5m", DefaultSessionTTL},
+		{"unparseable falls back to default", true, "abc", DefaultSessionTTL},
+		{"raw integer (no unit) falls back to default", true, "24", DefaultSessionTTL},
+		{"whitespace falls back to default", true, "  ", DefaultSessionTTL},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clearEnv(t)
+			if tt.setEnv {
+				t.Setenv("SESSION_TTL", tt.envValue)
+			}
+
+			cfg := Load()
+
+			if cfg.SessionTTL != tt.want {
+				t.Errorf("SessionTTL = %v, want %v", cfg.SessionTTL, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetEnvAsDurationAtLeast(t *testing.T) {
+	const (
+		key      = "SESSION_TTL_TEST_HELPER"
+		defValue = 24 * time.Hour
+		minValue = time.Minute
+	)
+
+	tests := []struct {
+		name     string
+		setEnv   bool
+		envValue string
+		want     time.Duration
+	}{
+		{"unset returns default", false, "", defValue},
+		{"explicit empty returns default", true, "", defValue},
+		{"valid value is honored", true, "5m", 5 * time.Minute},
+		{"minimum boundary is honored", true, "1m", time.Minute},
+		{"sub-minimum returns default", true, "30s", defValue},
+		{"zero returns default", true, "0s", defValue},
+		{"negative returns default", true, "-1m", defValue},
+		{"unparseable returns default", true, "5 minutes", defValue},
+		{"missing unit returns default", true, "5", defValue},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Unsetenv(key)
+			if tt.setEnv {
+				t.Setenv(key, tt.envValue)
+			}
+
+			got := getEnvAsDurationAtLeast(key, defValue, minValue)
+
+			if got != tt.want {
+				t.Errorf("getEnvAsDurationAtLeast(%q, %v, %v) = %v, want %v",
+					key, defValue, minValue, got, tt.want)
 			}
 		})
 	}

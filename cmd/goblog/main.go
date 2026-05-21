@@ -53,7 +53,7 @@ func main() {
 	// Initialize service layer
 	postService := service.NewPostService(postRepo)
 	postViewService := service.NewPostViewService(postViewRepo)
-	authService := service.NewAuthService(userRepo, sessionStore, cfg.PasswordPolicy)
+	authService := service.NewAuthService(userRepo, sessionStore, cfg.PasswordPolicy, cfg.SessionTTL)
 
 	// Initialize OGP service for link cards
 	ogpFetcher := ogp.NewFetcher(ogp.FetchTimeout)

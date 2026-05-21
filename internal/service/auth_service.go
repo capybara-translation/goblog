@@ -40,6 +40,11 @@ type AuthService interface {
 
 	// CreateUser creates a new user
 	CreateUser(username, password string) (*domain.User, error)
+
+	// SessionTTL reports how long a freshly created session remains valid.
+	// HTTP handlers use this to drive cookie MaxAge so the cookie and the
+	// server-side session expire together.
+	SessionTTL() time.Duration
 }
 
 // loginAttempt holds information about failed login attempts
@@ -59,12 +64,14 @@ type authService struct {
 	attemptsMutex sync.RWMutex             // access control for loginAttempts
 }
 
-// NewAuthService creates a new AuthService
-func NewAuthService(userRepo repo.UserRepository, sessionStore auth.SessionStore, passwordPolicy config.PasswordPolicy) AuthService {
+// NewAuthService creates a new AuthService. sessionTTL controls how long a
+// freshly issued session remains valid; HTTP handlers read it back via
+// SessionTTL() to keep the session cookie's MaxAge in sync.
+func NewAuthService(userRepo repo.UserRepository, sessionStore auth.SessionStore, passwordPolicy config.PasswordPolicy, sessionTTL time.Duration) AuthService {
 	s := &authService{
 		userRepo:       userRepo,
 		sessionStore:   sessionStore,
-		sessionTTL:     24 * time.Hour, // session expiration: 24 hours
+		sessionTTL:     sessionTTL,
 		passwordPolicy: passwordPolicy,
 		loginAttempts:  make(map[string]*loginAttempt),
 	}
@@ -73,6 +80,11 @@ func NewAuthService(userRepo repo.UserRepository, sessionStore auth.SessionStore
 	go s.cleanupLoginAttempts()
 
 	return s
+}
+
+// SessionTTL reports how long a freshly created session remains valid.
+func (s *authService) SessionTTL() time.Duration {
+	return s.sessionTTL
 }
 
 // Login authenticates with username and password, and returns a session ID
