@@ -187,6 +187,25 @@ export function PostEdit() {
         </div>
         {post && (
           <div className="flex items-center gap-4">
+            {post.status === 'published' ? (
+              <a
+                href={`/posts/${post.slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Open public page in a new tab"
+                className="text-sm text-primary-600 hover:text-primary-800 underline"
+              >
+                View ↗
+              </a>
+            ) : (
+              <span
+                aria-disabled="true"
+                title="Draft posts aren't publicly visible. Publish first to view."
+                className="text-sm text-primary-400 cursor-not-allowed select-none"
+              >
+                View ↗
+              </span>
+            )}
             <StatusBadge status={post.status} />
             {post.status === 'draft' ? (
               <button
