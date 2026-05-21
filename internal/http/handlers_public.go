@@ -385,6 +385,12 @@ func (h *PublicHandlers) getPinnedPosts() []*domain.Post {
 // cookie. Used to surface admin-only UI (e.g. edit links) on public pages.
 // Returns false when authService is not wired, when the cookie is missing,
 // or when the session cannot be resolved to a user.
+//
+// Performance: GetUserBySession short-circuits on a session-store miss
+// (in-memory map lookup, no DB), so requests without a valid cookie cost
+// effectively nothing. A request with a valid admin cookie pays one
+// userRepo.FindByID per page load; acceptable for the expected single-admin
+// use case but worth revisiting if the session store moves to Redis.
 func (h *PublicHandlers) isAdminRequest(r *http.Request) bool {
 	if h.authService == nil {
 		return false
@@ -394,7 +400,11 @@ func (h *PublicHandlers) isAdminRequest(r *http.Request) bool {
 		return false
 	}
 	user, err := h.authService.GetUserBySession(cookie.Value)
-	return err == nil && user != nil
+	if err != nil {
+		log.Printf("isAdminRequest: GetUserBySession failed: %v", err)
+		return false
+	}
+	return user != nil
 }
 
 // renderNotFound renders the 404 page
@@ -404,7 +414,6 @@ func (h *PublicHandlers) renderNotFound(w http.ResponseWriter, r *http.Request) 
 		"PinnedPosts": h.getPinnedPosts(),
 		"OGP":         h.defaultOGP("Not Found - "+h.blogTitle, r.URL.Path, h.blogTitle),
 		"Query":       "",
-		"IsAdmin":     h.isAdminRequest(r),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -572,7 +581,6 @@ func (h *PublicHandlers) HandleTags(w http.ResponseWriter, r *http.Request) {
 		"PinnedPosts": h.getPinnedPosts(),
 		"OGP":         h.defaultOGP("Tags - "+h.blogTitle, r.URL.Path, "Tags from "+h.blogTitle),
 		"Query":       "",
-		"IsAdmin":     h.isAdminRequest(r),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -2483,6 +2484,59 @@ func TestHandleTagPosts_AdminEditLink(t *testing.T) {
 		body := w.Body.String()
 		if strings.Contains(body, `/admin/posts/11/edit`) {
 			t.Errorf("anonymous tag listing must not surface edit links, body: %s", body)
+		}
+	})
+}
+
+func TestHandleHome_AdminEditLink_AuthServiceErrors(t *testing.T) {
+	publishedAt := time.Now()
+	posts := []*domain.Post{
+		{ID: 7, Title: "Editable", Slug: "editable", Status: domain.PostStatusPublished, PublishedAt: &publishedAt},
+	}
+
+	t.Run("Auth service returning an error suppresses the edit link", func(t *testing.T) {
+		mockService := &mockPostService{
+			getPublishedPostsFunc: func(limit, offset int) ([]*domain.Post, error) {
+				return posts, nil
+			},
+		}
+		failingAuth := &mockAuthServiceForPublic{
+			getUserBySessionFunc: func(sessionID string) (*domain.User, error) {
+				return nil, errors.New("db down")
+			},
+		}
+		router := NewRouterWithTemplates(mockService, nil, failingAuth, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.AddCookie(&http.Cookie{Name: "session_id", Value: "valid"})
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200 even when auth lookup fails, got %d", w.Code)
+		}
+		body := w.Body.String()
+		if strings.Contains(body, `/admin/posts/7/edit`) {
+			t.Errorf("auth error must conservatively hide the edit link, body: %s", body)
+		}
+	})
+
+	t.Run("Nil auth service treats every request as anonymous", func(t *testing.T) {
+		mockService := &mockPostService{
+			getPublishedPostsFunc: func(limit, offset int) ([]*domain.Post, error) {
+				return posts, nil
+			},
+		}
+		// Passing nil for authService is the existing default for most tests.
+		// Confirm a cookie does not promote the request to admin in that mode.
+		router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.AddCookie(&http.Cookie{Name: "session_id", Value: "valid"})
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		body := w.Body.String()
+		if strings.Contains(body, `/admin/posts/7/edit`) {
+			t.Errorf("nil authService must disable admin UI even with a cookie, body: %s", body)
 		}
 	})
 }
