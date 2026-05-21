@@ -40,21 +40,25 @@ export function PostList() {
 
   // Mutate the URL while preserving unrelated params. Empty values are dropped
   // so the canonical URL omits defaults (no `?q=`, `?page=1`, `?status=all`).
-  // All updates push onto history so the browser back button steps through
-  // distinct filter states instead of skipping straight past the page.
+  // User-initiated calls push onto history so the browser back button steps
+  // through distinct filter states; programmatic corrections (e.g. clamping
+  // an out-of-range page) pass `replace: true` to avoid back-button traps.
   const updateParams = useCallback(
-    (patch: Record<string, string | null>) => {
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        for (const [key, value] of Object.entries(patch)) {
-          if (value == null || value === '') {
-            next.delete(key);
-          } else {
-            next.set(key, value);
+    (patch: Record<string, string | null>, options?: { replace?: boolean }) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          for (const [key, value] of Object.entries(patch)) {
+            if (value == null || value === '') {
+              next.delete(key);
+            } else {
+              next.set(key, value);
+            }
           }
-        }
-        return next;
-      });
+          return next;
+        },
+        { replace: options?.replace },
+      );
     },
     [setSearchParams],
   );
@@ -97,10 +101,12 @@ export function PostList() {
         if (cancelled) return;
 
         // If the requested page is past the end (URL was edited or stale)
-        // normalize back to page 1. Skip toggling isLoading off so the
-        // re-running effect owns the loading state and we avoid a flash.
+        // normalize back to page 1. Use replace so back from the corrected
+        // URL does not bounce the user straight back to the bad page (which
+        // would normalize again, trapping the back button). Skip toggling
+        // isLoading off so the re-running effect owns the loading state.
         if (data.posts.length === 0 && currentPage > 1) {
-          updateParams({ page: null });
+          updateParams({ page: null }, { replace: true });
           return;
         }
 

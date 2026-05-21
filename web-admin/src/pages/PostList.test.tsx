@@ -1,19 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, useLocation } from 'react-router-dom'
+import { MemoryRouter, useLocation, useNavigationType } from 'react-router-dom'
 import { PostList } from './PostList'
 import { apiClient } from '../api/client'
 import type { Post, PostsResponse } from '../api/client'
 
-// Helper that exposes the current router location for URL-sync assertions.
+// Helper that exposes the current router location and navigation type so
+// URL-sync tests can assert both the resulting URL and whether the last
+// transition pushed or replaced.
 function LocationProbe() {
   const location = useLocation()
+  const navType = useNavigationType()
   return (
-    <div data-testid="location">
-      {location.pathname}
-      {location.search}
-    </div>
+    <>
+      <div data-testid="location">
+        {location.pathname}
+        {location.search}
+      </div>
+      <div data-testid="nav-type">{navType}</div>
+    </>
   )
 }
 
@@ -1140,7 +1146,7 @@ describe('PostList', () => {
       })
     })
 
-    it('normalizes the URL when the requested page is past the end', async () => {
+    it('normalizes the URL when the requested page is past the end (via replace, no back-button trap)', async () => {
       // First fetch (page=999) returns empty; the component should rewrite
       // the URL to drop ?page= and re-fetch page 1.
       vi.mocked(apiClient.getPosts)
@@ -1159,33 +1165,47 @@ describe('PostList', () => {
           offset: 0,
         })
       })
+
+      // Replace, not push: if this normalization pushed, pressing Back would
+      // return to ?page=999, which would normalize again, trapping the user.
+      expect(screen.getByTestId('nav-type').textContent).toBe('REPLACE')
     })
 
     it('does not update the URL while IME composition is active', async () => {
       vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
       renderWithLocation()
 
+      // Initial fetch is async via microtasks; settle it with real timers
+      // before switching to fake timers so that waitFor can poll.
       await waitFor(() => {
         expect(apiClient.getPosts).toHaveBeenCalled()
       })
 
-      const searchInput = screen.getByLabelText('Search')
+      // Fake timers from here on so debounce timing is deterministic.
+      vi.useFakeTimers()
+      try {
+        const searchInput = screen.getByLabelText('Search')
 
-      fireEvent.compositionStart(searchInput)
-      fireEvent.change(searchInput, { target: { value: 'こんにちは' } })
+        fireEvent.compositionStart(searchInput)
+        fireEvent.change(searchInput, { target: { value: 'こんにちは' } })
 
-      // Wait past the debounce; URL must remain at the default while composing.
-      await new Promise((resolve) => setTimeout(resolve, 400))
-      expect(screen.getByTestId('location').textContent).toBe('/')
+        // Advance well past the 300ms debounce; URL must remain unchanged.
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(500)
+        })
+        expect(screen.getByTestId('location').textContent).toBe('/')
 
-      fireEvent.compositionEnd(searchInput)
+        fireEvent.compositionEnd(searchInput)
 
-      await waitFor(
-        () => {
-          expect(screen.getByTestId('location').textContent).toContain('q=')
-        },
-        { timeout: 1500 },
-      )
+        // After compositionend the effect re-schedules the debounce timer.
+        // Run it to completion and let React flush the resulting state update.
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(500)
+        })
+        expect(screen.getByTestId('location').textContent).toContain('q=')
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('Clear keeps the status filter intact in the URL', async () => {
