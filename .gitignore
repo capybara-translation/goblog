@@ -46,3 +46,4 @@ web-admin/.vite/
 web-admin/.env
 
 tmp/
+/docs/

@@ -68,6 +68,7 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 	r.HandleFunc("/sitemap.xml", publicHandlers.HandleSitemap).Methods("GET")
 	r.HandleFunc("/posts/{slug}", publicHandlers.HandlePostDetail).Methods("GET")
 	r.HandleFunc("/posts", publicHandlers.HandlePosts).Methods("GET")
+	r.HandleFunc("/posts/", publicHandlers.HandlePosts).Methods("GET")
 	r.HandleFunc("/tags", publicHandlers.HandleTags).Methods("GET")
 	r.HandleFunc("/tags/{tag}", publicHandlers.HandleTagPosts).Methods("GET")
 
@@ -147,6 +148,7 @@ func NewRouterWithTemplates(postService service.PostService, postViewService ser
 	r.HandleFunc("/sitemap.xml", publicHandlers.HandleSitemap).Methods("GET")
 	r.HandleFunc("/posts/{slug}", publicHandlers.HandlePostDetail).Methods("GET")
 	r.HandleFunc("/posts", publicHandlers.HandlePosts).Methods("GET")
+	r.HandleFunc("/posts/", publicHandlers.HandlePosts).Methods("GET")
 	r.HandleFunc("/tags", publicHandlers.HandleTags).Methods("GET")
 	r.HandleFunc("/tags/{tag}", publicHandlers.HandleTagPosts).Methods("GET")
 

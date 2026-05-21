@@ -163,92 +163,105 @@ var _ service.PostService = (*mockPostService)(nil)
 
 func TestHandleHome(t *testing.T) {
 	tests := []struct {
-		name           string
-		mockFunc       func(limit, offset int) ([]*domain.Post, error)
-		expectedStatus int
-		containsText   []string
-		notContains    []string
+		name                     string
+		url                      string
+		getPublishedPostsFunc    func(limit, offset int) ([]*domain.Post, error)
+		searchPublishedPostsFunc func(query string, limit, offset int) ([]*domain.Post, error)
+		expectedStatus           int
+		containsText             []string
+		notContains              []string
 	}{
 		{
-			name: "When there are no posts",
-			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
-				return []*domain.Post{}, nil
-			},
-			expectedStatus: http.StatusOK,
-			containsText: []string{
-				"<!DOCTYPE html>",
-				"No posts yet.",
-			},
-		},
-		{
-			name: "When there are posts",
-			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
+			name: "default page shows up to 20 published posts",
+			url:  "/",
+			getPublishedPostsFunc: func(limit, offset int) ([]*domain.Post, error) {
+				if limit != 21 || offset != 0 {
+					t.Errorf("expected limit=21 offset=0, got limit=%d offset=%d", limit, offset)
+				}
 				publishedAt := time.Now()
 				return []*domain.Post{
-					{
-						ID:          1,
-						Title:       "テスト記事1",
-						Slug:        "test-post-1",
-						Content:     "これはテスト記事です",
-						Status:      domain.PostStatusPublished,
-						Tags:        "Go,テスト",
-						PublishedAt: &publishedAt,
-					},
-					{
-						ID:          2,
-						Title:       "テスト記事2",
-						Slug:        "test-post-2",
-						Content:     "2つ目の記事",
-						Status:      domain.PostStatusPublished,
-						PublishedAt: &publishedAt,
-					},
+					{ID: 1, Title: "テスト記事1", Slug: "test-post-1", Status: domain.PostStatusPublished, PublishedAt: &publishedAt, Tags: "Go"},
+					{ID: 2, Title: "テスト記事2", Slug: "test-post-2", Status: domain.PostStatusPublished, PublishedAt: &publishedAt},
 				}, nil
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"<!DOCTYPE html>",
 				"テスト記事1",
-				"テスト記事2",
 				"/posts/test-post-1",
-				"/posts/test-post-2",
+				"テスト記事2",
 				"#Go",
-				"#テスト",
 			},
-			notContains: []string{
-				"No posts yet.",
+			notContains: []string{"View all posts", "No posts yet."},
+		},
+		{
+			name: "page=2 requests offset 20",
+			url:  "/?page=2",
+			getPublishedPostsFunc: func(limit, offset int) ([]*domain.Post, error) {
+				if limit != 21 || offset != 20 {
+					t.Errorf("expected limit=21 offset=20, got limit=%d offset=%d", limit, offset)
+				}
+				return []*domain.Post{}, nil
 			},
+			expectedStatus: http.StatusOK,
+			containsText:   []string{"No posts yet."},
+		},
+		{
+			name: "search routes to SearchPublishedPosts",
+			url:  "/?q=Go",
+			searchPublishedPostsFunc: func(query string, limit, offset int) ([]*domain.Post, error) {
+				if query != "Go" || limit != 21 || offset != 0 {
+					t.Errorf("unexpected args: query=%q limit=%d offset=%d", query, limit, offset)
+				}
+				publishedAt := time.Now()
+				return []*domain.Post{
+					{ID: 10, Title: "Go intro", Slug: "go-intro", Status: domain.PostStatusPublished, PublishedAt: &publishedAt},
+				}, nil
+			},
+			expectedStatus: http.StatusOK,
+			containsText:   []string{"/posts/go-intro", "Search results for"},
+		},
+		{
+			name: "search with no matches shows search-aware empty message",
+			url:  "/?q=zzznomatch",
+			searchPublishedPostsFunc: func(query string, limit, offset int) ([]*domain.Post, error) {
+				return []*domain.Post{}, nil
+			},
+			expectedStatus: http.StatusOK,
+			containsText:   []string{`No posts found matching "zzznomatch"`},
+			notContains:    []string{"No posts yet."},
+		},
+		{
+			name: "no posts at all shows empty message",
+			url:  "/",
+			getPublishedPostsFunc: func(limit, offset int) ([]*domain.Post, error) {
+				return []*domain.Post{}, nil
+			},
+			expectedStatus: http.StatusOK,
+			containsText:   []string{"No posts yet."},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockService := &mockPostService{
-				getPublishedPostsFunc: tt.mockFunc,
+				getPublishedPostsFunc:    tt.getPublishedPostsFunc,
+				searchPublishedPostsFunc: tt.searchPublishedPostsFunc,
 			}
 			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
-			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
 			w := httptest.NewRecorder()
-
 			router.ServeHTTP(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
 			}
-
-			contentType := w.Header().Get("Content-Type")
-			expected := "text/html; charset=utf-8"
-			if contentType != expected {
-				t.Errorf("expected Content-Type %q, got %q", expected, contentType)
-			}
-
 			body := w.Body.String()
 			for _, text := range tt.containsText {
 				if !strings.Contains(body, text) {
-					t.Errorf("expected body to contain %q", text)
+					t.Errorf("expected body to contain %q\nbody: %s", text, body)
 				}
 			}
-
 			for _, text := range tt.notContains {
 				if strings.Contains(body, text) {
 					t.Errorf("expected body NOT to contain %q", text)
@@ -342,106 +355,7 @@ func TestHandleHome_BlogTitle(t *testing.T) {
 	}
 }
 
-func TestHandlePosts(t *testing.T) {
-	tests := []struct {
-		name           string
-		mockFunc       func(limit, offset int) ([]*domain.Post, error)
-		expectedStatus int
-		containsText   []string
-		notContains    []string
-	}{
-		{
-			name: "When there are no posts",
-			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
-				return []*domain.Post{}, nil
-			},
-			expectedStatus: http.StatusOK,
-			containsText: []string{
-				"<!DOCTYPE html>",
-				"Posts",
-				"No posts yet.",
-			},
-		},
-		{
-			name: "When there are posts",
-			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
-				publishedAt := time.Now()
-				return []*domain.Post{
-					{
-						ID:          1,
-						Title:       "公開記事1",
-						Slug:        "published-post-1",
-						Content:     "これは公開されている記事です。長い内容でも最初の部分だけ表示されます。" + strings.Repeat("テスト", 100),
-						Status:      domain.PostStatusPublished,
-						Tags:        "タグ1,タグ2",
-						PublishedAt: &publishedAt,
-					},
-					{
-						ID:          2,
-						Title:       "公開記事2",
-						Slug:        "published-post-2",
-						Content:     "2つ目の公開記事",
-						Status:      domain.PostStatusPublished,
-						PublishedAt: &publishedAt,
-					},
-				}, nil
-			},
-			expectedStatus: http.StatusOK,
-			containsText: []string{
-				"<!DOCTYPE html>",
-				"Posts",
-				"公開記事1",
-				"公開記事2",
-				"/posts/published-post-1",
-				"/posts/published-post-2",
-				"#タグ1",
-				"#タグ2",
-			},
-			notContains: []string{
-				"No posts yet.",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockService := &mockPostService{
-				getPublishedPostsFunc: tt.mockFunc,
-			}
-			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
-
-			req := httptest.NewRequest(http.MethodGet, "/posts", nil)
-			w := httptest.NewRecorder()
-
-			router.ServeHTTP(w, req)
-
-			if w.Code != tt.expectedStatus {
-				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
-
-			contentType := w.Header().Get("Content-Type")
-			expected := "text/html; charset=utf-8"
-			if contentType != expected {
-				t.Errorf("expected Content-Type %q, got %q", expected, contentType)
-			}
-
-			body := w.Body.String()
-			for _, text := range tt.containsText {
-				if !strings.Contains(body, text) {
-					t.Errorf("expected body to contain %q", text)
-				}
-			}
-
-			for _, text := range tt.notContains {
-				if strings.Contains(body, text) {
-					t.Errorf("expected body NOT to contain %q", text)
-				}
-			}
-		})
-	}
-}
-
-func TestHandlePosts_Pagination(t *testing.T) {
+func TestHandleHome_Pagination(t *testing.T) {
 	tests := []struct {
 		name           string
 		url            string
@@ -452,7 +366,7 @@ func TestHandlePosts_Pagination(t *testing.T) {
 	}{
 		{
 			name: "Page 1 (has next page)",
-			url:  "/posts?page=1",
+			url:  "/?page=1",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				if limit != 21 || offset != 0 {
 					t.Errorf("expected limit=21, offset=0, got limit=%d, offset=%d", limit, offset)
@@ -476,15 +390,15 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			containsText: []string{
 				"Page",
 				"Page 1",
-				"/posts?page=2",
+				"/?page=2",
 			},
 			notContains: []string{
-				"/posts?page=0",
+				"/?page=0",
 			},
 		},
 		{
 			name: "Page 2 (has previous and next pages)",
-			url:  "/posts?page=2",
+			url:  "/?page=2",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				if limit != 21 || offset != 20 {
 					t.Errorf("expected limit=21, offset=20, got limit=%d, offset=%d", limit, offset)
@@ -508,13 +422,13 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			containsText: []string{
 				"Page",
 				"Page 2",
-				"/posts?page=1",
-				"/posts?page=3",
+				"/?page=1",
+				"/?page=3",
 			},
 		},
 		{
 			name: "Last page (no next page)",
-			url:  "/posts?page=3",
+			url:  "/?page=3",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				if limit != 21 || offset != 40 {
 					t.Errorf("expected limit=21, offset=40, got limit=%d, offset=%d", limit, offset)
@@ -538,15 +452,15 @@ func TestHandlePosts_Pagination(t *testing.T) {
 			containsText: []string{
 				"Page",
 				"Page 3",
-				"/posts?page=2",
+				"/?page=2",
 			},
 			notContains: []string{
-				"/posts?page=4",
+				"/?page=4",
 			},
 		},
 		{
 			name: "Invalid page parameter (defaults to page 1)",
-			url:  "/posts?page=invalid",
+			url:  "/?page=invalid",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				if limit != 21 || offset != 0 {
 					t.Errorf("expected limit=21, offset=0, got limit=%d, offset=%d", limit, offset)
@@ -573,7 +487,7 @@ func TestHandlePosts_Pagination(t *testing.T) {
 		},
 		{
 			name: "page=0 (treated as page 1)",
-			url:  "/posts?page=0",
+			url:  "/?page=0",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				if limit != 21 || offset != 0 {
 					t.Errorf("expected limit=21, offset=0, got limit=%d, offset=%d", limit, offset)
@@ -600,7 +514,7 @@ func TestHandlePosts_Pagination(t *testing.T) {
 		},
 		{
 			name: "page=-1 (treated as page 1)",
-			url:  "/posts?page=-1",
+			url:  "/?page=-1",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				if limit != 21 || offset != 0 {
 					t.Errorf("expected limit=21, offset=0, got limit=%d, offset=%d", limit, offset)
@@ -627,7 +541,7 @@ func TestHandlePosts_Pagination(t *testing.T) {
 		},
 		{
 			name: "No page parameter (defaults to page 1)",
-			url:  "/posts",
+			url:  "/",
 			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
 				if limit != 21 || offset != 0 {
 					t.Errorf("expected limit=21, offset=0, got limit=%d, offset=%d", limit, offset)
@@ -686,7 +600,7 @@ func TestHandlePosts_Pagination(t *testing.T) {
 	}
 }
 
-func TestHandlePosts_Error(t *testing.T) {
+func TestHandleHome_Error(t *testing.T) {
 	mockService := &mockPostService{
 		getPublishedPostsFunc: func(limit, offset int) ([]*domain.Post, error) {
 			return nil, fmt.Errorf("database connection error")
@@ -694,7 +608,7 @@ func TestHandlePosts_Error(t *testing.T) {
 	}
 	router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
-	req := httptest.NewRequest(http.MethodGet, "/posts", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)
@@ -706,77 +620,6 @@ func TestHandlePosts_Error(t *testing.T) {
 	body := w.Body.String()
 	if !strings.Contains(body, "Internal Server Error") {
 		t.Errorf("expected body to contain 'Internal Server Error', got %q", body)
-	}
-}
-
-func TestHandlePosts_BlogTitle(t *testing.T) {
-	tests := []struct {
-		name         string
-		blogTitle    string
-		mockFunc     func(limit, offset int) ([]*domain.Post, error)
-		containsText []string
-	}{
-		{
-			name:      "Default blog title",
-			blogTitle: "goblog",
-			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
-				return []*domain.Post{}, nil
-			},
-			containsText: []string{
-				"<title>Posts - goblog</title>",
-				"<a href=\"/\"",
-				">goblog</a>",
-				"&copy; 2025 goblog</span>",
-			},
-		},
-		{
-			name:      "Custom blog title",
-			blogTitle: "My Tech Blog",
-			mockFunc: func(limit, offset int) ([]*domain.Post, error) {
-				publishedAt := time.Now()
-				return []*domain.Post{
-					{
-						ID:          1,
-						Title:       "Test Post",
-						Slug:        "test-post",
-						Content:     "Test content",
-						Status:      domain.PostStatusPublished,
-						PublishedAt: &publishedAt,
-					},
-				}, nil
-			},
-			containsText: []string{
-				"<title>Posts - My Tech Blog</title>",
-				"<a href=\"/\"",
-				">My Tech Blog</a>",
-				"&copy; 2025 My Tech Blog</span>",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockService := &mockPostService{
-				getPublishedPostsFunc: tt.mockFunc,
-			}
-			router := NewRouterWithTemplates(mockService, nil, nil, false, nil, tt.blogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
-
-			req := httptest.NewRequest(http.MethodGet, "/posts", nil)
-			w := httptest.NewRecorder()
-
-			router.ServeHTTP(w, req)
-
-			if w.Code != http.StatusOK {
-				t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
-			}
-
-			body := w.Body.String()
-			for _, text := range tt.containsText {
-				if !strings.Contains(body, text) {
-					t.Errorf("expected body to contain %q", text)
-				}
-			}
-		})
 	}
 }
 
@@ -1452,7 +1295,7 @@ func TestFormatDateDetailWithTZ(t *testing.T) {
 	}
 }
 
-func TestHandlePosts_Search(t *testing.T) {
+func TestHandleHome_Search(t *testing.T) {
 	tests := []struct {
 		name           string
 		url            string
@@ -1464,7 +1307,7 @@ func TestHandlePosts_Search(t *testing.T) {
 	}{
 		{
 			name: "Get posts with search query",
-			url:  "/posts?q=Go",
+			url:  "/?q=Go",
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				if query != "Go" {
 					t.Errorf("expected query 'Go', got %s", query)
@@ -1500,9 +1343,7 @@ func TestHandlePosts_Search(t *testing.T) {
 				"<mark>Go</mark>応用テクニック", // Highlighted title
 				"/posts/go-introduction",
 				"/posts/go-advanced",
-				`value="Go"`,      // Value remains in search box
-				`href="/posts"`,   // Clear link
-				"Clear",           // Clear button
+				`value="Go"`, // Value remains in search box
 			},
 			notContains: []string{
 				"No posts yet.",
@@ -1510,7 +1351,7 @@ func TestHandlePosts_Search(t *testing.T) {
 		},
 		{
 			name: "Japanese search query",
-			url:  "/posts?q=%E3%83%97%E3%83%AD%E3%82%B0%E3%83%A9%E3%83%9F%E3%83%B3%E3%82%B0", // "プログラミング"
+			url:  "/?q=%E3%83%97%E3%83%AD%E3%82%B0%E3%83%A9%E3%83%9F%E3%83%B3%E3%82%B0", // "プログラミング"
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				if query != "プログラミング" {
 					t.Errorf("expected query 'プログラミング', got %s", query)
@@ -1538,7 +1379,7 @@ func TestHandlePosts_Search(t *testing.T) {
 		},
 		{
 			name: "Search results are 0",
-			url:  "/posts?q=notfound",
+			url:  "/?q=notfound",
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				return []*domain.Post{}, nil
 			},
@@ -1556,7 +1397,7 @@ func TestHandlePosts_Search(t *testing.T) {
 		},
 		{
 			name: "Search + pagination (page 1)",
-			url:  "/posts?q=Go&page=1",
+			url:  "/?q=Go&page=1",
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				if limit != 21 || offset != 0 {
 					t.Errorf("expected limit=21, offset=0, got limit=%d, offset=%d", limit, offset)
@@ -1581,12 +1422,12 @@ func TestHandlePosts_Search(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"/posts?page=2&q=Go", // Search query is included in pagination
+				"/?page=2&q=Go", // Search query is included in pagination
 			},
 		},
 		{
 			name: "Search + pagination (page 2)",
-			url:  "/posts?q=Go&page=2",
+			url:  "/?q=Go&page=2",
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				if limit != 21 || offset != 20 {
 					t.Errorf("expected limit=21, offset=20, got limit=%d, offset=%d", limit, offset)
@@ -1611,15 +1452,15 @@ func TestHandlePosts_Search(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			containsText: []string{
-				"/posts?page=1&q=Go",
+				"/?page=1&q=Go",
 			},
 			notContains: []string{
-				"/posts?page=3", // No next page
+				"/?page=3", // No next page
 			},
 		},
 		{
 			name: "Search error",
-			url:  "/posts?q=error",
+			url:  "/?q=error",
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				return nil, fmt.Errorf("database error")
 			},
@@ -1666,14 +1507,14 @@ func TestHandlePosts_Search(t *testing.T) {
 	}
 }
 
-func TestHandlePosts_SearchQueryLimit(t *testing.T) {
+func TestHandleHome_SearchQueryLimit(t *testing.T) {
 	t.Run("Error when search query is too long", func(t *testing.T) {
 		mockService := &mockPostService{}
 		router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
 
 		// 201-character query (limit is 200 characters)
 		longQuery := strings.Repeat("a", 201)
-		req := httptest.NewRequest(http.MethodGet, "/posts?q="+longQuery, nil)
+		req := httptest.NewRequest(http.MethodGet, "/?q="+longQuery, nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -1696,7 +1537,7 @@ func TestHandlePosts_SearchQueryLimit(t *testing.T) {
 
 		// 200-character query (exactly at the limit)
 		exactQuery := strings.Repeat("a", 200)
-		req := httptest.NewRequest(http.MethodGet, "/posts?q="+exactQuery, nil)
+		req := httptest.NewRequest(http.MethodGet, "/?q="+exactQuery, nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -1705,40 +1546,6 @@ func TestHandlePosts_SearchQueryLimit(t *testing.T) {
 			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
 		}
 	})
-}
-
-func TestHandlePosts_SearchForm(t *testing.T) {
-	// Verify that the search form is always displayed
-	mockService := &mockPostService{
-		getPublishedPostsFunc: func(limit, offset int) ([]*domain.Post, error) {
-			return []*domain.Post{}, nil
-		},
-	}
-	router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
-
-	req := httptest.NewRequest(http.MethodGet, "/posts", nil)
-	w := httptest.NewRecorder()
-
-	router.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
-	}
-
-	body := w.Body.String()
-	expectedElements := []string{
-		`<form action="/posts" method="GET"`,
-		`name="q"`,
-		`placeholder="Search posts..."`,
-		`type="submit"`,
-		"Search",
-	}
-
-	for _, elem := range expectedElements {
-		if !strings.Contains(body, elem) {
-			t.Errorf("expected body to contain %q", elem)
-		}
-	}
 }
 
 func TestFormatDateWithTZ_Integration(t *testing.T) {
@@ -1764,7 +1571,7 @@ func TestFormatDateWithTZ_Integration(t *testing.T) {
 		}
 
 		router := NewRouterWithTemplates(mockService, nil, nil, false, nil, "Test Blog", testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
-		req := httptest.NewRequest(http.MethodGet, "/posts", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -1805,7 +1612,7 @@ func TestFormatDateWithTZ_Integration(t *testing.T) {
 		}
 
 		router := NewRouterWithTemplates(mockService, nil, nil, false, nil, "Test Blog", testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
-		req := httptest.NewRequest(http.MethodGet, "/posts", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -1899,7 +1706,7 @@ func TestHighlightQuery(t *testing.T) {
 	}
 }
 
-func TestHandlePosts_SearchHighlight(t *testing.T) {
+func TestHandleHome_SearchHighlight(t *testing.T) {
 	tests := []struct {
 		name           string
 		url            string
@@ -1909,7 +1716,7 @@ func TestHandlePosts_SearchHighlight(t *testing.T) {
 	}{
 		{
 			name: "Highlight is applied to title and body",
-			url:  "/posts?q=Go",
+			url:  "/?q=Go",
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				publishedAt := time.Now()
 				return []*domain.Post{
@@ -1930,7 +1737,7 @@ func TestHandlePosts_SearchHighlight(t *testing.T) {
 		},
 		{
 			name: "Highlight with Japanese query",
-			url:  "/posts?q=%E3%83%97%E3%83%AD%E3%82%B0%E3%83%A9%E3%83%9F%E3%83%B3%E3%82%B0", // プログラミング
+			url:  "/?q=%E3%83%97%E3%83%AD%E3%82%B0%E3%83%A9%E3%83%9F%E3%83%B3%E3%82%B0", // プログラミング
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				publishedAt := time.Now()
 				return []*domain.Post{
@@ -1951,7 +1758,7 @@ func TestHandlePosts_SearchHighlight(t *testing.T) {
 		},
 		{
 			name: "No highlight when no query",
-			url:  "/posts",
+			url:  "/",
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				publishedAt := time.Now()
 				return []*domain.Post{
@@ -1974,7 +1781,7 @@ func TestHandlePosts_SearchHighlight(t *testing.T) {
 		},
 		{
 			name: "Highlight in full text display for long body",
-			url:  "/posts?q=Go",
+			url:  "/?q=Go",
 			mockSearch: func(query string, limit, offset int) ([]*domain.Post, error) {
 				publishedAt := time.Now()
 				// Content exceeding 200 characters
@@ -2240,5 +2047,218 @@ func TestPinnedPostsInHeader(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestLayout_SearchFormInHeader(t *testing.T) {
+	tests := []struct {
+		name         string
+		url          string
+		containsText []string
+		notContains  []string
+	}{
+		{
+			name: "search form is present in the header on the home page",
+			url:  "/",
+			containsText: []string{
+				`<form action="/" method="GET"`,
+				`name="q"`,
+				`placeholder="Search posts..."`,
+			},
+			notContains: []string{
+				`<a href="/posts"`, // legacy nav link should be gone
+			},
+		},
+		{
+			name: "search form pre-fills with the current query",
+			url:  "/?q=Go",
+			containsText: []string{
+				`value="Go"`,
+				`<form action="/" method="GET"`,
+			},
+		},
+		{
+			name: "search form appears on the tags page too (global header)",
+			url:  "/tags",
+			containsText: []string{
+				`<form action="/" method="GET"`,
+				`name="q"`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := &mockPostService{
+				getPublishedPostsFunc: func(limit, offset int) ([]*domain.Post, error) {
+					return []*domain.Post{}, nil
+				},
+				getPublishedTagsFunc: func() (map[string]int, error) {
+					return map[string]int{}, nil
+				},
+			}
+			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("expected status 200, got %d", w.Code)
+			}
+			body := w.Body.String()
+			for _, text := range tt.containsText {
+				if !strings.Contains(body, text) {
+					t.Errorf("expected body to contain %q", text)
+				}
+			}
+			for _, text := range tt.notContains {
+				if strings.Contains(body, text) {
+					t.Errorf("expected body NOT to contain %q", text)
+				}
+			}
+		})
+	}
+}
+
+func TestPostsRedirectsToHome(t *testing.T) {
+	tests := []struct {
+		name         string
+		url          string
+		wantStatus   int
+		wantLocation string
+	}{
+		{"bare /posts redirects to /", "/posts", http.StatusMovedPermanently, "/"},
+		{"/posts/ trailing slash also redirects", "/posts/", http.StatusMovedPermanently, "/"},
+		{"/posts?page=2 preserves page", "/posts?page=2", http.StatusMovedPermanently, "/?page=2"},
+		{"/posts?q=foo preserves query", "/posts?q=foo", http.StatusMovedPermanently, "/?q=foo"},
+		{"/posts?q=foo&page=3 preserves both", "/posts?q=foo&page=3", http.StatusMovedPermanently, "/?q=foo&page=3"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := &mockPostService{}
+			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			if w.Code != tt.wantStatus {
+				t.Errorf("expected status %d, got %d", tt.wantStatus, w.Code)
+			}
+			got := w.Header().Get("Location")
+			if got != tt.wantLocation {
+				t.Errorf("expected Location %q, got %q", tt.wantLocation, got)
+			}
+		})
+	}
+}
+
+func TestPostDetailNotAffectedByRedirect(t *testing.T) {
+	// /posts/{slug} must still be served as a post detail, not redirected.
+	publishedAt := time.Now()
+	mockService := &mockPostService{
+		getPostBySlugFunc: func(slug string) (*domain.Post, error) {
+			if slug != "live-post" {
+				t.Errorf("unexpected slug: %q", slug)
+			}
+			return &domain.Post{
+				ID:          1,
+				Title:       "Live Post",
+				Slug:        "live-post",
+				Status:      domain.PostStatusPublished,
+				Content:     "body",
+				PublishedAt: &publishedAt,
+			}, nil
+		},
+	}
+	router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+	req := httptest.NewRequest(http.MethodGet, "/posts/live-post", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 OK for /posts/{slug}, got %d", w.Code)
+	}
+	if loc := w.Header().Get("Location"); loc != "" {
+		t.Errorf("expected no Location header, got %q", loc)
+	}
+}
+
+func TestSearchInput_EscapesQueryValue(t *testing.T) {
+	mockService := &mockPostService{
+		searchPublishedPostsFunc: func(query string, limit, offset int) ([]*domain.Post, error) {
+			return []*domain.Post{}, nil
+		},
+	}
+	router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+
+	req := httptest.NewRequest(http.MethodGet, "/?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	if strings.Contains(body, "<script>alert(1)</script>") {
+		t.Errorf("unescaped <script> tag found in body — XSS regression. Body: %s", body)
+	}
+	if !strings.Contains(body, `value="&lt;script&gt;alert(1)&lt;/script&gt;"`) {
+		t.Errorf("expected HTML-escaped value attribute in search input, body: %s", body)
+	}
+}
+
+func TestHandleHome_NoIndexForSearchAndDeepPages(t *testing.T) {
+	tests := []struct {
+		name           string
+		url            string
+		wantNoIndexTag bool
+	}{
+		{"home page 1 no query is indexable", "/", false},
+		{"page 2 emits noindex", "/?page=2", true},
+		{"search results emit noindex", "/?q=Go", true},
+		{"search + pagination emits noindex", "/?q=Go&page=2", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := &mockPostService{
+				getPublishedPostsFunc: func(limit, offset int) ([]*domain.Post, error) {
+					return []*domain.Post{}, nil
+				},
+				searchPublishedPostsFunc: func(query string, limit, offset int) ([]*domain.Post, error) {
+					return []*domain.Post{}, nil
+				},
+			}
+			router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			body := w.Body.String()
+			hasMeta := strings.Contains(body, `<meta name="robots" content="noindex,follow">`)
+			if hasMeta != tt.wantNoIndexTag {
+				t.Errorf("noindex meta tag presence = %v, want %v\nbody: %s", hasMeta, tt.wantNoIndexTag, body)
+			}
+		})
+	}
+}
+
+func TestNotFound_RendersSearchForm(t *testing.T) {
+	mockService := &mockPostService{}
+	router := NewRouterWithTemplates(mockService, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize)
+
+	req := httptest.NewRequest(http.MethodGet, "/this-route-does-not-exist", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, `<form action="/" method="GET"`) {
+		t.Errorf("404 page must render the global header search form, body: %s", body)
+	}
+	if !strings.Contains(body, `name="q"`) {
+		t.Errorf("404 page search form is missing the q input, body: %s", body)
 	}
 }

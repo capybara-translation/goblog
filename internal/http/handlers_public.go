@@ -32,7 +32,6 @@ type PublicHandlers struct {
 	blogTitle        string // Blog title
 	baseURL          string // Site base URL (for sitemap)
 	homeTemplate     *template.Template
-	postsTemplate    *template.Template
 	postTemplate     *template.Template
 	tagsTemplate     *template.Template
 	tagPostsTemplate *template.Template
@@ -309,7 +308,6 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 
 	// Create independent template sets for each page
 	homeTemplate := parseTemplates("layout.html", "home.html")
-	postsTemplate := parseTemplates("layout.html", "posts.html")
 	postTemplate := parseTemplates("layout.html", "post.html")
 	tagsTemplate := parseTemplates("layout.html", "tags.html")
 	tagPostsTemplate := parseTemplates("layout.html", "tag_posts.html")
@@ -323,7 +321,6 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 		blogTitle:        blogTitle,
 		baseURL:          baseURL,
 		homeTemplate:     homeTemplate,
-		postsTemplate:    postsTemplate,
 		postTemplate:     postTemplate,
 		tagsTemplate:     tagsTemplate,
 		tagPostsTemplate: tagPostsTemplate,
@@ -350,7 +347,6 @@ func NewPublicHandlersFromPath(postService service.PostService, postViewService 
 
 	// Create independent template sets for each page
 	homeTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "home.html")))
-	postsTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "posts.html")))
 	postTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "post.html")))
 	tagsTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "tags.html")))
 	tagPostsTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "tag_posts.html")))
@@ -362,7 +358,6 @@ func NewPublicHandlersFromPath(postService service.PostService, postViewService 
 		blogTitle:        blogTitle,
 		baseURL:          baseURL,
 		homeTemplate:     homeTemplate,
-		postsTemplate:    postsTemplate,
 		postTemplate:     postTemplate,
 		tagsTemplate:     tagsTemplate,
 		tagPostsTemplate: tagPostsTemplate,
@@ -386,6 +381,7 @@ func (h *PublicHandlers) renderNotFound(w http.ResponseWriter, r *http.Request) 
 		"SiteTitle":   h.blogTitle,
 		"PinnedPosts": h.getPinnedPosts(),
 		"OGP":         h.defaultOGP("Not Found - "+h.blogTitle, r.URL.Path, h.blogTitle),
+		"Query":       "",
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -396,33 +392,8 @@ func (h *PublicHandlers) renderNotFound(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-// HandleHome displays the home page
+// HandleHome displays the home page (posts list, page 1 by default)
 func (h *PublicHandlers) HandleHome(w http.ResponseWriter, r *http.Request) {
-	// Get the 5 most recent posts
-	posts, err := h.postService.GetPublishedPosts(5, 0)
-	if err != nil {
-		log.Printf("failed to get published posts: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	data := map[string]any{
-		"SiteTitle":   h.blogTitle,
-		"Posts":       posts,
-		"PinnedPosts": h.getPinnedPosts(),
-		"OGP":         h.defaultOGP(h.blogTitle, r.URL.Path, h.blogTitle),
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := h.homeTemplate.ExecuteTemplate(w, "home", data); err != nil {
-		log.Printf("failed to execute template: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-	}
-}
-
-// HandlePosts displays the posts list page
-func (h *PublicHandlers) HandlePosts(w http.ResponseWriter, r *http.Request) {
-	// Get page and q from query parameters
 	pageStr := r.URL.Query().Get("page")
 	queryStr := r.URL.Query().Get("q")
 	page := 1
@@ -432,23 +403,18 @@ func (h *PublicHandlers) HandlePosts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Search query length limit
 	const maxQueryLength = 200
 	if len(queryStr) > maxQueryLength {
 		http.Error(w, "Search query too long", http.StatusBadRequest)
 		return
 	}
 
-	// Number of posts per page
 	const perPage = 20
 	offset := (page - 1) * perPage
 
 	var posts []*domain.Post
 	var err error
-
-	// Fetch perPage+1 items to determine if there is a next page
 	if queryStr != "" {
-		// Search mode
 		posts, err = h.postService.SearchPublishedPosts(queryStr, perPage+1, offset)
 	} else {
 		posts, err = h.postService.GetPublishedPosts(perPage+1, offset)
@@ -459,10 +425,9 @@ func (h *PublicHandlers) HandlePosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Determine if there is a next page
 	hasNext := len(posts) > perPage
 	if hasNext {
-		posts = posts[:perPage] // Trim to perPage items for display
+		posts = posts[:perPage]
 	}
 
 	data := map[string]any{
@@ -474,15 +439,25 @@ func (h *PublicHandlers) HandlePosts(w http.ResponseWriter, r *http.Request) {
 		"PrevPage":    page - 1,
 		"NextPage":    page + 1,
 		"Query":       queryStr,
+		"NoIndex":     queryStr != "" || page > 1,
 		"PinnedPosts": h.getPinnedPosts(),
-		"OGP":         h.defaultOGP("Posts - "+h.blogTitle, r.URL.Path, "Posts from "+h.blogTitle),
+		"OGP":         h.defaultOGP(h.blogTitle, r.URL.Path, h.blogTitle),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := h.postsTemplate.ExecuteTemplate(w, "posts", data); err != nil {
+	if err := h.homeTemplate.ExecuteTemplate(w, "home", data); err != nil {
 		log.Printf("failed to execute template: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
+}
+
+// HandlePosts redirects /posts (with any query) to / (page 1 of the home posts list)
+func (h *PublicHandlers) HandlePosts(w http.ResponseWriter, r *http.Request) {
+	target := "/"
+	if raw := r.URL.RawQuery; raw != "" {
+		target = "/?" + raw
+	}
+	http.Redirect(w, r, target, http.StatusMovedPermanently)
 }
 
 // HandlePostDetail displays the post detail page
@@ -520,6 +495,7 @@ func (h *PublicHandlers) HandlePostDetail(w http.ResponseWriter, r *http.Request
 		"Post":        post,
 		"PinnedPosts": h.getPinnedPosts(),
 		"OGP":         h.postOGP(post, r.URL.Path),
+		"Query":       "",
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -570,6 +546,7 @@ func (h *PublicHandlers) HandleTags(w http.ResponseWriter, r *http.Request) {
 		"Tags":        tags,
 		"PinnedPosts": h.getPinnedPosts(),
 		"OGP":         h.defaultOGP("Tags - "+h.blogTitle, r.URL.Path, "Tags from "+h.blogTitle),
+		"Query":       "",
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -634,6 +611,7 @@ func (h *PublicHandlers) HandleTagPosts(w http.ResponseWriter, r *http.Request) 
 		"NextPage":    page + 1,
 		"PinnedPosts": h.getPinnedPosts(),
 		"OGP":         h.defaultOGP(tag+" - "+h.blogTitle, r.URL.Path, "Posts tagged with "+tag),
+		"Query":       "",
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

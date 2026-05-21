@@ -6,16 +6,22 @@
 
 {{define "content"}}
 <div class="space-y-6">
+    {{if .Query}}
+    <p class="text-sm text-primary-600 font-sans px-1">
+        Search results for "<span class="font-medium">{{.Query}}</span>"
+    </p>
+    {{end}}
+
     {{if .Posts}}
         {{range .Posts}}
         <article class="bg-primary-100 rounded-lg shadow-sm p-5">
             {{if .Title}}
             <h2 class="text-lg font-sans font-semibold mb-2">
-                <a href="/posts/{{.Slug}}" class="text-primary-800 hover:text-primary-600 transition-colors">{{.Title}}</a>
+                <a href="/posts/{{.Slug}}" class="text-primary-800 hover:text-primary-600 transition-colors">{{if $.Query}}{{highlightQuery .Title $.Query}}{{else}}{{.Title}}{{end}}</a>
             </h2>
             {{end}}
             <div class="markdown-content text-primary-700 leading-relaxed">
-                {{renderMarkdown .Content}}
+                {{if $.Query}}{{renderMarkdownWithHighlight .Content $.Query}}{{else}}{{renderMarkdown .Content}}{{end}}
             </div>
             <footer class="mt-4 pt-4 border-t border-primary-200">
                 <div class="flex flex-wrap items-center gap-2 text-sm font-sans">
@@ -29,17 +35,38 @@
         </article>
         {{end}}
 
-        <div class="text-center pt-4">
-            <a href="/posts" class="inline-flex items-center text-primary-600 hover:text-primary-800 font-sans text-sm font-medium transition-colors">
-                View all posts
-                <svg class="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                </svg>
-            </a>
-        </div>
+        <nav class="flex items-center justify-between pt-4 font-sans" aria-label="Pagination">
+            <div>
+                {{if .HasPrev}}
+                    <a href="/?page={{.PrevPage}}{{if .Query}}&q={{.Query}}{{end}}" class="inline-flex items-center px-3 py-2 text-sm font-medium text-primary-600 hover:text-primary-800 bg-primary-100 rounded shadow-sm transition-colors">
+                        <svg class="mr-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                        </svg>
+                        Prev
+                    </a>
+                {{end}}
+            </div>
+            <div class="text-sm text-primary-500">
+                Page {{.CurrentPage}}
+            </div>
+            <div>
+                {{if .HasNext}}
+                    <a href="/?page={{.NextPage}}{{if .Query}}&q={{.Query}}{{end}}" class="inline-flex items-center px-3 py-2 text-sm font-medium text-primary-600 hover:text-primary-800 bg-primary-100 rounded shadow-sm transition-colors">
+                        Next
+                        <svg class="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </a>
+                {{end}}
+            </div>
+        </nav>
     {{else}}
         <div class="bg-primary-100 rounded-lg shadow-sm p-8 text-center">
+            {{if .Query}}
+            <p class="text-primary-500 font-sans">No posts found matching "{{.Query}}".</p>
+            {{else}}
             <p class="text-primary-500 font-sans">No posts yet.</p>
+            {{end}}
         </div>
     {{end}}
 </div>
