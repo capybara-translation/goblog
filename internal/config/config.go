@@ -36,10 +36,19 @@ type Config struct {
 	// Upload settings
 	UploadDir     string // Directory to save uploaded files
 	MaxUploadSize int64  // Maximum upload file size (bytes)
+
+	// Pagination settings
+	PostsPerPage int // Number of posts per page on the home and tag listings
 }
 
 // Default maximum upload size (5MB)
 const DefaultMaxUploadSize int64 = 5 * 1024 * 1024
+
+// Pagination defaults and bounds
+const (
+	DefaultPostsPerPage = 20
+	MaxPostsPerPage     = 100
+)
 
 // Load loads configuration from environment variables
 func Load() *Config {
@@ -61,7 +70,25 @@ func Load() *Config {
 		BaseURL:        baseURL,
 		UploadDir:      getEnv("UPLOAD_DIR", "data/uploads"),
 		MaxUploadSize:  getEnvAsInt64("MAX_UPLOAD_SIZE", DefaultMaxUploadSize),
+		PostsPerPage:   getEnvAsIntInRange("POSTS_PER_PAGE", DefaultPostsPerPage, 1, MaxPostsPerPage),
 	}
+}
+
+// getEnvAsIntInRange retrieves an env var as int, falling back to defaultValue
+// when unset, unparseable, or outside [lo, hi] (inclusive).
+func getEnvAsIntInRange(key string, defaultValue, lo, hi int) int {
+	valStr := os.Getenv(key)
+	if valStr == "" {
+		return defaultValue
+	}
+	val, err := strconv.Atoi(valStr)
+	if err != nil {
+		return defaultValue
+	}
+	if val < lo || val > hi {
+		return defaultValue
+	}
+	return val
 }
 
 // getEnv retrieves an environment variable or returns the default value if not set

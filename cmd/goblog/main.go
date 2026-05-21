@@ -65,7 +65,7 @@ func main() {
 	}
 
 	// Initialize router (using embedded resources)
-	r := gobloghttp.NewRouter(postService, postViewService, authService, ogpService, cfg.SecureCookie, cfg.TrustedProxies, cfg.BlogTitle, cfg.BaseURL, cfg.UploadDir, cfg.MaxUploadSize, goblog.Templates, goblog.StaticFiles)
+	r := gobloghttp.NewRouter(postService, postViewService, authService, ogpService, cfg.SecureCookie, cfg.TrustedProxies, cfg.BlogTitle, cfg.BaseURL, cfg.UploadDir, cfg.MaxUploadSize, cfg.PostsPerPage, goblog.Templates, goblog.StaticFiles)
 
 	// Start server
 	port := ":" + cfg.Port
