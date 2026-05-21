@@ -40,22 +40,21 @@ export function PostList() {
 
   // Mutate the URL while preserving unrelated params. Empty values are dropped
   // so the canonical URL omits defaults (no `?q=`, `?page=1`, `?status=all`).
+  // All updates push onto history so the browser back button steps through
+  // distinct filter states instead of skipping straight past the page.
   const updateParams = useCallback(
-    (patch: Record<string, string | null>, options?: { replace?: boolean }) => {
-      setSearchParams(
-        (prev) => {
-          const next = new URLSearchParams(prev);
-          for (const [key, value] of Object.entries(patch)) {
-            if (value == null || value === '') {
-              next.delete(key);
-            } else {
-              next.set(key, value);
-            }
+    (patch: Record<string, string | null>) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        for (const [key, value] of Object.entries(patch)) {
+          if (value == null || value === '') {
+            next.delete(key);
+          } else {
+            next.set(key, value);
           }
-          return next;
-        },
-        { replace: options?.replace },
-      );
+        }
+        return next;
+      });
     },
     [setSearchParams],
   );
@@ -65,13 +64,15 @@ export function PostList() {
     setSearchInput(debouncedQuery);
   }, [debouncedQuery]);
 
-  // Debounced search → URL (replace, to avoid history pollution per keystroke).
+  // Debounced search → URL. The debounce coalesces a burst of keystrokes
+  // into one history entry; intentional pauses (>300ms) create separate
+  // entries the user can step through with browser back.
   useEffect(() => {
     if (isComposing) return;
     if (searchInput === debouncedQuery) return;
 
     const timer = setTimeout(() => {
-      updateParams({ q: searchInput, page: null }, { replace: true });
+      updateParams({ q: searchInput, page: null });
     }, 300);
     return () => clearTimeout(timer);
   }, [searchInput, isComposing, debouncedQuery, updateParams]);
