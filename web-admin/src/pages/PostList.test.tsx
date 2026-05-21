@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { PostList } from './PostList'
@@ -1117,6 +1117,87 @@ describe('PostList', () => {
 
       await waitFor(() => {
         expect(screen.getByTestId('location').textContent).toBe('/?status=published')
+      })
+    })
+
+    it.each([
+      ['/?page=0', 'zero'],
+      ['/?page=-3', 'negative'],
+      ['/?page=', 'empty'],
+      ['/?page=abc', 'non-numeric'],
+      ['/?page=1.9', 'decimal'],
+    ])('invalid page param %s (%s) falls back to page 1', async (url) => {
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
+      renderWithLocation([url])
+
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenCalledWith({
+          status: undefined,
+          q: undefined,
+          limit: 20,
+          offset: 0,
+        })
+      })
+    })
+
+    it('normalizes the URL when the requested page is past the end', async () => {
+      // First fetch (page=999) returns empty; the component should rewrite
+      // the URL to drop ?page= and re-fetch page 1.
+      vi.mocked(apiClient.getPosts)
+        .mockResolvedValueOnce({ posts: [], total: 5 })
+        .mockResolvedValue(mockResponse)
+      renderWithLocation(['/?page=999'])
+
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe('/')
+      })
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenCalledWith({
+          status: undefined,
+          q: undefined,
+          limit: 20,
+          offset: 0,
+        })
+      })
+    })
+
+    it('does not update the URL while IME composition is active', async () => {
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
+      renderWithLocation()
+
+      await waitFor(() => {
+        expect(apiClient.getPosts).toHaveBeenCalled()
+      })
+
+      const searchInput = screen.getByLabelText('Search')
+
+      fireEvent.compositionStart(searchInput)
+      fireEvent.change(searchInput, { target: { value: 'こんにちは' } })
+
+      // Wait past the debounce; URL must remain at the default while composing.
+      await new Promise((resolve) => setTimeout(resolve, 400))
+      expect(screen.getByTestId('location').textContent).toBe('/')
+
+      fireEvent.compositionEnd(searchInput)
+
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('location').textContent).toContain('q=')
+        },
+        { timeout: 1500 },
+      )
+    })
+
+    it('Clear keeps the status filter intact in the URL', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getPosts).mockResolvedValue(mockResponse)
+      renderWithLocation(['/?status=draft&q=foo'])
+
+      const clearButton = await screen.findByTitle('Clear search')
+      await user.click(clearButton)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('location').textContent).toBe('/?status=draft')
       })
     })
   })

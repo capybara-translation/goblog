@@ -77,29 +77,48 @@ export function PostList() {
     return () => clearTimeout(timer);
   }, [searchInput, isComposing, debouncedQuery, updateParams]);
 
-  const loadPosts = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError('');
-      const offset = (currentPage - 1) * POSTS_PER_PAGE;
-      const data = await apiClient.getPosts({
-        status: statusFilter === 'all' ? undefined : statusFilter,
-        q: debouncedQuery || undefined,
-        limit: POSTS_PER_PAGE,
-        offset,
-      });
-      setPosts(data.posts);
-      setTotalCount(data.total);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load posts');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [currentPage, statusFilter, debouncedQuery]);
-
+  // Fetch posts whenever the URL-derived filters change. A cancelled flag in
+  // the cleanup discards stale responses so a slow fetch cannot overwrite the
+  // result of a newer one (e.g. when back/forward triggers rapid changes).
   useEffect(() => {
-    loadPosts();
-  }, [loadPosts]);
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setIsLoading(true);
+        setError('');
+        const offset = (currentPage - 1) * POSTS_PER_PAGE;
+        const data = await apiClient.getPosts({
+          status: statusFilter === 'all' ? undefined : statusFilter,
+          q: debouncedQuery || undefined,
+          limit: POSTS_PER_PAGE,
+          offset,
+        });
+        if (cancelled) return;
+
+        // If the requested page is past the end (URL was edited or stale)
+        // normalize back to page 1. The URL change re-runs this effect.
+        if (data.posts.length === 0 && currentPage > 1) {
+          updateParams({ page: null });
+          return;
+        }
+
+        setPosts(data.posts);
+        setTotalCount(data.total);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : 'Failed to load posts');
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentPage, statusFilter, debouncedQuery, updateParams]);
 
   // Explicit user actions push onto history.
   const handleStatusChange = (newStatus: StatusFilter) => {
@@ -205,9 +224,7 @@ export function PostList() {
             <select
               id="status-filter"
               value={statusFilter}
-              onChange={(e) =>
-                handleStatusChange(e.target.value as 'all' | 'draft' | 'published')
-              }
+              onChange={(e) => handleStatusChange(e.target.value as StatusFilter)}
               className="w-full px-3 py-2 border border-primary-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             >
               <option value="all">All</option>
