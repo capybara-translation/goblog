@@ -424,6 +424,7 @@ func clearEnv(t *testing.T) {
 	os.Unsetenv("MAX_UPLOAD_SIZE")
 	os.Unsetenv("POSTS_PER_PAGE")
 	os.Unsetenv("SESSION_TTL")
+	os.Unsetenv("REMEMBER_TTL")
 }
 
 func TestLoad_PostsPerPage(t *testing.T) {
@@ -493,6 +494,35 @@ func TestLoad_SessionTTL(t *testing.T) {
 
 			if cfg.SessionTTL != tt.want {
 				t.Errorf("SessionTTL = %v, want %v", cfg.SessionTTL, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoad_RememberTTL(t *testing.T) {
+	tests := []struct {
+		name     string
+		setEnv   bool
+		envValue string
+		want     time.Duration
+	}{
+		{"unset falls back to default", false, "", DefaultRememberTTL},
+		{"valid duration is honored", true, "168h", 168 * time.Hour},
+		{"minimum boundary (1h) is honored", true, "1h", time.Hour},
+		{"just below minimum falls back to default", true, "59m", DefaultRememberTTL},
+		{"unparseable falls back to default", true, "abc", DefaultRememberTTL},
+		{"unit-less falls back to default", true, "720", DefaultRememberTTL},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clearEnv(t)
+			if tt.setEnv {
+				t.Setenv("REMEMBER_TTL", tt.envValue)
+			}
+			cfg := Load()
+			if cfg.RememberTTL != tt.want {
+				t.Errorf("RememberTTL = %v, want %v", cfg.RememberTTL, tt.want)
 			}
 		})
 	}
