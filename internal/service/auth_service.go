@@ -45,6 +45,23 @@ type AuthService interface {
 	// HTTP handlers use this to drive cookie MaxAge so the cookie and the
 	// server-side session expire together.
 	SessionTTL() time.Duration
+
+	// IssueRememberToken creates a long-lived remember-me token for the user
+	// and returns the cookie value to set.
+	IssueRememberToken(userID int64) (cookieValue string, err error)
+
+	// RestoreFromRememberToken validates a remember-me cookie and, on success,
+	// issues a new session. Returns (nil, "", nil) for any non-fatal failure
+	// (missing, expired, hash mismatch, malformed) so callers can treat it as
+	// "no user" without flooding logs.
+	RestoreFromRememberToken(cookieValue string) (*domain.User, string, error)
+
+	// RevokeRememberToken deletes the remember-token row identified by the
+	// cookie's selector. Malformed cookies are silently ignored.
+	RevokeRememberToken(cookieValue string) error
+
+	// RememberTTL reports the TTL applied to newly issued remember tokens.
+	RememberTTL() time.Duration
 }
 
 // loginAttempt holds information about failed login attempts
@@ -59,6 +76,8 @@ type authService struct {
 	sessionStore   auth.SessionStore
 	sessionTTL     time.Duration
 	passwordPolicy config.PasswordPolicy
+	rememberStore  auth.RememberTokenStore
+	rememberTTL    time.Duration
 	// Brute force protection
 	loginAttempts map[string]*loginAttempt // failure information per IP address
 	attemptsMutex sync.RWMutex             // access control for loginAttempts
@@ -66,13 +85,25 @@ type authService struct {
 
 // NewAuthService creates a new AuthService. sessionTTL controls how long a
 // freshly issued session remains valid; HTTP handlers read it back via
-// SessionTTL() to keep the session cookie's MaxAge in sync.
-func NewAuthService(userRepo repo.UserRepository, sessionStore auth.SessionStore, passwordPolicy config.PasswordPolicy, sessionTTL time.Duration) AuthService {
+// SessionTTL() to keep the session cookie's MaxAge in sync. rememberStore
+// persists "remember me" tokens (may be nil if remember-me is disabled, but
+// callers must then avoid invoking the remember-token methods); rememberTTL
+// is read back via RememberTTL() to keep the remember cookie's MaxAge in sync.
+func NewAuthService(
+	userRepo repo.UserRepository,
+	sessionStore auth.SessionStore,
+	passwordPolicy config.PasswordPolicy,
+	sessionTTL time.Duration,
+	rememberStore auth.RememberTokenStore,
+	rememberTTL time.Duration,
+) AuthService {
 	s := &authService{
 		userRepo:       userRepo,
 		sessionStore:   sessionStore,
 		sessionTTL:     sessionTTL,
 		passwordPolicy: passwordPolicy,
+		rememberStore:  rememberStore,
+		rememberTTL:    rememberTTL,
 		loginAttempts:  make(map[string]*loginAttempt),
 	}
 
@@ -85,6 +116,89 @@ func NewAuthService(userRepo repo.UserRepository, sessionStore auth.SessionStore
 // SessionTTL reports how long a freshly created session remains valid.
 func (s *authService) SessionTTL() time.Duration {
 	return s.sessionTTL
+}
+
+// RememberTTL reports the TTL applied to newly issued remember tokens.
+func (s *authService) RememberTTL() time.Duration {
+	return s.rememberTTL
+}
+
+// IssueRememberToken creates a long-lived remember-me token for the user and
+// returns the cookie value (selector:rawToken) that the caller should set on
+// the client. Only the SHA-256 hash of the raw token is persisted.
+func (s *authService) IssueRememberToken(userID int64) (string, error) {
+	selector := auth.GenerateSelector()
+	rawToken := auth.GenerateRawToken()
+	token := &domain.RememberToken{
+		UserID:    userID,
+		Selector:  selector,
+		TokenHash: auth.HashToken(rawToken),
+		ExpiresAt: time.Now().Add(s.rememberTTL),
+	}
+	if err := s.rememberStore.Create(token); err != nil {
+		return "", fmt.Errorf("create remember token: %w", err)
+	}
+	return auth.EncodeRememberCookie(selector, rawToken), nil
+}
+
+// RestoreFromRememberToken validates a remember-me cookie and, on success,
+// creates a new session and returns the user plus the new session ID. Any
+// non-fatal failure (malformed cookie, unknown selector, expired token, hash
+// mismatch, deleted user) returns (nil, "", nil) so the caller can treat it
+// as "no logged-in user" without leaking signal about which failure happened.
+// Only genuine infrastructure errors (DB / session store) are surfaced.
+func (s *authService) RestoreFromRememberToken(cookieValue string) (*domain.User, string, error) {
+	selector, raw, ok := auth.DecodeRememberCookie(cookieValue)
+	if !ok {
+		return nil, "", nil
+	}
+	token, err := s.rememberStore.FindBySelector(selector)
+	if err != nil {
+		return nil, "", fmt.Errorf("find remember token: %w", err)
+	}
+	if token == nil {
+		return nil, "", nil
+	}
+	if time.Now().After(token.ExpiresAt) {
+		// Best-effort cleanup; expired-token path is non-fatal even if delete fails.
+		_ = s.rememberStore.Delete(selector)
+		return nil, "", nil
+	}
+	if !auth.ConstantTimeEqual(token.TokenHash, auth.HashToken(raw)) {
+		return nil, "", nil
+	}
+
+	user, err := s.userRepo.FindByID(token.UserID)
+	if err != nil {
+		return nil, "", fmt.Errorf("find user: %w", err)
+	}
+	if user == nil {
+		// Orphan token — user was deleted. Clean it up so we don't keep matching.
+		_ = s.rememberStore.Delete(selector)
+		return nil, "", nil
+	}
+
+	sessionID, err := s.sessionStore.Create(user.ID, s.sessionTTL)
+	if err != nil {
+		return nil, "", fmt.Errorf("create session: %w", err)
+	}
+
+	// Best-effort last-used timestamp so admin tooling can see activity.
+	_ = s.rememberStore.UpdateLastUsed(selector, time.Now())
+
+	return user, sessionID, nil
+}
+
+// RevokeRememberToken deletes the remember-token row identified by the
+// cookie's selector. Malformed cookies are silently ignored so that callers
+// (typically logout) can pass through any incoming cookie value without
+// pre-validation.
+func (s *authService) RevokeRememberToken(cookieValue string) error {
+	selector, _, ok := auth.DecodeRememberCookie(cookieValue)
+	if !ok {
+		return nil
+	}
+	return s.rememberStore.Delete(selector)
 }
 
 // Login authenticates with username and password, and returns a session ID

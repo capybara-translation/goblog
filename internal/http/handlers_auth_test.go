@@ -14,11 +14,15 @@ import (
 
 // mockAuthService is a mock implementation of AuthService
 type mockAuthService struct {
-	loginFunc            func(username, password, ipAddress string) (string, error)
-	logoutFunc           func(sessionID string) error
-	getUserBySessionFunc func(sessionID string) (*domain.User, error)
-	createUserFunc       func(username, password string) (*domain.User, error)
-	sessionTTL           time.Duration
+	loginFunc                    func(username, password, ipAddress string) (string, error)
+	logoutFunc                   func(sessionID string) error
+	getUserBySessionFunc         func(sessionID string) (*domain.User, error)
+	createUserFunc               func(username, password string) (*domain.User, error)
+	issueRememberTokenFunc       func(int64) (string, error)
+	restoreFromRememberTokenFunc func(string) (*domain.User, string, error)
+	revokeRememberTokenFunc      func(string) error
+	sessionTTL                   time.Duration
+	rememberTTL                  time.Duration
 }
 
 func (m *mockAuthService) Login(username, password, ipAddress string) (string, error) {
@@ -54,6 +58,34 @@ func (m *mockAuthService) SessionTTL() time.Duration {
 		return m.sessionTTL
 	}
 	return 24 * time.Hour
+}
+
+func (m *mockAuthService) IssueRememberToken(uid int64) (string, error) {
+	if m.issueRememberTokenFunc != nil {
+		return m.issueRememberTokenFunc(uid)
+	}
+	return "", nil
+}
+
+func (m *mockAuthService) RestoreFromRememberToken(c string) (*domain.User, string, error) {
+	if m.restoreFromRememberTokenFunc != nil {
+		return m.restoreFromRememberTokenFunc(c)
+	}
+	return nil, "", nil
+}
+
+func (m *mockAuthService) RevokeRememberToken(c string) error {
+	if m.revokeRememberTokenFunc != nil {
+		return m.revokeRememberTokenFunc(c)
+	}
+	return nil
+}
+
+func (m *mockAuthService) RememberTTL() time.Duration {
+	if m.rememberTTL > 0 {
+		return m.rememberTTL
+	}
+	return 30 * 24 * time.Hour
 }
 
 var _ service.AuthService = (*mockAuthService)(nil)

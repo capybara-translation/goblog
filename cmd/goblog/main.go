@@ -53,7 +53,9 @@ func main() {
 	// Initialize service layer
 	postService := service.NewPostService(postRepo)
 	postViewService := service.NewPostViewService(postViewRepo)
-	authService := service.NewAuthService(userRepo, sessionStore, cfg.PasswordPolicy, cfg.SessionTTL)
+	// rememberStore stays nil here; Task 12 wires up the SQLite-backed store and
+	// passes it in alongside cfg.RememberTTL.
+	authService := service.NewAuthService(userRepo, sessionStore, cfg.PasswordPolicy, cfg.SessionTTL, nil, cfg.RememberTTL)
 
 	// Initialize OGP service for link cards
 	ogpFetcher := ogp.NewFetcher(ogp.FetchTimeout)

@@ -121,7 +121,7 @@ func main() {
 	// Initialize Repository and Service
 	userRepo := repo.NewUserRepository(database)
 	sessionStore := auth.NewInMemorySessionStore()
-	authService := service.NewAuthService(userRepo, sessionStore, cfg.PasswordPolicy, cfg.SessionTTL)
+	authService := service.NewAuthService(userRepo, sessionStore, cfg.PasswordPolicy, cfg.SessionTTL, nil, cfg.RememberTTL)
 
 	// Create user
 	user, err := authService.CreateUser(*username, *password)

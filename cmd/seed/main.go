@@ -481,7 +481,7 @@ func main() {
 
 	// Initialize SessionStore and AuthService
 	sessionStore := auth.NewInMemorySessionStore()
-	authService := service.NewAuthService(userRepo, sessionStore, config.PasswordPolicyNone, config.DefaultSessionTTL)
+	authService := service.NewAuthService(userRepo, sessionStore, config.PasswordPolicyNone, config.DefaultSessionTTL, nil, config.DefaultRememberTTL)
 
 	// Delete existing data (for development environment)
 	fmt.Println("Clearing existing data...")

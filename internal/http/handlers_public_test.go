@@ -166,7 +166,11 @@ var _ service.PostService = (*mockPostService)(nil)
 // mockAuthServiceForPublic is a minimal AuthService for public-handler tests
 // that need to exercise admin-only UI surfaced behind a session cookie.
 type mockAuthServiceForPublic struct {
-	getUserBySessionFunc func(sessionID string) (*domain.User, error)
+	getUserBySessionFunc         func(sessionID string) (*domain.User, error)
+	issueRememberTokenFunc       func(int64) (string, error)
+	restoreFromRememberTokenFunc func(string) (*domain.User, string, error)
+	revokeRememberTokenFunc      func(string) error
+	rememberTTL                  time.Duration
 }
 
 func (m *mockAuthServiceForPublic) Login(username, password, ipAddress string) (string, error) {
@@ -190,6 +194,34 @@ func (m *mockAuthServiceForPublic) CreateUser(username, password string) (*domai
 
 func (m *mockAuthServiceForPublic) SessionTTL() time.Duration {
 	return 24 * time.Hour
+}
+
+func (m *mockAuthServiceForPublic) IssueRememberToken(uid int64) (string, error) {
+	if m.issueRememberTokenFunc != nil {
+		return m.issueRememberTokenFunc(uid)
+	}
+	return "", nil
+}
+
+func (m *mockAuthServiceForPublic) RestoreFromRememberToken(c string) (*domain.User, string, error) {
+	if m.restoreFromRememberTokenFunc != nil {
+		return m.restoreFromRememberTokenFunc(c)
+	}
+	return nil, "", nil
+}
+
+func (m *mockAuthServiceForPublic) RevokeRememberToken(c string) error {
+	if m.revokeRememberTokenFunc != nil {
+		return m.revokeRememberTokenFunc(c)
+	}
+	return nil
+}
+
+func (m *mockAuthServiceForPublic) RememberTTL() time.Duration {
+	if m.rememberTTL > 0 {
+		return m.rememberTTL
+	}
+	return 30 * 24 * time.Hour
 }
 
 var _ service.AuthService = (*mockAuthServiceForPublic)(nil)
