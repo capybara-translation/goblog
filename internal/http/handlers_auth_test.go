@@ -631,6 +631,60 @@ func TestHandleLogout_WithSecureCookie(t *testing.T) {
 	}
 }
 
+func TestHandleLogout_RevokesAndClearsRememberCookie(t *testing.T) {
+	var revokedCookie string
+	mockService := &mockAuthService{
+		logoutFunc: func(string) error { return nil },
+		revokeRememberTokenFunc: func(c string) error {
+			revokedCookie = c
+			return nil
+		},
+	}
+	handlers := NewAuthHandlers(mockService, false, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid"})
+	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "sel:raw"})
+	rec := httptest.NewRecorder()
+	handlers.HandleLogout(rec, req)
+
+	if revokedCookie != "sel:raw" {
+		t.Errorf("RevokeRememberToken called with %q, want sel:raw", revokedCookie)
+	}
+
+	var clearedRemember bool
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == rememberCookieName && c.MaxAge < 0 {
+			clearedRemember = true
+		}
+	}
+	if !clearedRemember {
+		t.Errorf("expected remember cookie cleared (MaxAge=-1)")
+	}
+}
+
+func TestHandleLogout_NoRememberCookie_IsNoop(t *testing.T) {
+	called := false
+	mockService := &mockAuthService{
+		logoutFunc: func(string) error { return nil },
+		revokeRememberTokenFunc: func(string) error {
+			called = true
+			return nil
+		},
+	}
+	handlers := NewAuthHandlers(mockService, false, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid"})
+	// no remember cookie
+	rec := httptest.NewRecorder()
+	handlers.HandleLogout(rec, req)
+
+	if called {
+		t.Error("RevokeRememberToken must not be called when cookie is absent")
+	}
+}
+
 func TestHandleMe_Success(t *testing.T) {
 	now := time.Now()
 	mockService := &mockAuthService{
