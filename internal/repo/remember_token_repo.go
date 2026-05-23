@@ -1,10 +1,11 @@
-package auth
+package repo
 
 import (
 	"database/sql"
 	"errors"
 	"time"
 
+	"github.com/capybara-translation/goblog/internal/auth"
 	"github.com/capybara-translation/goblog/internal/domain"
 	"github.com/jmoiron/sqlx"
 )
@@ -14,10 +15,13 @@ type sqliteRememberTokenStore struct {
 }
 
 // Compile-time interface assertion.
-var _ RememberTokenStore = (*sqliteRememberTokenStore)(nil)
+var _ auth.RememberTokenStore = (*sqliteRememberTokenStore)(nil)
 
-// NewSQLiteRememberTokenStore returns a RememberTokenStore backed by SQLite.
-func NewSQLiteRememberTokenStore(db *sqlx.DB) RememberTokenStore {
+// NewSQLiteRememberTokenStore returns an auth.RememberTokenStore backed by
+// SQLite. The interface itself lives in internal/auth so that callers
+// (notably internal/service) can depend on auth without pulling in this
+// repo package or the sqlx import that comes with it.
+func NewSQLiteRememberTokenStore(db *sqlx.DB) auth.RememberTokenStore {
 	return &sqliteRememberTokenStore{db: db}
 }
 
@@ -62,24 +66,4 @@ func (s *sqliteRememberTokenStore) RefreshOnUse(selector string, lastUsed time.T
 func (s *sqliteRememberTokenStore) CleanupExpired() error {
 	_, err := s.db.Exec(`DELETE FROM remember_tokens WHERE expires_at < ?`, time.Now())
 	return err
-}
-
-// StartRememberTokenCleanupLoop runs CleanupExpired() periodically. The
-// returned channel can be closed to stop the loop (useful in tests; production
-// callers may simply leak it on shutdown).
-func StartRememberTokenCleanupLoop(store RememberTokenStore, interval time.Duration) chan<- struct{} {
-	stop := make(chan struct{})
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				_ = store.CleanupExpired()
-			case <-stop:
-				return
-			}
-		}
-	}()
-	return stop
 }

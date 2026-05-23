@@ -53,7 +53,7 @@ func main() {
 
 	// Remember-me tokens live in SQLite so they survive restarts (unlike
 	// sessions). Sweep expired rows hourly.
-	rememberStore := auth.NewSQLiteRememberTokenStore(database)
+	rememberStore := repo.NewSQLiteRememberTokenStore(database)
 	auth.StartRememberTokenCleanupLoop(rememberStore, time.Hour)
 
 	// Initialize service layer

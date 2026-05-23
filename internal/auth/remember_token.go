@@ -84,3 +84,26 @@ func DecodeRememberCookie(value string) (selector, rawToken string, ok bool) {
 	}
 	return parts[0], parts[1], true
 }
+
+// StartRememberTokenCleanupLoop runs CleanupExpired() on the given store
+// periodically. The returned channel can be closed to stop the loop (useful
+// in tests; production callers may simply leak it on shutdown).
+//
+// The function takes the interface, so it lives in the auth package alongside
+// the interface definition rather than next to any specific implementation.
+func StartRememberTokenCleanupLoop(store RememberTokenStore, interval time.Duration) chan<- struct{} {
+	stop := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				_ = store.CleanupExpired()
+			case <-stop:
+				return
+			}
+		}
+	}()
+	return stop
+}

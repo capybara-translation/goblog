@@ -1,6 +1,7 @@
-package auth
+package repo
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -9,40 +10,40 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-func newTestDB(t *testing.T) *sqlx.DB {
+// setupTestDBWithRememberTokens opens an in-memory SQLite database with the
+// users + remember_tokens schemas applied (via the real migration files) and
+// seeds one admin user so foreign keys validate.
+func setupTestDBWithRememberTokens(t *testing.T) *sqlx.DB {
 	t.Helper()
-	db, err := sqlx.Connect("sqlite3", ":memory:")
+
+	db, err := sqlx.Open("sqlite3", ":memory:")
 	if err != nil {
-		t.Fatalf("connect: %v", err)
+		t.Fatalf("failed to open test database: %v", err)
 	}
-	schema := `
-	CREATE TABLE users (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		username TEXT NOT NULL UNIQUE,
-		password_hash TEXT NOT NULL,
-		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-	);
-	CREATE TABLE remember_tokens (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		user_id INTEGER NOT NULL,
-		selector TEXT NOT NULL UNIQUE,
-		token_hash TEXT NOT NULL,
-		expires_at DATETIME NOT NULL,
-		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		last_used_at DATETIME,
-		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-	);
-	INSERT INTO users (id, username, password_hash) VALUES (1, 'admin', 'x');
-	`
-	if _, err := db.Exec(schema); err != nil {
-		t.Fatalf("schema: %v", err)
+
+	migrations := []string{
+		"../../migrations/002_create_users.sql",
+		"../../migrations/007_create_remember_tokens.sql",
 	}
+	for _, path := range migrations {
+		schema, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("failed to read migration file %s: %v", path, err)
+		}
+		if _, err := db.Exec(string(schema)); err != nil {
+			t.Fatalf("failed to execute migration %s: %v", path, err)
+		}
+	}
+
+	if _, err := db.Exec(`INSERT INTO users (id, username, password_hash) VALUES (1, 'admin', 'x')`); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+
 	return db
 }
 
 func TestSQLiteRememberTokenStore_CreateAndFind(t *testing.T) {
-	db := newTestDB(t)
+	db := setupTestDBWithRememberTokens(t)
 	store := NewSQLiteRememberTokenStore(db)
 
 	token := &domain.RememberToken{
@@ -68,7 +69,7 @@ func TestSQLiteRememberTokenStore_CreateAndFind(t *testing.T) {
 }
 
 func TestSQLiteRememberTokenStore_FindBySelector_NotFound(t *testing.T) {
-	db := newTestDB(t)
+	db := setupTestDBWithRememberTokens(t)
 	store := NewSQLiteRememberTokenStore(db)
 
 	got, err := store.FindBySelector("missing")
@@ -81,7 +82,7 @@ func TestSQLiteRememberTokenStore_FindBySelector_NotFound(t *testing.T) {
 }
 
 func TestSQLiteRememberTokenStore_Delete(t *testing.T) {
-	db := newTestDB(t)
+	db := setupTestDBWithRememberTokens(t)
 	store := NewSQLiteRememberTokenStore(db)
 	_ = store.Create(&domain.RememberToken{
 		UserID: 1, Selector: "sel-b", TokenHash: "h", ExpiresAt: time.Now().Add(time.Hour),
@@ -97,7 +98,7 @@ func TestSQLiteRememberTokenStore_Delete(t *testing.T) {
 }
 
 func TestSQLiteRememberTokenStore_DeleteByUserID(t *testing.T) {
-	db := newTestDB(t)
+	db := setupTestDBWithRememberTokens(t)
 	store := NewSQLiteRememberTokenStore(db)
 	for _, sel := range []string{"a", "b", "c"} {
 		_ = store.Create(&domain.RememberToken{
@@ -116,7 +117,7 @@ func TestSQLiteRememberTokenStore_DeleteByUserID(t *testing.T) {
 }
 
 func TestSQLiteRememberTokenStore_RefreshOnUse(t *testing.T) {
-	db := newTestDB(t)
+	db := setupTestDBWithRememberTokens(t)
 	store := NewSQLiteRememberTokenStore(db)
 	originalExpiry := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
 	_ = store.Create(&domain.RememberToken{
@@ -141,7 +142,7 @@ func TestSQLiteRememberTokenStore_RefreshOnUse(t *testing.T) {
 }
 
 func TestSQLiteRememberTokenStore_CleanupExpired(t *testing.T) {
-	db := newTestDB(t)
+	db := setupTestDBWithRememberTokens(t)
 	store := NewSQLiteRememberTokenStore(db)
 	_ = store.Create(&domain.RememberToken{
 		UserID: 1, Selector: "alive", TokenHash: "h", ExpiresAt: time.Now().Add(time.Hour),
