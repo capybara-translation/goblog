@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/capybara-translation/goblog"
 	"github.com/capybara-translation/goblog/internal/auth"
@@ -50,12 +51,15 @@ func main() {
 	// Initialize SessionStore
 	sessionStore := auth.NewInMemorySessionStore()
 
+	// Remember-me tokens live in SQLite so they survive restarts (unlike
+	// sessions). Sweep expired rows hourly.
+	rememberStore := auth.NewSQLiteRememberTokenStore(database)
+	auth.StartRememberTokenCleanupLoop(rememberStore, time.Hour)
+
 	// Initialize service layer
 	postService := service.NewPostService(postRepo)
 	postViewService := service.NewPostViewService(postViewRepo)
-	// rememberStore stays nil here; Task 12 wires up the SQLite-backed store and
-	// passes it in alongside cfg.RememberTTL.
-	authService := service.NewAuthService(userRepo, sessionStore, cfg.PasswordPolicy, cfg.SessionTTL, nil, cfg.RememberTTL)
+	authService := service.NewAuthService(userRepo, sessionStore, cfg.PasswordPolicy, cfg.SessionTTL, rememberStore, cfg.RememberTTL)
 
 	// Initialize OGP service for link cards
 	ogpFetcher := ogp.NewFetcher(ogp.FetchTimeout)
