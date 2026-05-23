@@ -41,7 +41,7 @@ func TestAuthMiddleware_Success(t *testing.T) {
 		w.Write([]byte("OK"))
 	})
 
-	middleware := AuthMiddleware(mockService)
+	middleware := AuthMiddleware(NewCurrentUserHelper(mockService, false))
 	protectedHandler := middleware(handler)
 
 	// Request with valid session ID
@@ -80,7 +80,7 @@ func TestAuthMiddleware_NoCookie(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	middleware := AuthMiddleware(mockService)
+	middleware := AuthMiddleware(NewCurrentUserHelper(mockService, false))
 	protectedHandler := middleware(handler)
 
 	// Request without cookie
@@ -89,15 +89,13 @@ func TestAuthMiddleware_NoCookie(t *testing.T) {
 
 	protectedHandler.ServeHTTP(rec, req)
 
-	// Verify status code
+	// Verify status code (helper returns plain-text "Unauthorized")
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
 	}
-
-	// Verify error message
-	expectedError := "Authentication required"
+	expectedError := "Unauthorized"
 	if !strings.Contains(rec.Body.String(), expectedError) {
-		t.Errorf("expected error message to contain %q, got %q", expectedError, rec.Body.String())
+		t.Errorf("expected body to contain %q, got %q", expectedError, rec.Body.String())
 	}
 }
 
@@ -115,10 +113,10 @@ func TestAuthMiddleware_InvalidSession(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	middleware := AuthMiddleware(mockService)
+	middleware := AuthMiddleware(NewCurrentUserHelper(mockService, false))
 	protectedHandler := middleware(handler)
 
-	// Request with invalid session ID
+	// Request with invalid session ID (no remember cookie either → 401)
 	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  sessionCookieName,
@@ -128,19 +126,22 @@ func TestAuthMiddleware_InvalidSession(t *testing.T) {
 
 	protectedHandler.ServeHTTP(rec, req)
 
-	// Verify status code
+	// Verify status code (helper returns plain-text "Unauthorized")
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
 	}
-
-	// Verify error message
-	expectedError := "Session expired or invalid"
+	expectedError := "Unauthorized"
 	if !strings.Contains(rec.Body.String(), expectedError) {
-		t.Errorf("expected error message to contain %q, got %q", expectedError, rec.Body.String())
+		t.Errorf("expected body to contain %q, got %q", expectedError, rec.Body.String())
 	}
 }
 
-func TestAuthMiddleware_DatabaseError(t *testing.T) {
+func TestAuthMiddleware_SessionDBError_NoRememberCookie_401(t *testing.T) {
+	// CurrentUserHelper swallows session-lookup DB errors to allow a
+	// remember-token fallback to run. With no remember cookie, this surfaces
+	// as anonymous (401) rather than 500 — a deliberate trade-off so a
+	// transient session-store hiccup does not break users who have a valid
+	// remember cookie. [TRADE-OFF, was 500 before remember-me feature]
 	mockService := &mockAuthService{
 		getUserBySessionFunc: func(sessionID string) (*domain.User, error) {
 			// Simulate database error
@@ -150,11 +151,11 @@ func TestAuthMiddleware_DatabaseError(t *testing.T) {
 
 	// Create a handler with middleware applied
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Error("handler should not be called when database error occurs")
+		t.Error("handler should not be called when auth fails")
 		w.WriteHeader(http.StatusOK)
 	})
 
-	middleware := AuthMiddleware(mockService)
+	middleware := AuthMiddleware(NewCurrentUserHelper(mockService, false))
 	protectedHandler := middleware(handler)
 
 	// Create request
@@ -167,15 +168,40 @@ func TestAuthMiddleware_DatabaseError(t *testing.T) {
 
 	protectedHandler.ServeHTTP(rec, req)
 
-	// Return 500 error on DB error
-	if rec.Code != http.StatusInternalServerError {
-		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
+	}
+}
+
+func TestAuthMiddleware_RememberTokenDBError_500(t *testing.T) {
+	// When a remember-token lookup fails with a real error, Optional() returns
+	// it and Required() surfaces a 500. This is the path that still acts as
+	// a "DB-error → 500" backstop after the remember-me refactor.
+	mockService := &mockAuthService{
+		getUserBySessionFunc: func(string) (*domain.User, error) {
+			return nil, nil
+		},
+		restoreFromRememberTokenFunc: func(string) (*domain.User, string, error) {
+			return nil, "", errors.New("database connection error")
+		},
 	}
 
-	// Verify error message
-	expectedError := "Internal server error"
-	if !strings.Contains(rec.Body.String(), expectedError) {
-		t.Errorf("expected error message to contain %q, got %q", expectedError, rec.Body.String())
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("handler should not be called when auth fails")
+		w.WriteHeader(http.StatusOK)
+	})
+
+	middleware := AuthMiddleware(NewCurrentUserHelper(mockService, false))
+	protectedHandler := middleware(handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "rem"})
+	rec := httptest.NewRecorder()
+
+	protectedHandler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
 	}
 }
 
@@ -209,7 +235,7 @@ func TestGetUserIDFromContext_Success(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	middleware := AuthMiddleware(mockService)
+	middleware := AuthMiddleware(NewCurrentUserHelper(mockService, false))
 	protectedHandler := middleware(handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/protected", nil)

@@ -19,17 +19,19 @@ const (
 
 // AuthHandlers is a struct that groups authentication-related HTTP handlers
 type AuthHandlers struct {
-	authService    service.AuthService
-	secureCookie   bool       // Cookie secure attribute (requires HTTPS)
-	trustedProxies []*net.IPNet // Trusted proxy networks for X-Forwarded-For
+	authService       service.AuthService
+	currentUserHelper *CurrentUserHelper // Resolves session-or-remember-token (used by HandleMe).
+	secureCookie      bool               // Cookie secure attribute (requires HTTPS)
+	trustedProxies    []*net.IPNet       // Trusted proxy networks for X-Forwarded-For
 }
 
 // NewAuthHandlers creates a new AuthHandlers
 func NewAuthHandlers(authService service.AuthService, secureCookie bool, trustedProxies []string) *AuthHandlers {
 	return &AuthHandlers{
-		authService:    authService,
-		secureCookie:   secureCookie,
-		trustedProxies: parseTrustedProxies(trustedProxies),
+		authService:       authService,
+		currentUserHelper: NewCurrentUserHelper(authService, secureCookie),
+		secureCookie:      secureCookie,
+		trustedProxies:    parseTrustedProxies(trustedProxies),
 	}
 }
 
@@ -254,34 +256,20 @@ func (h *AuthHandlers) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]string{"message": "Logout successful"})
 }
 
-// HandleMe returns the currently logged-in user information
+// HandleMe returns the currently authenticated user. The session may be
+// restored transparently from a remember-me cookie via CurrentUserHelper —
+// when that happens, fresh session_id and csrf_token cookies are emitted on
+// the response (callers see normal session cookies on subsequent requests).
 func (h *AuthHandlers) HandleMe(w http.ResponseWriter, r *http.Request) {
-	// Get session ID from cookie
-	cookie, err := r.Cookie(sessionCookieName)
+	user, err := h.currentUserHelper.Optional(w, r)
 	if err != nil {
-		respondJSON(w, http.StatusUnauthorized, ErrorResponse{Error: "Not authenticated"})
-		return
-	}
-
-	// Get user information from session
-	user, err := h.authService.GetUserBySession(cookie.Value)
-	if err != nil {
-		// Return 401 if user was deleted
-		if errors.Is(err, service.ErrUserNotFound) {
-			respondJSON(w, http.StatusUnauthorized, ErrorResponse{Error: "Session expired or invalid"})
-			return
-		}
-		log.Printf("get user by session error: %v", err)
 		respondJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "Internal server error"})
 		return
 	}
-
 	if user == nil {
-		respondJSON(w, http.StatusUnauthorized, ErrorResponse{Error: "Session expired or invalid"})
+		respondJSON(w, http.StatusUnauthorized, ErrorResponse{Error: "Unauthorized"})
 		return
 	}
-
-	// Return user information (PasswordHash is excluded via json:"-")
 	respondJSON(w, http.StatusOK, user)
 }
 

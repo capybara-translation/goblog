@@ -51,6 +51,10 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 	// Initialize auth handlers
 	authHandlers := NewAuthHandlers(authService, secureCookie, trustedProxies)
 
+	// Shared helper for resolving the current user (session or remember-me).
+	// Used by AuthMiddleware so protected endpoints honor remember tokens.
+	currentUserHelper := NewCurrentUserHelper(authService, secureCookie)
+
 	// Initialize image upload handlers
 	imageHandlers := NewImageHandlers(uploadDir, maxUploadSize)
 
@@ -85,7 +89,7 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 
 	// 認証が必要なエンドポイント
 	protectedAPI := api.PathPrefix("").Subrouter()
-	protectedAPI.Use(AuthMiddleware(authService))
+	protectedAPI.Use(AuthMiddleware(currentUserHelper))
 	protectedAPI.Use(CSRFMiddleware())
 
 	// 認証API
@@ -132,6 +136,9 @@ func NewRouterWithTemplates(postService service.PostService, postViewService ser
 	// Initialize auth handlers
 	authHandlers := NewAuthHandlers(authService, secureCookie, trustedProxies)
 
+	// Shared helper for resolving the current user (session or remember-me).
+	currentUserHelper := NewCurrentUserHelper(authService, secureCookie)
+
 	// Initialize image upload handlers
 	imageHandlers := NewImageHandlers(uploadDir, maxUploadSize)
 
@@ -165,7 +172,7 @@ func NewRouterWithTemplates(postService service.PostService, postViewService ser
 
 	// Endpoints that require authentication
 	protectedAPI := api.PathPrefix("").Subrouter()
-	protectedAPI.Use(AuthMiddleware(authService))
+	protectedAPI.Use(AuthMiddleware(currentUserHelper))
 	protectedAPI.Use(CSRFMiddleware())
 
 	// Auth API

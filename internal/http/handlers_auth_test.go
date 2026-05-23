@@ -769,14 +769,16 @@ func TestHandleMe_NotAuthenticated(t *testing.T) {
 		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
 	}
 
-	// Verify error message
+	// HandleMe now returns a generic JSON "Unauthorized" via respondJSON
+	// (helper path) — the previous "Not authenticated" / "Session expired"
+	// distinction is gone, since CurrentUserHelper does not surface the
+	// difference between "no cookie" and "cookie present but invalid".
 	var resp ErrorResponse
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
-
-	if resp.Error != "Not authenticated" {
-		t.Errorf("expected error %q, got %q", "Not authenticated", resp.Error)
+	if resp.Error != "Unauthorized" {
+		t.Errorf("expected error %q, got %q", "Unauthorized", resp.Error)
 	}
 }
 
@@ -790,7 +792,7 @@ func TestHandleMe_InvalidSession(t *testing.T) {
 
 	handlers := NewAuthHandlers(mockService, false, nil)
 
-	// Request with invalid session ID
+	// Request with invalid session ID and no remember cookie → anonymous → 401
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  sessionCookieName,
@@ -805,14 +807,70 @@ func TestHandleMe_InvalidSession(t *testing.T) {
 		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
 	}
 
-	// Verify error message
+	// See TestHandleMe_NotAuthenticated for rationale on the message change.
 	var resp ErrorResponse
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
+	if resp.Error != "Unauthorized" {
+		t.Errorf("expected error %q, got %q", "Unauthorized", resp.Error)
+	}
+}
 
-	if resp.Error != "Session expired or invalid" {
-		t.Errorf("expected error %q, got %q", "Session expired or invalid", resp.Error)
+// TestHandleMe_RestoresFromRememberToken verifies that /auth/me transparently
+// restores a session when only a remember-me cookie is present, returning the
+// user payload AND emitting a fresh session_id cookie as a side effect.
+func TestHandleMe_RestoresFromRememberToken(t *testing.T) {
+	mockService := &mockAuthService{
+		getUserBySessionFunc: func(string) (*domain.User, error) {
+			return nil, nil
+		},
+		restoreFromRememberTokenFunc: func(cookie string) (*domain.User, string, error) {
+			return &domain.User{ID: 1, Username: "admin"}, "new-sid", nil
+		},
+	}
+	handlers := NewAuthHandlers(mockService, false, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
+	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "rem"})
+	rec := httptest.NewRecorder()
+	handlers.HandleMe(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var u domain.User
+	if err := json.NewDecoder(rec.Body).Decode(&u); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if u.Username != "admin" {
+		t.Errorf("username = %q", u.Username)
+	}
+
+	// Side effect: new session_id cookie set
+	var sawSession bool
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == sessionCookieName && c.Value == "new-sid" {
+			sawSession = true
+		}
+	}
+	if !sawSession {
+		t.Errorf("expected new session cookie")
+	}
+}
+
+// TestHandleMe_Anonymous_Returns401 verifies that a request with no session
+// cookie and no remember-me cookie returns 401.
+func TestHandleMe_Anonymous_Returns401(t *testing.T) {
+	mockService := &mockAuthService{}
+	handlers := NewAuthHandlers(mockService, false, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
+	rec := httptest.NewRecorder()
+	handlers.HandleMe(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", rec.Code)
 	}
 }
 
