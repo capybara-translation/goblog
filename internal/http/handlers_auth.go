@@ -81,8 +81,9 @@ func (h *AuthHandlers) isTrustedProxy(ipStr string) bool {
 
 // LoginRequest is the request body for login
 type LoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	RememberMe bool   `json:"remember_me"`
 }
 
 // HandleLogin handles the login process
@@ -168,6 +169,28 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   cookieMaxAge,
 		Secure:   h.secureCookie, // Requires HTTPS (true in production)
 	})
+
+	// If the user opted into "remember me", issue a long-lived token and set
+	// its cookie. Failure here logs but does not abort the login — the user
+	// still has a valid session_id cookie and CSRF.
+	if req.RememberMe {
+		rememberValue, err := h.authService.IssueRememberToken(user.ID)
+		if err != nil {
+			log.Printf("HandleLogin: IssueRememberToken failed: %v", err)
+		} else {
+			// Remember cookie has its own (longer) MaxAge — derived from the
+			// service's remember TTL, not the session TTL.
+			http.SetCookie(w, &http.Cookie{
+				Name:     rememberCookieName,
+				Value:    rememberValue,
+				Path:     sessionCookiePath,
+				HttpOnly: true,
+				SameSite: http.SameSiteLaxMode,
+				MaxAge:   int(h.authService.RememberTTL() / time.Second),
+				Secure:   h.secureCookie,
+			})
+		}
+	}
 
 	// Return user information (PasswordHash is excluded via json:"-")
 	respondJSON(w, http.StatusOK, user)
