@@ -26,6 +26,7 @@ goblogはGoで書かれたシンプルなブログシステムです。公開ペ
 - OGPリンクカード（外部URLのOGP情報取得・キャッシュ・ローカル画像保存）
 - 閲覧回数トラッキング（ボットフィルタリング、IP+UA重複排除）
 - Markdownプレビュー（サーバーサイドレンダリング、同期スクロール）
+- Remember me（短命セッション+長命 remember token、SQLite 保存、SHA-256 ハッシュ、selector+raw 分離、全公開 GET ハンドラで自動復元）
 
 🚧 **計画中:**
 - RSS フィード
@@ -85,6 +86,8 @@ Database (SQLite)
     user.go
   /auth/               # 認証ユーティリティ（セッション管理）
     session.go
+    remember_token.go        # RememberTokenStore interface、暗号ユーティリティ、cookie コーデック
+    remember_token_sqlite.go # SQLite 実装、cleanup goroutine
   /config/             # 設定管理
     config.go
   /markdown/           # Markdown変換
@@ -167,6 +170,7 @@ make build-admin       # プロダクションビルド
 - `MAX_UPLOAD_SIZE`: 最大アップロードサイズ（デフォルト: 5242880 = 5MB）
 - `POSTS_PER_PAGE`: トップページ (`/`) とタグ別記事一覧 (`/tags/{tag}`) の 1 ページあたり件数（デフォルト: 20、有効範囲: 1-100、範囲外/パース不能な値はデフォルトに silent fallback）
 - `SESSION_TTL`: 管理者セッションの有効期限（`time.ParseDuration` 形式: `24h`、`30m`、`168h` 等）。デフォルト: `24h`、最小: `1m`、不正値/未満は silent fallback。サーバ側セッション TTL とログインクッキーの `MaxAge` の両方をこの値から導出するため、片方だけがズレることはない。**注意**: 変更は次回ログイン以降に発行されるセッションにのみ適用される。既存セッションは発行時の TTL を保持したまま残るため、即座に全員ログアウトさせたい場合はサーバを再起動する（インメモリストアなのでセッションは消える）
+- `REMEMBER_TTL`: Remember me クッキーの有効期限（Go duration 形式）。デフォルト: `720h` (30 日)、最小: `1h`、不正値は silent fallback。ログイン時にチェックボックスを ON にすると `remember_tokens` テーブルにこの TTL のレコードが作られ、ブラウザにも同じ MaxAge の `remember_token` クッキーが設定される。session_id が切れていても remember_token が有効なら、公開ページ / `/auth/me` 経由で自動的に新しい session_id が払い出される
 
 **重要**: 本番環境では`SECURE_COOKIE=true`と`PASSWORD_POLICY=STRONG`と`BASE_URL`と`TRUSTED_PROXIES`を必ず設定すること。
 
@@ -227,6 +231,14 @@ func (m *mockPostRepository) FindAll(status *domain.PostStatus, limit, offset in
 - 未認証は401 Unauthorizedを返却
 - セッション検証とユーザー情報取得を自動実行
 - ユーザーIDはコンテキストに格納（`GetUserIDFromContext()`で取得）
+
+### 6. Remember me
+- selector (16B random) + raw_token (32B random) の 2 段構造
+- DB には raw_token を保存せず SHA-256 ハッシュのみ
+- 検証は `crypto/subtle.ConstantTimeCompare` で timing 攻撃を防止
+- ログアウト時に DB レコードと cookie の両方を失効
+- バックグラウンドで 1 時間ごとに期限切れトークンを sweep
+- CDN 導入時の注意: 公開ページの GET で Set-Cookie 副作用が発生する。CDN が Set-Cookie を含むレスポンスをキャッシュ対象外にする設定であれば実害なし。盲目的にキャッシュする CDN を使う場合は `Cache-Control: private, no-store` を当該レスポンスに付ける設計が必要
 
 ## ルーティング設計
 
@@ -348,6 +360,7 @@ POST /api/v1/auth/login (JSON)
   - `users`: ユーザーデータ（id, username, password_hash, created_at, updated_at）
   - `ogp_cache`: OGPメタ情報キャッシュ（url, title, description, image, local_image, expires_at）
   - `post_views`: 閲覧記録（post_id, viewed_at, ip_address, user_agent）※ON DELETE CASCADE
+  - `remember_tokens`: Remember me トークン（selector / token_hash / expires_at / user_id ON DELETE CASCADE）
 
 ## 依存関係
 
