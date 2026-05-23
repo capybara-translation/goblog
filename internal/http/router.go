@@ -38,7 +38,7 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 	r := mux.NewRouter()
 
 	// Initialize public page handlers (using embedded templates)
-	publicHandlers := NewPublicHandlers(postService, postViewService, ogpService, authService, blogTitle, baseURL, postsPerPage, templatesFS)
+	publicHandlers := NewPublicHandlers(postService, postViewService, ogpService, authService, secureCookie, blogTitle, baseURL, postsPerPage, templatesFS)
 
 	// Display custom 404 page for non-existent routes
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -119,7 +119,7 @@ func NewRouterWithTemplates(postService service.PostService, postViewService ser
 	r := mux.NewRouter()
 
 	// Initialize public page handlers (loading templates from filesystem)
-	publicHandlers := NewPublicHandlersFromPath(postService, postViewService, authService, blogTitle, baseURL, templatePattern, postsPerPage)
+	publicHandlers := NewPublicHandlersFromPath(postService, postViewService, authService, secureCookie, blogTitle, baseURL, templatePattern, postsPerPage)
 
 	// Display custom 404 page for non-existent routes
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {

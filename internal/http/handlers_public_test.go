@@ -2445,6 +2445,50 @@ func TestHandleHome_AdminEditLink(t *testing.T) {
 	})
 }
 
+func TestHandleHome_AdminEditLink_VisibleViaRememberToken(t *testing.T) {
+	publishedAt := time.Now()
+	posts := []*domain.Post{
+		{ID: 7, Title: "Editable", Slug: "editable", Status: domain.PostStatusPublished, PublishedAt: &publishedAt},
+	}
+	mockService := &mockPostService{
+		getPublishedPostsFunc: func(int, int) ([]*domain.Post, error) {
+			return posts, nil
+		},
+	}
+	authMock := &mockAuthServiceForPublic{
+		getUserBySessionFunc: func(string) (*domain.User, error) {
+			return nil, nil // session invalid
+		},
+		restoreFromRememberTokenFunc: func(cookie string) (*domain.User, string, error) {
+			if cookie == "rem-cookie" {
+				return &domain.User{ID: 1, Username: "admin"}, "new-sid", nil
+			}
+			return nil, "", nil
+		},
+	}
+	router := NewRouterWithTemplates(mockService, nil, authMock, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "rem-cookie"})
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `href="/admin/posts/7/edit"`) {
+		t.Errorf("expected edit link via remember restoration, body: %s", body)
+	}
+
+	// Side effect: session cookie set on this GET response.
+	var sawSession bool
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == sessionCookieName && c.Value == "new-sid" {
+			sawSession = true
+		}
+	}
+	if !sawSession {
+		t.Errorf("expected new session cookie to be set as a side effect")
+	}
+}
+
 func TestHandlePostDetail_AdminEditLink(t *testing.T) {
 	publishedAt := time.Now()
 	post := &domain.Post{
