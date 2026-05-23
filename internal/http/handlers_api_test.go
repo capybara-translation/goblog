@@ -380,12 +380,14 @@ func TestUnauthenticated_Endpoints(t *testing.T) {
 				t.Errorf("expected status %d, got %d", http.StatusUnauthorized, w.Code)
 			}
 
-			// AuthMiddleware now delegates to CurrentUserHelper.Required(),
-			// which writes plain-text "Unauthorized" via http.Error() rather
-			// than a JSON ErrorResponse. Asserting on the body is a smoke
-			// check that we hit the helper path and not the protected handler.
-			if !strings.Contains(w.Body.String(), "Unauthorized") {
-				t.Errorf("expected body to contain %q, got %q", "Unauthorized", w.Body.String())
+			// AuthMiddleware returns JSON ErrorResponse so other /api/v1/* error
+			// responses are uniform. Decode and check the error field.
+			var errResp ErrorResponse
+			if err := json.Unmarshal(w.Body.Bytes(), &errResp); err != nil {
+				t.Fatalf("expected JSON ErrorResponse body, got %q (parse error: %v)", w.Body.String(), err)
+			}
+			if errResp.Error != "Unauthorized" {
+				t.Errorf("expected error %q, got %q", "Unauthorized", errResp.Error)
 			}
 		})
 	}

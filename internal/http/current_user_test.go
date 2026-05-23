@@ -166,17 +166,3 @@ func TestCurrentUserHelper_Optional_NoCacheControlWhenSessionIsValid(t *testing.
 		t.Errorf("no Set-Cookie was emitted; expected no Cache-Control override, got %q", cc)
 	}
 }
-
-func TestCurrentUserHelper_Required_Returns401WhenAnonymous(t *testing.T) {
-	helper := NewCurrentUserHelper(&mockAuthService{}, false)
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	rec := httptest.NewRecorder()
-
-	user, ok := helper.Required(rec, req)
-	if ok || user != nil {
-		t.Errorf("expected (nil, false), got (%+v, %v)", user, ok)
-	}
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("status = %d, want 401", rec.Code)
-	}
-}

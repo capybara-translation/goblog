@@ -25,17 +25,21 @@ const (
 	csrfTokenLength = 32
 )
 
-// AuthMiddleware protects endpoints requiring authentication. It defers to
-// CurrentUserHelper so that a request carrying only a remember_token can also
-// pass — the helper restores a fresh session under the hood, and subsequent
-// requests will arrive with a normal session_id cookie. Failures are written
-// by Required() (plain text 401/500) so the response shape differs from the
-// previous JSON-error version: callers asserting on JSON bodies need updating.
+// AuthMiddleware protects endpoints requiring authentication. It uses
+// CurrentUserHelper.Optional so that a request carrying only a remember_token
+// can also pass — the helper restores a fresh session under the hood, and
+// subsequent requests will arrive with a normal session_id cookie. Errors are
+// written as JSON ErrorResponse to match the rest of the /api/v1/* contract.
 func AuthMiddleware(helper *CurrentUserHelper) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			user, ok := helper.Required(w, r)
-			if !ok {
+			user, err := helper.Optional(w, r)
+			if err != nil {
+				respondJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "Internal server error"})
+				return
+			}
+			if user == nil {
+				respondJSON(w, http.StatusUnauthorized, ErrorResponse{Error: "Unauthorized"})
 				return
 			}
 			ctx := context.WithValue(r.Context(), contextKeyUserID, user.ID)

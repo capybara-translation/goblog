@@ -89,11 +89,11 @@ func TestAuthMiddleware_NoCookie(t *testing.T) {
 
 	protectedHandler.ServeHTTP(rec, req)
 
-	// Verify status code (helper returns plain-text "Unauthorized")
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
 	}
-	expectedError := "Unauthorized"
+	// AuthMiddleware emits JSON ErrorResponse, matching the rest of /api/v1/*.
+	expectedError := `"error":"Unauthorized"`
 	if !strings.Contains(rec.Body.String(), expectedError) {
 		t.Errorf("expected body to contain %q, got %q", expectedError, rec.Body.String())
 	}
@@ -126,11 +126,10 @@ func TestAuthMiddleware_InvalidSession(t *testing.T) {
 
 	protectedHandler.ServeHTTP(rec, req)
 
-	// Verify status code (helper returns plain-text "Unauthorized")
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
 	}
-	expectedError := "Unauthorized"
+	expectedError := `"error":"Unauthorized"`
 	if !strings.Contains(rec.Body.String(), expectedError) {
 		t.Errorf("expected body to contain %q, got %q", expectedError, rec.Body.String())
 	}
@@ -175,8 +174,8 @@ func TestAuthMiddleware_SessionDBError_NoRememberCookie_401(t *testing.T) {
 
 func TestAuthMiddleware_RememberTokenDBError_500(t *testing.T) {
 	// When a remember-token lookup fails with a real error, Optional() returns
-	// it and Required() surfaces a 500. This is the path that still acts as
-	// a "DB-error → 500" backstop after the remember-me refactor.
+	// it and AuthMiddleware emits a JSON 500. This is the path that still
+	// acts as a "DB-error → 500" backstop after the remember-me refactor.
 	mockService := &mockAuthService{
 		getUserBySessionFunc: func(string) (*domain.User, error) {
 			return nil, nil

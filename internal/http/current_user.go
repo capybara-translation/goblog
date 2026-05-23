@@ -81,20 +81,6 @@ func (h *CurrentUserHelper) Optional(w http.ResponseWriter, r *http.Request) (*d
 	return user, nil
 }
 
-// Required is Optional plus a 401 + halt for anonymous requests.
-func (h *CurrentUserHelper) Required(w http.ResponseWriter, r *http.Request) (*domain.User, bool) {
-	user, err := h.Optional(w, r)
-	if err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return nil, false
-	}
-	if user == nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return nil, false
-	}
-	return user, true
-}
-
 func (h *CurrentUserHelper) setCookie(w http.ResponseWriter, name, value string, maxAge int, httpOnly bool) {
 	// Any response that emits a session/CSRF/remember Set-Cookie via this
 	// helper is user-specific and must not be cached by a CDN or shared
