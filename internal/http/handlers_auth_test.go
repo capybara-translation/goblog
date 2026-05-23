@@ -226,6 +226,48 @@ func TestHandleLogin_WithRememberMe_SetsRememberCookie(t *testing.T) {
 	}
 }
 
+func TestHandleLogin_WithRememberMe_RevokesPreviousRememberCookieOnReissue(t *testing.T) {
+	var revokedValue string
+	mockService := &mockAuthService{
+		loginFunc: func(string, string, string) (string, error) { return "sid", nil },
+		getUserBySessionFunc: func(string) (*domain.User, error) {
+			return &domain.User{ID: 9, Username: "u"}, nil
+		},
+		revokeRememberTokenFunc: func(c string) error {
+			revokedValue = c
+			return nil
+		},
+		issueRememberTokenFunc: func(int64) (string, error) {
+			return "new-sel:new-raw", nil
+		},
+	}
+	handlers := NewAuthHandlers(mockService, false, nil)
+
+	reqBody := LoginRequest{Username: "u", Password: "p", RememberMe: true}
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "old-sel:old-raw"})
+	rec := httptest.NewRecorder()
+	handlers.HandleLogin(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if revokedValue != "old-sel:old-raw" {
+		t.Errorf("expected previous remember token revoked, got %q", revokedValue)
+	}
+	var sawNewRemember bool
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == rememberCookieName && c.Value == "new-sel:new-raw" {
+			sawNewRemember = true
+		}
+	}
+	if !sawNewRemember {
+		t.Errorf("expected new remember cookie to be set")
+	}
+}
+
 func TestHandleLogin_WithoutRememberMe_DoesNotIssueRememberToken(t *testing.T) {
 	called := false
 	mockService := &mockAuthService{

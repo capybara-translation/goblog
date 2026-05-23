@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"time"
@@ -33,13 +34,18 @@ func NewCurrentUserHelper(authService service.AuthService, secureCookie bool) *C
 func (h *CurrentUserHelper) Optional(w http.ResponseWriter, r *http.Request) (*domain.User, error) {
 	// 1. Try the session cookie first.
 	if c, err := r.Cookie(sessionCookieName); err == nil {
-		user, err := h.authService.GetUserBySession(c.Value)
-		if err == nil && user != nil {
+		user, lookupErr := h.authService.GetUserBySession(c.Value)
+		if lookupErr == nil && user != nil {
 			return user, nil
 		}
-		// "session not found" and ErrUserNotFound (stale) are expected — fall
-		// through to the remember token. Real DB errors surface via the same
-		// path; CurrentUserHelper's caller does not need to distinguish.
+		// Distinguish expected stale-session conditions from real DB errors:
+		// "session not found" returns (nil, nil); a deleted user returns
+		// ErrUserNotFound; anything else (e.g. DB outage) is operationally
+		// interesting and worth logging so we don't lose the breadcrumb.
+		if lookupErr != nil && !errors.Is(lookupErr, service.ErrUserNotFound) {
+			log.Printf("CurrentUserHelper: GetUserBySession failed: %v", lookupErr)
+		}
+		// Fall through to the remember token regardless.
 	}
 
 	// 2. Fall back to the remember token.
@@ -90,6 +96,13 @@ func (h *CurrentUserHelper) Required(w http.ResponseWriter, r *http.Request) (*d
 }
 
 func (h *CurrentUserHelper) setCookie(w http.ResponseWriter, name, value string, maxAge int, httpOnly bool) {
+	// Any response that emits a session/CSRF/remember Set-Cookie via this
+	// helper is user-specific and must not be cached by a CDN or shared
+	// proxy. We force the no-store directive here so the policy is owned by
+	// the helper itself rather than scattered across every public handler.
+	if w.Header().Get("Cache-Control") == "" {
+		w.Header().Set("Cache-Control", "private, no-store")
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     name,
 		Value:    value,

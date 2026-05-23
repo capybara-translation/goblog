@@ -176,6 +176,17 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	// its cookie. Failure here logs but does not abort the login — the user
 	// still has a valid session_id cookie and CSRF.
 	if req.RememberMe {
+		// If the browser already presents a remember_token, this is a
+		// re-issue on the same device. Revoke the previous DB row up front so
+		// it does not linger as an orphan (unreachable from any cookie) until
+		// expires_at. Multi-device support is unaffected because each device
+		// has its own cookie and selector.
+		if oldCookie, err := r.Cookie(rememberCookieName); err == nil {
+			if revokeErr := h.authService.RevokeRememberToken(oldCookie.Value); revokeErr != nil {
+				log.Printf("HandleLogin: failed to revoke previous remember token on re-issue: %v", revokeErr)
+			}
+		}
+
 		rememberValue, err := h.authService.IssueRememberToken(user.ID)
 		if err != nil {
 			log.Printf("HandleLogin: IssueRememberToken failed: %v", err)

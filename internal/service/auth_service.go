@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -165,6 +166,15 @@ func (s *authService) RestoreFromRememberToken(cookieValue string) (*domain.User
 		return nil, "", nil
 	}
 	if !auth.ConstantTimeEqual(token.TokenHash, auth.HashToken(raw)) {
+		// Hash mismatch with a valid selector signals either token theft + a
+		// brute-force attempt or token-tampering. Treat it as a theft event
+		// and revoke every remember token this user owns so the attacker
+		// cannot fall back to another stolen pair. The user will need to
+		// re-authenticate on every device, which is the safe outcome.
+		log.Printf("RestoreFromRememberToken: hash mismatch for selector=%s user_id=%d; revoking all tokens for this user", selector, token.UserID)
+		if revokeErr := s.rememberStore.DeleteByUserID(token.UserID); revokeErr != nil {
+			log.Printf("RestoreFromRememberToken: DeleteByUserID failed after hash mismatch: %v", revokeErr)
+		}
 		return nil, "", nil
 	}
 
@@ -183,8 +193,12 @@ func (s *authService) RestoreFromRememberToken(cookieValue string) (*domain.User
 		return nil, "", fmt.Errorf("create session: %w", err)
 	}
 
-	// Best-effort last-used timestamp so admin tooling can see activity.
-	_ = s.rememberStore.UpdateLastUsed(selector, time.Now())
+	// Refresh on use: bump last_used_at AND extend expires_at by another full
+	// rememberTTL window. Without sliding expiration, an active daily user
+	// would still be force-logged-out every TTL — which defeats the purpose
+	// of "remember me". Best-effort; if it fails the user is still restored.
+	now := time.Now()
+	_ = s.rememberStore.RefreshOnUse(selector, now, now.Add(s.rememberTTL))
 
 	return user, sessionID, nil
 }

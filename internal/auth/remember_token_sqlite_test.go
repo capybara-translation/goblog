@@ -115,16 +115,18 @@ func TestSQLiteRememberTokenStore_DeleteByUserID(t *testing.T) {
 	}
 }
 
-func TestSQLiteRememberTokenStore_UpdateLastUsed(t *testing.T) {
+func TestSQLiteRememberTokenStore_RefreshOnUse(t *testing.T) {
 	db := newTestDB(t)
 	store := NewSQLiteRememberTokenStore(db)
+	originalExpiry := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
 	_ = store.Create(&domain.RememberToken{
-		UserID: 1, Selector: "sel-c", TokenHash: "h", ExpiresAt: time.Now().Add(time.Hour),
+		UserID: 1, Selector: "sel-c", TokenHash: "h", ExpiresAt: originalExpiry,
 	})
 
 	now := time.Now().UTC().Truncate(time.Second)
-	if err := store.UpdateLastUsed("sel-c", now); err != nil {
-		t.Fatalf("UpdateLastUsed: %v", err)
+	extendedExpiry := now.Add(48 * time.Hour)
+	if err := store.RefreshOnUse("sel-c", now, extendedExpiry); err != nil {
+		t.Fatalf("RefreshOnUse: %v", err)
 	}
 	got, _ := store.FindBySelector("sel-c")
 	if got.LastUsedAt == nil {
@@ -132,6 +134,9 @@ func TestSQLiteRememberTokenStore_UpdateLastUsed(t *testing.T) {
 	}
 	if !got.LastUsedAt.UTC().Truncate(time.Second).Equal(now) {
 		t.Errorf("LastUsedAt = %v, want %v", got.LastUsedAt, now)
+	}
+	if !got.ExpiresAt.UTC().Truncate(time.Second).Equal(extendedExpiry) {
+		t.Errorf("ExpiresAt = %v, want %v (sliding expiration not applied)", got.ExpiresAt, extendedExpiry)
 	}
 }
 

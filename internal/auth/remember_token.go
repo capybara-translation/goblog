@@ -18,7 +18,12 @@ type RememberTokenStore interface {
 	FindBySelector(selector string) (*domain.RememberToken, error)
 	Delete(selector string) error
 	DeleteByUserID(userID int64) error
-	UpdateLastUsed(selector string, t time.Time) error
+	// RefreshOnUse atomically updates both the last_used_at timestamp and the
+	// expires_at deadline. Called whenever a remember-me token is used to
+	// successfully restore a session; the deadline extension gives the
+	// listing "sliding expiration" semantics (an active user is not forced
+	// to re-authenticate every TTL window).
+	RefreshOnUse(selector string, lastUsed time.Time, newExpiresAt time.Time) error
 	CleanupExpired() error
 }
 

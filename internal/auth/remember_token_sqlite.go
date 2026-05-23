@@ -51,8 +51,11 @@ func (s *sqliteRememberTokenStore) DeleteByUserID(userID int64) error {
 	return err
 }
 
-func (s *sqliteRememberTokenStore) UpdateLastUsed(selector string, t time.Time) error {
-	_, err := s.db.Exec(`UPDATE remember_tokens SET last_used_at = ? WHERE selector = ?`, t, selector)
+func (s *sqliteRememberTokenStore) RefreshOnUse(selector string, lastUsed time.Time, newExpiresAt time.Time) error {
+	_, err := s.db.Exec(
+		`UPDATE remember_tokens SET last_used_at = ?, expires_at = ? WHERE selector = ?`,
+		lastUsed, newExpiresAt, selector,
+	)
 	return err
 }
 

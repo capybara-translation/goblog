@@ -97,7 +97,7 @@ type mockRememberTokenStore struct {
 	findBySelectorFunc func(string) (*domain.RememberToken, error)
 	deleteFunc         func(string) error
 	deleteByUserIDFunc func(int64) error
-	updateLastUsedFunc func(string, time.Time) error
+	refreshOnUseFunc func(string, time.Time, time.Time) error
 	cleanupExpiredFunc func() error
 }
 
@@ -129,9 +129,9 @@ func (m *mockRememberTokenStore) DeleteByUserID(uid int64) error {
 	return nil
 }
 
-func (m *mockRememberTokenStore) UpdateLastUsed(sel string, t time.Time) error {
-	if m.updateLastUsedFunc != nil {
-		return m.updateLastUsedFunc(sel, t)
+func (m *mockRememberTokenStore) RefreshOnUse(sel string, lastUsed time.Time, newExpiresAt time.Time) error {
+	if m.refreshOnUseFunc != nil {
+		return m.refreshOnUseFunc(sel, lastUsed, newExpiresAt)
 	}
 	return nil
 }
@@ -1040,6 +1040,90 @@ func TestAuthService_RestoreFromRememberToken_FailurePaths(t *testing.T) {
 				t.Errorf("expected no restoration, got user=%+v session=%q", user, session)
 			}
 		})
+	}
+}
+
+func TestAuthService_RestoreFromRememberToken_HashMismatch_RevokesAllUserTokens(t *testing.T) {
+	const userID int64 = 42
+	validHash := auth.HashToken("the-real-raw-token")
+
+	var deleteByUserIDCalls int
+	store := &mockRememberTokenStore{
+		findBySelectorFunc: func(string) (*domain.RememberToken, error) {
+			return &domain.RememberToken{
+				UserID: userID, Selector: "sel", TokenHash: validHash,
+				ExpiresAt: time.Now().Add(time.Hour),
+			}, nil
+		},
+		deleteByUserIDFunc: func(uid int64) error {
+			if uid != userID {
+				t.Errorf("DeleteByUserID called for uid %d, want %d", uid, userID)
+			}
+			deleteByUserIDCalls++
+			return nil
+		},
+	}
+	svc := newAuthServiceForTest(&mockUserRepository{}, &mockSessionStore{}, store, time.Hour)
+
+	user, session, err := svc.RestoreFromRememberToken(auth.EncodeRememberCookie("sel", "WRONG-raw-token"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if user != nil || session != "" {
+		t.Errorf("expected no restoration on hash mismatch, got user=%+v session=%q", user, session)
+	}
+	if deleteByUserIDCalls != 1 {
+		t.Errorf("DeleteByUserID call count = %d, want 1 (theft detection)", deleteByUserIDCalls)
+	}
+}
+
+func TestAuthService_RestoreFromRememberToken_RefreshesOnUse(t *testing.T) {
+	const rememberTTL = 30 * 24 * time.Hour
+	raw := "good-raw"
+	hash := auth.HashToken(raw)
+
+	var refreshCall struct {
+		selector     string
+		lastUsed     time.Time
+		newExpiresAt time.Time
+	}
+	store := &mockRememberTokenStore{
+		findBySelectorFunc: func(string) (*domain.RememberToken, error) {
+			return &domain.RememberToken{
+				UserID: 1, Selector: "sel", TokenHash: hash,
+				ExpiresAt: time.Now().Add(24 * time.Hour),
+			}, nil
+		},
+		refreshOnUseFunc: func(sel string, lastUsed time.Time, newExpiresAt time.Time) error {
+			refreshCall.selector = sel
+			refreshCall.lastUsed = lastUsed
+			refreshCall.newExpiresAt = newExpiresAt
+			return nil
+		},
+	}
+	userRepo := &mockUserRepository{
+		findByIDFunc: func(int64) (*domain.User, error) {
+			return &domain.User{ID: 1, Username: "u"}, nil
+		},
+	}
+	svc := newAuthServiceForTest(userRepo, &mockSessionStore{}, store, rememberTTL)
+
+	before := time.Now()
+	_, _, err := svc.RestoreFromRememberToken(auth.EncodeRememberCookie("sel", raw))
+	if err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+	after := time.Now()
+
+	if refreshCall.selector != "sel" {
+		t.Errorf("refresh selector = %q", refreshCall.selector)
+	}
+	if refreshCall.lastUsed.Before(before) || refreshCall.lastUsed.After(after) {
+		t.Errorf("lastUsed = %v, want within [%v, %v]", refreshCall.lastUsed, before, after)
+	}
+	expectedExpiry := refreshCall.lastUsed.Add(rememberTTL)
+	if !refreshCall.newExpiresAt.Equal(expectedExpiry) {
+		t.Errorf("newExpiresAt = %v, want lastUsed + rememberTTL = %v", refreshCall.newExpiresAt, expectedExpiry)
 	}
 }
 

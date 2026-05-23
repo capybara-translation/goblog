@@ -3,6 +3,7 @@ package http
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -120,6 +121,49 @@ func TestCurrentUserHelper_Optional_InvalidRememberCookieIsCleared(t *testing.T)
 	}
 	if !cleared {
 		t.Errorf("expected remember cookie to be cleared, got: %+v", rec.Result().Cookies())
+	}
+}
+
+func TestCurrentUserHelper_Optional_SetsCacheControlPrivateOnRestore(t *testing.T) {
+	helper := NewCurrentUserHelper(&mockAuthService{
+		getUserBySessionFunc: func(string) (*domain.User, error) { return nil, nil },
+		restoreFromRememberTokenFunc: func(string) (*domain.User, string, error) {
+			return &domain.User{ID: 1, Username: "u"}, "new-sid", nil
+		},
+		rememberTTL: 30 * 24 * time.Hour,
+	}, false)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "rem"})
+	rec := httptest.NewRecorder()
+
+	_, _ = helper.Optional(rec, req)
+
+	cc := rec.Result().Header.Get("Cache-Control")
+	if cc == "" {
+		t.Fatal("expected Cache-Control header to be set on restoration response")
+	}
+	if !strings.Contains(cc, "no-store") {
+		t.Errorf("Cache-Control = %q, want it to include no-store so CDN/proxies do not cache the response", cc)
+	}
+	if !strings.Contains(cc, "private") {
+		t.Errorf("Cache-Control = %q, want it to include private (user-specific response)", cc)
+	}
+}
+
+func TestCurrentUserHelper_Optional_NoCacheControlWhenSessionIsValid(t *testing.T) {
+	helper := NewCurrentUserHelper(&mockAuthService{
+		getUserBySessionFunc: func(string) (*domain.User, error) {
+			return &domain.User{ID: 1, Username: "u"}, nil
+		},
+	}, false)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "good"})
+	rec := httptest.NewRecorder()
+
+	_, _ = helper.Optional(rec, req)
+
+	if cc := rec.Result().Header.Get("Cache-Control"); cc != "" {
+		t.Errorf("no Set-Cookie was emitted; expected no Cache-Control override, got %q", cc)
 	}
 }
 
