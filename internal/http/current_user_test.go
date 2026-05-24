@@ -76,8 +76,8 @@ func TestCurrentUserHelper_Optional_RestoresFromRememberToken(t *testing.T) {
 		t.Fatalf("expected user id 7, got %+v", user)
 	}
 
-	// Both session_id and csrf_token must be set as a side effect.
-	var sawSession, sawCSRF bool
+	// session_id, csrf_token, AND a refreshed remember_token must all be set.
+	var sawSession, sawCSRF, sawRemember bool
 	for _, c := range rec.Result().Cookies() {
 		switch c.Name {
 		case sessionCookieName:
@@ -87,10 +87,23 @@ func TestCurrentUserHelper_Optional_RestoresFromRememberToken(t *testing.T) {
 			}
 		case csrfCookieName:
 			sawCSRF = true
+		case rememberCookieName:
+			sawRemember = true
+			// Same value (not rotated), refreshed MaxAge derived from RememberTTL.
+			if c.Value != "rem-cookie" {
+				t.Errorf("remember cookie value = %q, want unchanged rem-cookie", c.Value)
+			}
+			wantMaxAge := int((30 * 24 * time.Hour) / time.Second)
+			if c.MaxAge != wantMaxAge {
+				t.Errorf("remember cookie MaxAge = %d, want %d (sliding expiration on the cookie)", c.MaxAge, wantMaxAge)
+			}
 		}
 	}
 	if !sawSession || !sawCSRF {
-		t.Fatalf("expected restoration to set both cookies; session=%v csrf=%v", sawSession, sawCSRF)
+		t.Fatalf("expected restoration to set session+csrf cookies; session=%v csrf=%v", sawSession, sawCSRF)
+	}
+	if !sawRemember {
+		t.Error("expected the remember_token cookie to be re-emitted with a fresh MaxAge so the client expiry tracks the server-side sliding expiration")
 	}
 }
 

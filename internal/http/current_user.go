@@ -84,11 +84,20 @@ func (h *CurrentUserHelper) Optional(w http.ResponseWriter, r *http.Request) (*d
 		log.Printf("CurrentUserHelper: generateCSRFToken failed during restore: %v", err)
 		return nil, err
 	}
-	// cookie MaxAge mirrors the session TTL (not the remember TTL): the
-	// remember cookie itself was already set with its own MaxAge at login.
-	cookieMaxAge := int(h.authService.SessionTTL() / time.Second)
-	h.setCookie(w, sessionCookieName, sessionID, cookieMaxAge, true)
-	h.setCookie(w, csrfCookieName, csrfToken, cookieMaxAge, false)
+	// The session + CSRF cookies use the session TTL.
+	sessionMaxAge := int(h.authService.SessionTTL() / time.Second)
+	h.setCookie(w, sessionCookieName, sessionID, sessionMaxAge, true)
+	h.setCookie(w, csrfCookieName, csrfToken, sessionMaxAge, false)
+
+	// Re-emit the remember cookie with the SAME value but a fresh MaxAge.
+	// RestoreFromRememberToken slid the server-side expires_at forward to
+	// now+RememberTTL; without this the browser cookie would still expire
+	// RememberTTL after the ORIGINAL login, so an actively-used token would
+	// eventually stop being sent even though the DB row stays valid. This is
+	// not rotation — the value is unchanged, so there is no concurrent-use
+	// race.
+	rememberMaxAge := int(h.authService.RememberTTL() / time.Second)
+	h.setCookie(w, rememberCookieName, rememberCookie.Value, rememberMaxAge, true)
 
 	return user, nil
 }
