@@ -61,9 +61,13 @@ func HashToken(raw string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// ConstantTimeEqual compares two strings in constant time. Use this to
-// compare token hashes so a timing side channel cannot leak whether a
-// prefix matched.
+// ConstantTimeEqual reports whether a and b are equal, comparing in constant
+// time for equal-length inputs. crypto/subtle.ConstantTimeCompare returns
+// immediately when the lengths differ, so the comparison is only constant-time
+// when a and b have the same length. That holds for the intended use here:
+// both operands are HashToken outputs (fixed-length hex-encoded SHA-256), so
+// the length is constant and not secret, and the prefix-match timing channel
+// is what we need to close.
 func ConstantTimeEqual(a, b string) bool {
 	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }

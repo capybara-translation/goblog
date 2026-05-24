@@ -3,6 +3,7 @@ package repo
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/capybara-translation/goblog/internal/auth"
@@ -30,7 +31,10 @@ func (s *sqliteRememberTokenStore) Create(token *domain.RememberToken) error {
 		INSERT INTO remember_tokens (user_id, selector, token_hash, expires_at)
 		VALUES (?, ?, ?, ?)
 	`, token.UserID, token.Selector, token.TokenHash, token.ExpiresAt)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to create remember token: %w", err)
+	}
+	return nil
 }
 
 func (s *sqliteRememberTokenStore) FindBySelector(selector string) (*domain.RememberToken, error) {
@@ -40,19 +44,23 @@ func (s *sqliteRememberTokenStore) FindBySelector(selector string) (*domain.Reme
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to find remember token by selector: %w", err)
 	}
 	return &t, nil
 }
 
 func (s *sqliteRememberTokenStore) Delete(selector string) error {
-	_, err := s.db.Exec(`DELETE FROM remember_tokens WHERE selector = ?`, selector)
-	return err
+	if _, err := s.db.Exec(`DELETE FROM remember_tokens WHERE selector = ?`, selector); err != nil {
+		return fmt.Errorf("failed to delete remember token: %w", err)
+	}
+	return nil
 }
 
 func (s *sqliteRememberTokenStore) DeleteByUserID(userID int64) error {
-	_, err := s.db.Exec(`DELETE FROM remember_tokens WHERE user_id = ?`, userID)
-	return err
+	if _, err := s.db.Exec(`DELETE FROM remember_tokens WHERE user_id = ?`, userID); err != nil {
+		return fmt.Errorf("failed to delete remember tokens by user id: %w", err)
+	}
+	return nil
 }
 
 func (s *sqliteRememberTokenStore) RefreshOnUse(selector string, lastUsed time.Time, newExpiresAt time.Time) error {
@@ -60,10 +68,15 @@ func (s *sqliteRememberTokenStore) RefreshOnUse(selector string, lastUsed time.T
 		`UPDATE remember_tokens SET last_used_at = ?, expires_at = ? WHERE selector = ?`,
 		lastUsed, newExpiresAt, selector,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to refresh remember token: %w", err)
+	}
+	return nil
 }
 
 func (s *sqliteRememberTokenStore) CleanupExpired() error {
-	_, err := s.db.Exec(`DELETE FROM remember_tokens WHERE expires_at < ?`, time.Now())
-	return err
+	if _, err := s.db.Exec(`DELETE FROM remember_tokens WHERE expires_at < ?`, time.Now()); err != nil {
+		return fmt.Errorf("failed to clean up expired remember tokens: %w", err)
+	}
+	return nil
 }
