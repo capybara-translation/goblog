@@ -36,8 +36,12 @@ const rememberCookieSeparator = ":"
 func GenerateSelector() string {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
-		// rand.Read on /dev/urandom never fails on supported platforms; panic
-		// here matches the existing generateSessionID style.
+		// crypto/rand draws from the OS CSPRNG and does not fail in normal
+		// operation; a failure means the platform's randomness source is
+		// broken, which is unrecoverable for a security token. We panic to
+		// keep the cookie-codec call sites simple rather than thread an error
+		// through these pure helpers. (Note: generateSessionID instead returns
+		// an error — these remember-token helpers deliberately differ.)
 		panic("auth: rand.Read failed for selector: " + err.Error())
 	}
 	return base64.URLEncoding.EncodeToString(b)
