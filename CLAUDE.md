@@ -78,16 +78,16 @@ Database (SQLite)
     ogp_service.go     # OGPリンクカード
   /repo/               # データアクセス
     post_repo.go
-    post_view_repo.go  # 閲覧記録
+    post_view_repo.go      # 閲覧記録
     user_repo.go
-    ogp_repo.go        # OGPキャッシュ
+    ogp_repo.go            # OGPキャッシュ
+    remember_token_repo.go # Remember me トークンの SQLite 実装
   /domain/             # ドメインモデル
     post.go
     user.go
   /auth/               # 認証ユーティリティ（セッション管理）
     session.go
-    remember_token.go        # RememberTokenStore interface、暗号ユーティリティ、cookie コーデック
-    remember_token_sqlite.go # SQLite 実装、cleanup goroutine
+    remember_token.go        # RememberTokenStore interface、暗号ユーティリティ、cookie コーデック、cleanup goroutine（SQLite 実装は /repo/remember_token_repo.go）
   /config/             # 設定管理
     config.go
   /markdown/           # Markdown変換

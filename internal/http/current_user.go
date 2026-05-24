@@ -30,7 +30,12 @@ func NewCurrentUserHelper(authService service.AuthService, secureCookie bool) *C
 }
 
 // Optional returns the current user if one can be resolved, or nil.
-// Errors from the underlying store are logged and surfaced.
+//
+// Session-lookup errors are logged but NOT returned: they are swallowed so a
+// transient session-store hiccup still falls through to the remember-token
+// path. Only an error from RestoreFromRememberToken is surfaced to the caller
+// (and also logged). So a non-nil error from Optional always originates from
+// the remember-token path, never from the session lookup.
 func (h *CurrentUserHelper) Optional(w http.ResponseWriter, r *http.Request) (*domain.User, error) {
 	// 1. Try the session cookie first.
 	if c, err := r.Cookie(sessionCookieName); err == nil {

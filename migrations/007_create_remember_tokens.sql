@@ -9,8 +9,9 @@ CREATE TABLE IF NOT EXISTS remember_tokens (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_remember_tokens_selector
-ON remember_tokens(selector);
+-- No explicit index on `selector`: the UNIQUE constraint above already
+-- creates one (sqlite_autoindex_remember_tokens_1), which is what
+-- FindBySelector / Delete / RefreshOnUse look up by.
 
 CREATE INDEX IF NOT EXISTS idx_remember_tokens_user_id
 ON remember_tokens(user_id);

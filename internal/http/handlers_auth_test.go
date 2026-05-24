@@ -727,6 +727,49 @@ func TestHandleLogout_NoRememberCookie_IsNoop(t *testing.T) {
 	}
 }
 
+func TestHandleLogout_ExpiredSession_StillRevokesRememberToken(t *testing.T) {
+	// Regression: /auth/logout sits behind AuthMiddleware, which may have
+	// restored the session from the remember token before this handler runs.
+	// If the session cookie is absent (expired) the handler must STILL revoke
+	// the remember token and clear its cookie — otherwise logout silently
+	// leaves the user able to be auto-restored on the next request.
+	var revokedValue string
+	mockService := &mockAuthService{
+		logoutFunc: func(string) error {
+			t.Error("Logout should not be called when no session cookie is present")
+			return nil
+		},
+		revokeRememberTokenFunc: func(c string) error {
+			revokedValue = c
+			return nil
+		},
+	}
+	handlers := NewAuthHandlers(mockService, false, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+	// No session cookie, only a remember cookie.
+	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "sel:raw"})
+	rec := httptest.NewRecorder()
+	handlers.HandleLogout(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if revokedValue != "sel:raw" {
+		t.Errorf("RevokeRememberToken called with %q, want sel:raw", revokedValue)
+	}
+
+	var clearedRemember bool
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == rememberCookieName && c.MaxAge < 0 {
+			clearedRemember = true
+		}
+	}
+	if !clearedRemember {
+		t.Errorf("expected remember cookie to be cleared even without a session cookie")
+	}
+}
+
 func TestHandleMe_Success(t *testing.T) {
 	now := time.Now()
 	mockService := &mockAuthService{

@@ -209,19 +209,22 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, user)
 }
 
-// HandleLogout handles the logout process
+// HandleLogout handles the logout process.
+//
+// Logout must NOT early-return when the session cookie is absent. With
+// remember-me, /auth/logout sits behind AuthMiddleware, which can restore a
+// session from the remember_token before this handler runs. If we bailed out
+// on a missing session_id we would skip revoking the remember token — leaving
+// the user able to be auto-logged-in again on the next request, which defeats
+// logout entirely. So we always run the full cleanup: revoke the session if
+// one was presented, revoke the remember token if one was presented, and clear
+// every auth cookie regardless.
 func (h *AuthHandlers) HandleLogout(w http.ResponseWriter, r *http.Request) {
-	// Get session ID from cookie
-	cookie, err := r.Cookie(sessionCookieName)
-	if err != nil {
-		// Do nothing if session cookie doesn't exist
-		respondJSON(w, http.StatusOK, map[string]string{"message": "Logout successful"})
-		return
-	}
-
-	// Delete session
-	if err := h.authService.Logout(cookie.Value); err != nil {
-		log.Printf("logout error: %v", err)
+	// Delete the server-side session if a session cookie was presented.
+	if cookie, err := r.Cookie(sessionCookieName); err == nil {
+		if logoutErr := h.authService.Logout(cookie.Value); logoutErr != nil {
+			log.Printf("logout error: %v", logoutErr)
+		}
 	}
 
 	// Delete session cookie (must specify the same attributes as when it was set)
