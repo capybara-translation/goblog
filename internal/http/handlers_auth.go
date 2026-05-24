@@ -19,17 +19,19 @@ const (
 
 // AuthHandlers is a struct that groups authentication-related HTTP handlers
 type AuthHandlers struct {
-	authService    service.AuthService
-	secureCookie   bool       // Cookie secure attribute (requires HTTPS)
-	trustedProxies []*net.IPNet // Trusted proxy networks for X-Forwarded-For
+	authService       service.AuthService
+	currentUserHelper *CurrentUserHelper // Resolves session-or-remember-token (used by HandleMe).
+	secureCookie      bool               // Cookie secure attribute (requires HTTPS)
+	trustedProxies    []*net.IPNet       // Trusted proxy networks for X-Forwarded-For
 }
 
 // NewAuthHandlers creates a new AuthHandlers
 func NewAuthHandlers(authService service.AuthService, secureCookie bool, trustedProxies []string) *AuthHandlers {
 	return &AuthHandlers{
-		authService:    authService,
-		secureCookie:   secureCookie,
-		trustedProxies: parseTrustedProxies(trustedProxies),
+		authService:       authService,
+		currentUserHelper: NewCurrentUserHelper(authService, secureCookie),
+		secureCookie:      secureCookie,
+		trustedProxies:    parseTrustedProxies(trustedProxies),
 	}
 }
 
@@ -81,8 +83,9 @@ func (h *AuthHandlers) isTrustedProxy(ipStr string) bool {
 
 // LoginRequest is the request body for login
 type LoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	RememberMe bool   `json:"remember_me"`
 }
 
 // HandleLogin handles the login process
@@ -169,23 +172,74 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		Secure:   h.secureCookie, // Requires HTTPS (true in production)
 	})
 
+	// If the user opted into "remember me", issue a long-lived token and set
+	// its cookie. Failure here logs but does not abort the login — the user
+	// still has a valid session_id cookie and CSRF.
+	if req.RememberMe {
+		// If the browser already presents a remember_token, this is a
+		// re-issue on the same device. Revoke the previous DB row up front so
+		// it does not linger as an orphan (unreachable from any cookie) until
+		// expires_at. Multi-device support is unaffected because each device
+		// has its own cookie and selector.
+		if oldCookie, err := r.Cookie(rememberCookieName); err == nil {
+			if revokeErr := h.authService.RevokeRememberToken(oldCookie.Value); revokeErr != nil {
+				log.Printf("HandleLogin: failed to revoke previous remember token on re-issue: %v", revokeErr)
+			}
+		}
+
+		rememberValue, err := h.authService.IssueRememberToken(user.ID)
+		if err != nil {
+			log.Printf("HandleLogin: IssueRememberToken failed: %v", err)
+			// We may have already revoked the previously-presented token's DB
+			// row above, so the old cookie value is now invalid. Clear it so
+			// the browser stops sending a known-bad token until a later
+			// restore would otherwise lazily clear it.
+			h.clearRememberCookie(w)
+		} else {
+			// Remember cookie has its own (longer) MaxAge — derived from the
+			// service's remember TTL, not the session TTL.
+			http.SetCookie(w, &http.Cookie{
+				Name:     rememberCookieName,
+				Value:    rememberValue,
+				Path:     sessionCookiePath,
+				HttpOnly: true,
+				SameSite: http.SameSiteLaxMode,
+				MaxAge:   int(h.authService.RememberTTL() / time.Second),
+				Secure:   h.secureCookie,
+			})
+		}
+	} else if oldCookie, err := r.Cookie(rememberCookieName); err == nil {
+		// "Remember me" was left unchecked but the browser still carries a
+		// remember_token from a previous opt-in on this device. Honor the
+		// unchecked box as an explicit opt-out: revoke the DB row and clear
+		// the cookie, otherwise the user would still be auto-restored after
+		// the session expires and the checkbox could never turn remember off.
+		if revokeErr := h.authService.RevokeRememberToken(oldCookie.Value); revokeErr != nil {
+			log.Printf("HandleLogin: failed to revoke remember token on opt-out: %v", revokeErr)
+		}
+		h.clearRememberCookie(w)
+	}
+
 	// Return user information (PasswordHash is excluded via json:"-")
 	respondJSON(w, http.StatusOK, user)
 }
 
-// HandleLogout handles the logout process
+// HandleLogout handles the logout process.
+//
+// Logout must NOT early-return when the session cookie is absent. With
+// remember-me, /auth/logout sits behind AuthMiddleware, which can restore a
+// session from the remember_token before this handler runs. If we bailed out
+// on a missing session_id we would skip revoking the remember token — leaving
+// the user able to be auto-logged-in again on the next request, which defeats
+// logout entirely. So we always run the full cleanup: revoke the session if
+// one was presented, revoke the remember token if one was presented, and clear
+// every auth cookie regardless.
 func (h *AuthHandlers) HandleLogout(w http.ResponseWriter, r *http.Request) {
-	// Get session ID from cookie
-	cookie, err := r.Cookie(sessionCookieName)
-	if err != nil {
-		// Do nothing if session cookie doesn't exist
-		respondJSON(w, http.StatusOK, map[string]string{"message": "Logout successful"})
-		return
-	}
-
-	// Delete session
-	if err := h.authService.Logout(cookie.Value); err != nil {
-		log.Printf("logout error: %v", err)
+	// Delete the server-side session if a session cookie was presented.
+	if cookie, err := r.Cookie(sessionCookieName); err == nil {
+		if logoutErr := h.authService.Logout(cookie.Value); logoutErr != nil {
+			log.Printf("logout error: %v", logoutErr)
+		}
 	}
 
 	// Delete session cookie (must specify the same attributes as when it was set)
@@ -210,37 +264,52 @@ func (h *AuthHandlers) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		Secure:   h.secureCookie, // Same as when set
 	})
 
+	// Revoke the remember token if one was presented. Revocation is
+	// conditional (there's nothing to delete without a cookie), but the
+	// cookie deletion below is unconditional — consistent with how the
+	// session and CSRF cookies are always cleared.
+	if rememberCookie, err := r.Cookie(rememberCookieName); err == nil {
+		if revokeErr := h.authService.RevokeRememberToken(rememberCookie.Value); revokeErr != nil {
+			log.Printf("HandleLogout: RevokeRememberToken failed: %v", revokeErr)
+		}
+	}
+	// Always clear the remember cookie.
+	h.clearRememberCookie(w)
+
 	respondJSON(w, http.StatusOK, map[string]string{"message": "Logout successful"})
 }
 
-// HandleMe returns the currently logged-in user information
-func (h *AuthHandlers) HandleMe(w http.ResponseWriter, r *http.Request) {
-	// Get session ID from cookie
-	cookie, err := r.Cookie(sessionCookieName)
-	if err != nil {
-		respondJSON(w, http.StatusUnauthorized, ErrorResponse{Error: "Not authenticated"})
-		return
-	}
+// clearRememberCookie emits a deletion Set-Cookie for the remember_token.
+// The attributes must mirror those used when the cookie is set (Path,
+// HttpOnly, SameSite, Secure) or some browsers will not match-and-delete it.
+// Centralizing this avoids attribute drift across the login opt-out, the
+// issue-failure path, and logout.
+func (h *AuthHandlers) clearRememberCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     rememberCookieName,
+		Value:    "",
+		Path:     sessionCookiePath,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+		Secure:   h.secureCookie,
+	})
+}
 
-	// Get user information from session
-	user, err := h.authService.GetUserBySession(cookie.Value)
+// HandleMe returns the currently authenticated user. The session may be
+// restored transparently from a remember-me cookie via CurrentUserHelper —
+// when that happens, fresh session_id and csrf_token cookies are emitted on
+// the response (callers see normal session cookies on subsequent requests).
+func (h *AuthHandlers) HandleMe(w http.ResponseWriter, r *http.Request) {
+	user, err := h.currentUserHelper.Optional(w, r)
 	if err != nil {
-		// Return 401 if user was deleted
-		if errors.Is(err, service.ErrUserNotFound) {
-			respondJSON(w, http.StatusUnauthorized, ErrorResponse{Error: "Session expired or invalid"})
-			return
-		}
-		log.Printf("get user by session error: %v", err)
 		respondJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "Internal server error"})
 		return
 	}
-
 	if user == nil {
-		respondJSON(w, http.StatusUnauthorized, ErrorResponse{Error: "Session expired or invalid"})
+		respondJSON(w, http.StatusUnauthorized, ErrorResponse{Error: "Unauthorized"})
 		return
 	}
-
-	// Return user information (PasswordHash is excluded via json:"-")
 	respondJSON(w, http.StatusOK, user)
 }
 

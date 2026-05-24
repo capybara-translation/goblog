@@ -3,6 +3,7 @@ package http
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -14,11 +15,15 @@ import (
 
 // mockAuthService is a mock implementation of AuthService
 type mockAuthService struct {
-	loginFunc            func(username, password, ipAddress string) (string, error)
-	logoutFunc           func(sessionID string) error
-	getUserBySessionFunc func(sessionID string) (*domain.User, error)
-	createUserFunc       func(username, password string) (*domain.User, error)
-	sessionTTL           time.Duration
+	loginFunc                    func(username, password, ipAddress string) (string, error)
+	logoutFunc                   func(sessionID string) error
+	getUserBySessionFunc         func(sessionID string) (*domain.User, error)
+	createUserFunc               func(username, password string) (*domain.User, error)
+	issueRememberTokenFunc       func(int64) (string, error)
+	restoreFromRememberTokenFunc func(string) (*domain.User, string, error)
+	revokeRememberTokenFunc      func(string) error
+	sessionTTL                   time.Duration
+	rememberTTL                  time.Duration
 }
 
 func (m *mockAuthService) Login(username, password, ipAddress string) (string, error) {
@@ -54,6 +59,34 @@ func (m *mockAuthService) SessionTTL() time.Duration {
 		return m.sessionTTL
 	}
 	return 24 * time.Hour
+}
+
+func (m *mockAuthService) IssueRememberToken(uid int64) (string, error) {
+	if m.issueRememberTokenFunc != nil {
+		return m.issueRememberTokenFunc(uid)
+	}
+	return "", nil
+}
+
+func (m *mockAuthService) RestoreFromRememberToken(c string) (*domain.User, string, error) {
+	if m.restoreFromRememberTokenFunc != nil {
+		return m.restoreFromRememberTokenFunc(c)
+	}
+	return nil, "", nil
+}
+
+func (m *mockAuthService) RevokeRememberToken(c string) error {
+	if m.revokeRememberTokenFunc != nil {
+		return m.revokeRememberTokenFunc(c)
+	}
+	return nil
+}
+
+func (m *mockAuthService) RememberTTL() time.Duration {
+	if m.rememberTTL > 0 {
+		return m.rememberTTL
+	}
+	return 30 * 24 * time.Hour
 }
 
 var _ service.AuthService = (*mockAuthService)(nil)
@@ -143,6 +176,207 @@ func TestHandleLogin_Success(t *testing.T) {
 
 	if sessionCookie.SameSite != http.SameSiteLaxMode {
 		t.Errorf("expected SameSite=Lax, got %v", sessionCookie.SameSite)
+	}
+}
+
+func TestHandleLogin_WithRememberMe_SetsRememberCookie(t *testing.T) {
+	now := time.Now()
+	var issuedFor int64
+	mockService := &mockAuthService{
+		loginFunc: func(u, p, ip string) (string, error) {
+			return "sid", nil
+		},
+		getUserBySessionFunc: func(id string) (*domain.User, error) {
+			return &domain.User{ID: 9, Username: "u", CreatedAt: now, UpdatedAt: now}, nil
+		},
+		issueRememberTokenFunc: func(uid int64) (string, error) {
+			issuedFor = uid
+			return "sel:raw", nil
+		},
+	}
+	handlers := NewAuthHandlers(mockService, false, nil)
+
+	reqBody := LoginRequest{Username: "u", Password: "p", RememberMe: true}
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handlers.HandleLogin(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if issuedFor != 9 {
+		t.Errorf("IssueRememberToken called for uid %d, want 9", issuedFor)
+	}
+
+	var sawRemember bool
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == rememberCookieName {
+			sawRemember = true
+			if c.Value != "sel:raw" {
+				t.Errorf("remember cookie value = %q", c.Value)
+			}
+			if !c.HttpOnly {
+				t.Error("remember cookie must be HttpOnly")
+			}
+		}
+	}
+	if !sawRemember {
+		t.Errorf("expected remember_token cookie")
+	}
+}
+
+func TestHandleLogin_WithRememberMe_RevokesPreviousRememberCookieOnReissue(t *testing.T) {
+	var revokedValue string
+	mockService := &mockAuthService{
+		loginFunc: func(string, string, string) (string, error) { return "sid", nil },
+		getUserBySessionFunc: func(string) (*domain.User, error) {
+			return &domain.User{ID: 9, Username: "u"}, nil
+		},
+		revokeRememberTokenFunc: func(c string) error {
+			revokedValue = c
+			return nil
+		},
+		issueRememberTokenFunc: func(int64) (string, error) {
+			return "new-sel:new-raw", nil
+		},
+	}
+	handlers := NewAuthHandlers(mockService, false, nil)
+
+	reqBody := LoginRequest{Username: "u", Password: "p", RememberMe: true}
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "old-sel:old-raw"})
+	rec := httptest.NewRecorder()
+	handlers.HandleLogin(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if revokedValue != "old-sel:old-raw" {
+		t.Errorf("expected previous remember token revoked, got %q", revokedValue)
+	}
+	var sawNewRemember bool
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == rememberCookieName && c.Value == "new-sel:new-raw" {
+			sawNewRemember = true
+		}
+	}
+	if !sawNewRemember {
+		t.Errorf("expected new remember cookie to be set")
+	}
+}
+
+func TestHandleLogin_WithRememberMe_IssueFailureClearsStaleCookie(t *testing.T) {
+	// If IssueRememberToken fails after the previously-presented token was
+	// revoked, the old cookie value is now invalid. The handler must clear it
+	// so the browser stops sending a known-bad token.
+	mockService := &mockAuthService{
+		loginFunc: func(string, string, string) (string, error) { return "sid", nil },
+		getUserBySessionFunc: func(string) (*domain.User, error) {
+			return &domain.User{ID: 9, Username: "u"}, nil
+		},
+		revokeRememberTokenFunc: func(string) error { return nil },
+		issueRememberTokenFunc: func(int64) (string, error) {
+			return "", errors.New("transient DB error")
+		},
+	}
+	handlers := NewAuthHandlers(mockService, false, nil)
+
+	reqBody := LoginRequest{Username: "u", Password: "p", RememberMe: true}
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "old-sel:old-raw"})
+	rec := httptest.NewRecorder()
+	handlers.HandleLogin(rec, req)
+
+	// Login itself still succeeds (session + CSRF are valid).
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (login should not abort on remember failure)", rec.Code)
+	}
+	var clearedRemember bool
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == rememberCookieName && c.MaxAge < 0 {
+			clearedRemember = true
+		}
+	}
+	if !clearedRemember {
+		t.Error("expected the stale remember cookie to be cleared when IssueRememberToken fails")
+	}
+}
+
+func TestHandleLogin_WithoutRememberMe_DoesNotIssueRememberToken(t *testing.T) {
+	called := false
+	mockService := &mockAuthService{
+		loginFunc: func(string, string, string) (string, error) { return "sid", nil },
+		getUserBySessionFunc: func(string) (*domain.User, error) {
+			return &domain.User{ID: 1, Username: "u"}, nil
+		},
+		issueRememberTokenFunc: func(int64) (string, error) {
+			called = true
+			return "should-not-be-set", nil
+		},
+	}
+	handlers := NewAuthHandlers(mockService, false, nil)
+
+	reqBody := LoginRequest{Username: "u", Password: "p"} // remember_me omitted
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handlers.HandleLogin(rec, req)
+
+	if called {
+		t.Error("IssueRememberToken must not be called when RememberMe is false")
+	}
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == rememberCookieName {
+			t.Errorf("unexpected remember cookie: %+v", c)
+		}
+	}
+}
+
+func TestHandleLogin_WithoutRememberMe_OptsOutOfExistingRememberToken(t *testing.T) {
+	var revokedValue string
+	mockService := &mockAuthService{
+		loginFunc: func(string, string, string) (string, error) { return "sid", nil },
+		getUserBySessionFunc: func(string) (*domain.User, error) {
+			return &domain.User{ID: 1, Username: "u"}, nil
+		},
+		revokeRememberTokenFunc: func(c string) error {
+			revokedValue = c
+			return nil
+		},
+		issueRememberTokenFunc: func(int64) (string, error) {
+			t.Error("IssueRememberToken must not be called when RememberMe is false")
+			return "", nil
+		},
+	}
+	handlers := NewAuthHandlers(mockService, false, nil)
+
+	reqBody := LoginRequest{Username: "u", Password: "p"} // remember_me false
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	// Browser still carries a remember token from a previous opt-in.
+	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "old-sel:old-raw"})
+	rec := httptest.NewRecorder()
+	handlers.HandleLogin(rec, req)
+
+	if revokedValue != "old-sel:old-raw" {
+		t.Errorf("expected opt-out to revoke the existing token, revoked %q", revokedValue)
+	}
+	var clearedRemember bool
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == rememberCookieName && c.MaxAge < 0 {
+			clearedRemember = true
+		}
+	}
+	if !clearedRemember {
+		t.Error("expected the existing remember cookie to be cleared when logging in with the box unchecked")
 	}
 }
 
@@ -520,6 +754,115 @@ func TestHandleLogout_WithSecureCookie(t *testing.T) {
 	}
 }
 
+func TestHandleLogout_RevokesAndClearsRememberCookie(t *testing.T) {
+	var revokedCookie string
+	mockService := &mockAuthService{
+		logoutFunc: func(string) error { return nil },
+		revokeRememberTokenFunc: func(c string) error {
+			revokedCookie = c
+			return nil
+		},
+	}
+	handlers := NewAuthHandlers(mockService, false, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid"})
+	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "sel:raw"})
+	rec := httptest.NewRecorder()
+	handlers.HandleLogout(rec, req)
+
+	if revokedCookie != "sel:raw" {
+		t.Errorf("RevokeRememberToken called with %q, want sel:raw", revokedCookie)
+	}
+
+	var clearedRemember bool
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == rememberCookieName && c.MaxAge < 0 {
+			clearedRemember = true
+		}
+	}
+	if !clearedRemember {
+		t.Errorf("expected remember cookie cleared (MaxAge=-1)")
+	}
+}
+
+func TestHandleLogout_NoRememberCookie_DoesNotRevokeButStillClears(t *testing.T) {
+	called := false
+	mockService := &mockAuthService{
+		logoutFunc: func(string) error { return nil },
+		revokeRememberTokenFunc: func(string) error {
+			called = true
+			return nil
+		},
+	}
+	handlers := NewAuthHandlers(mockService, false, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid"})
+	// no remember cookie
+	rec := httptest.NewRecorder()
+	handlers.HandleLogout(rec, req)
+
+	if called {
+		t.Error("RevokeRememberToken must not be called when cookie is absent")
+	}
+
+	// The remember cookie deletion is sent unconditionally, consistent with
+	// how session_id and csrf_token are always cleared.
+	var clearedRemember bool
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == rememberCookieName && c.MaxAge < 0 {
+			clearedRemember = true
+		}
+	}
+	if !clearedRemember {
+		t.Error("expected remember cookie deletion to be sent even when no remember cookie was present")
+	}
+}
+
+func TestHandleLogout_ExpiredSession_StillRevokesRememberToken(t *testing.T) {
+	// Regression: /auth/logout sits behind AuthMiddleware, which may have
+	// restored the session from the remember token before this handler runs.
+	// If the session cookie is absent (expired) the handler must STILL revoke
+	// the remember token and clear its cookie — otherwise logout silently
+	// leaves the user able to be auto-restored on the next request.
+	var revokedValue string
+	mockService := &mockAuthService{
+		logoutFunc: func(string) error {
+			t.Error("Logout should not be called when no session cookie is present")
+			return nil
+		},
+		revokeRememberTokenFunc: func(c string) error {
+			revokedValue = c
+			return nil
+		},
+	}
+	handlers := NewAuthHandlers(mockService, false, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+	// No session cookie, only a remember cookie.
+	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "sel:raw"})
+	rec := httptest.NewRecorder()
+	handlers.HandleLogout(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if revokedValue != "sel:raw" {
+		t.Errorf("RevokeRememberToken called with %q, want sel:raw", revokedValue)
+	}
+
+	var clearedRemember bool
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == rememberCookieName && c.MaxAge < 0 {
+			clearedRemember = true
+		}
+	}
+	if !clearedRemember {
+		t.Errorf("expected remember cookie to be cleared even without a session cookie")
+	}
+}
+
 func TestHandleMe_Success(t *testing.T) {
 	now := time.Now()
 	mockService := &mockAuthService{
@@ -604,14 +947,16 @@ func TestHandleMe_NotAuthenticated(t *testing.T) {
 		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
 	}
 
-	// Verify error message
+	// HandleMe now returns a generic JSON "Unauthorized" via respondJSON
+	// (helper path) — the previous "Not authenticated" / "Session expired"
+	// distinction is gone, since CurrentUserHelper does not surface the
+	// difference between "no cookie" and "cookie present but invalid".
 	var resp ErrorResponse
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
-
-	if resp.Error != "Not authenticated" {
-		t.Errorf("expected error %q, got %q", "Not authenticated", resp.Error)
+	if resp.Error != "Unauthorized" {
+		t.Errorf("expected error %q, got %q", "Unauthorized", resp.Error)
 	}
 }
 
@@ -625,7 +970,7 @@ func TestHandleMe_InvalidSession(t *testing.T) {
 
 	handlers := NewAuthHandlers(mockService, false, nil)
 
-	// Request with invalid session ID
+	// Request with invalid session ID and no remember cookie → anonymous → 401
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  sessionCookieName,
@@ -640,14 +985,70 @@ func TestHandleMe_InvalidSession(t *testing.T) {
 		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
 	}
 
-	// Verify error message
+	// See TestHandleMe_NotAuthenticated for rationale on the message change.
 	var resp ErrorResponse
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
+	if resp.Error != "Unauthorized" {
+		t.Errorf("expected error %q, got %q", "Unauthorized", resp.Error)
+	}
+}
 
-	if resp.Error != "Session expired or invalid" {
-		t.Errorf("expected error %q, got %q", "Session expired or invalid", resp.Error)
+// TestHandleMe_RestoresFromRememberToken verifies that /auth/me transparently
+// restores a session when only a remember-me cookie is present, returning the
+// user payload AND emitting a fresh session_id cookie as a side effect.
+func TestHandleMe_RestoresFromRememberToken(t *testing.T) {
+	mockService := &mockAuthService{
+		getUserBySessionFunc: func(string) (*domain.User, error) {
+			return nil, nil
+		},
+		restoreFromRememberTokenFunc: func(cookie string) (*domain.User, string, error) {
+			return &domain.User{ID: 1, Username: "admin"}, "new-sid", nil
+		},
+	}
+	handlers := NewAuthHandlers(mockService, false, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
+	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "rem"})
+	rec := httptest.NewRecorder()
+	handlers.HandleMe(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var u domain.User
+	if err := json.NewDecoder(rec.Body).Decode(&u); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if u.Username != "admin" {
+		t.Errorf("username = %q", u.Username)
+	}
+
+	// Side effect: new session_id cookie set
+	var sawSession bool
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == sessionCookieName && c.Value == "new-sid" {
+			sawSession = true
+		}
+	}
+	if !sawSession {
+		t.Errorf("expected new session cookie")
+	}
+}
+
+// TestHandleMe_Anonymous_Returns401 verifies that a request with no session
+// cookie and no remember-me cookie returns 401.
+func TestHandleMe_Anonymous_Returns401(t *testing.T) {
+	mockService := &mockAuthService{}
+	handlers := NewAuthHandlers(mockService, false, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
+	rec := httptest.NewRecorder()
+	handlers.HandleMe(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", rec.Code)
 	}
 }
 

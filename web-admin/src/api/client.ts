@@ -32,6 +32,7 @@ export interface Tag {
 export interface LoginRequest {
   username: string;
   password: string;
+  remember_me?: boolean;
 }
 
 export interface PostCreateRequest {

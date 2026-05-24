@@ -175,10 +175,14 @@ var _ service.PostService = (*mockPostServiceForAPI)(nil)
 
 // mockAuthServiceForAPI is a mock implementation of AuthService (for API)
 type mockAuthServiceForAPI struct {
-	loginFunc            func(username, password, ipAddress string) (string, error)
-	logoutFunc           func(sessionID string) error
-	getUserBySessionFunc func(sessionID string) (*domain.User, error)
-	createUserFunc       func(username, password string) (*domain.User, error)
+	loginFunc                    func(username, password, ipAddress string) (string, error)
+	logoutFunc                   func(sessionID string) error
+	getUserBySessionFunc         func(sessionID string) (*domain.User, error)
+	createUserFunc               func(username, password string) (*domain.User, error)
+	issueRememberTokenFunc       func(int64) (string, error)
+	restoreFromRememberTokenFunc func(string) (*domain.User, string, error)
+	revokeRememberTokenFunc      func(string) error
+	rememberTTL                  time.Duration
 }
 
 func (m *mockAuthServiceForAPI) Login(username, password, ipAddress string) (string, error) {
@@ -211,6 +215,34 @@ func (m *mockAuthServiceForAPI) CreateUser(username, password string) (*domain.U
 
 func (m *mockAuthServiceForAPI) SessionTTL() time.Duration {
 	return 24 * time.Hour
+}
+
+func (m *mockAuthServiceForAPI) IssueRememberToken(uid int64) (string, error) {
+	if m.issueRememberTokenFunc != nil {
+		return m.issueRememberTokenFunc(uid)
+	}
+	return "", nil
+}
+
+func (m *mockAuthServiceForAPI) RestoreFromRememberToken(c string) (*domain.User, string, error) {
+	if m.restoreFromRememberTokenFunc != nil {
+		return m.restoreFromRememberTokenFunc(c)
+	}
+	return nil, "", nil
+}
+
+func (m *mockAuthServiceForAPI) RevokeRememberToken(c string) error {
+	if m.revokeRememberTokenFunc != nil {
+		return m.revokeRememberTokenFunc(c)
+	}
+	return nil
+}
+
+func (m *mockAuthServiceForAPI) RememberTTL() time.Duration {
+	if m.rememberTTL > 0 {
+		return m.rememberTTL
+	}
+	return 30 * 24 * time.Hour
 }
 
 var _ service.AuthService = (*mockAuthServiceForAPI)(nil)
@@ -348,13 +380,14 @@ func TestUnauthenticated_Endpoints(t *testing.T) {
 				t.Errorf("expected status %d, got %d", http.StatusUnauthorized, w.Code)
 			}
 
-			var response ErrorResponse
-			if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-				t.Fatalf("failed to parse JSON response: %v", err)
+			// AuthMiddleware returns JSON ErrorResponse so other /api/v1/* error
+			// responses are uniform. Decode and check the error field.
+			var errResp ErrorResponse
+			if err := json.Unmarshal(w.Body.Bytes(), &errResp); err != nil {
+				t.Fatalf("expected JSON ErrorResponse body, got %q (parse error: %v)", w.Body.String(), err)
 			}
-
-			if response.Error != "Authentication required" {
-				t.Errorf("expected error %q, got %q", "Authentication required", response.Error)
+			if errResp.Error != "Unauthorized" {
+				t.Errorf("expected error %q, got %q", "Unauthorized", errResp.Error)
 			}
 		})
 	}

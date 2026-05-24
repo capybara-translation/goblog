@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -45,6 +46,23 @@ type AuthService interface {
 	// HTTP handlers use this to drive cookie MaxAge so the cookie and the
 	// server-side session expire together.
 	SessionTTL() time.Duration
+
+	// IssueRememberToken creates a long-lived remember-me token for the user
+	// and returns the cookie value to set.
+	IssueRememberToken(userID int64) (cookieValue string, err error)
+
+	// RestoreFromRememberToken validates a remember-me cookie and, on success,
+	// issues a new session. Returns (nil, "", nil) for any non-fatal failure
+	// (missing, expired, hash mismatch, malformed) so callers can treat it as
+	// "no user" without flooding logs.
+	RestoreFromRememberToken(cookieValue string) (*domain.User, string, error)
+
+	// RevokeRememberToken deletes the remember-token row identified by the
+	// cookie's selector. Malformed cookies are silently ignored.
+	RevokeRememberToken(cookieValue string) error
+
+	// RememberTTL reports the TTL applied to newly issued remember tokens.
+	RememberTTL() time.Duration
 }
 
 // loginAttempt holds information about failed login attempts
@@ -59,6 +77,8 @@ type authService struct {
 	sessionStore   auth.SessionStore
 	sessionTTL     time.Duration
 	passwordPolicy config.PasswordPolicy
+	rememberStore  auth.RememberTokenStore
+	rememberTTL    time.Duration
 	// Brute force protection
 	loginAttempts map[string]*loginAttempt // failure information per IP address
 	attemptsMutex sync.RWMutex             // access control for loginAttempts
@@ -66,13 +86,28 @@ type authService struct {
 
 // NewAuthService creates a new AuthService. sessionTTL controls how long a
 // freshly issued session remains valid; HTTP handlers read it back via
-// SessionTTL() to keep the session cookie's MaxAge in sync.
-func NewAuthService(userRepo repo.UserRepository, sessionStore auth.SessionStore, passwordPolicy config.PasswordPolicy, sessionTTL time.Duration) AuthService {
+// SessionTTL() to keep the session cookie's MaxAge in sync. rememberStore
+// persists "remember me" tokens and may be nil to disable remember-me: the
+// remember-token methods degrade safely in that case (IssueRememberToken
+// returns an error, RestoreFromRememberToken is a no-op miss, and
+// RevokeRememberToken is a no-op), so callers do not need to guard against a
+// nil store. rememberTTL is read back via RememberTTL() to keep the remember
+// cookie's MaxAge in sync.
+func NewAuthService(
+	userRepo repo.UserRepository,
+	sessionStore auth.SessionStore,
+	passwordPolicy config.PasswordPolicy,
+	sessionTTL time.Duration,
+	rememberStore auth.RememberTokenStore,
+	rememberTTL time.Duration,
+) AuthService {
 	s := &authService{
 		userRepo:       userRepo,
 		sessionStore:   sessionStore,
 		sessionTTL:     sessionTTL,
 		passwordPolicy: passwordPolicy,
+		rememberStore:  rememberStore,
+		rememberTTL:    rememberTTL,
 		loginAttempts:  make(map[string]*loginAttempt),
 	}
 
@@ -85,6 +120,116 @@ func NewAuthService(userRepo repo.UserRepository, sessionStore auth.SessionStore
 // SessionTTL reports how long a freshly created session remains valid.
 func (s *authService) SessionTTL() time.Duration {
 	return s.sessionTTL
+}
+
+// RememberTTL reports the TTL applied to newly issued remember tokens.
+func (s *authService) RememberTTL() time.Duration {
+	return s.rememberTTL
+}
+
+// IssueRememberToken creates a long-lived remember-me token for the user and
+// returns the cookie value (selector:rawToken) that the caller should set on
+// the client. Only the SHA-256 hash of the raw token is persisted.
+//
+// Returns an error if remember-me is not configured (rememberStore == nil) so
+// the caller can degrade gracefully rather than panicking.
+func (s *authService) IssueRememberToken(userID int64) (string, error) {
+	if s.rememberStore == nil {
+		return "", errors.New("remember-me is not configured")
+	}
+	selector := auth.GenerateSelector()
+	rawToken := auth.GenerateRawToken()
+	token := &domain.RememberToken{
+		UserID:    userID,
+		Selector:  selector,
+		TokenHash: auth.HashToken(rawToken),
+		ExpiresAt: time.Now().Add(s.rememberTTL),
+	}
+	if err := s.rememberStore.Create(token); err != nil {
+		return "", fmt.Errorf("create remember token: %w", err)
+	}
+	return auth.EncodeRememberCookie(selector, rawToken), nil
+}
+
+// RestoreFromRememberToken validates a remember-me cookie and, on success,
+// creates a new session and returns the user plus the new session ID. Any
+// non-fatal failure (malformed cookie, unknown selector, expired token, hash
+// mismatch, deleted user) returns (nil, "", nil) so the caller can treat it
+// as "no logged-in user" without leaking signal about which failure happened.
+// Only genuine infrastructure errors (DB / session store) are surfaced.
+func (s *authService) RestoreFromRememberToken(cookieValue string) (*domain.User, string, error) {
+	if s.rememberStore == nil {
+		// Remember-me disabled: treat any presented token as a miss.
+		return nil, "", nil
+	}
+	selector, raw, ok := auth.DecodeRememberCookie(cookieValue)
+	if !ok {
+		return nil, "", nil
+	}
+	token, err := s.rememberStore.FindBySelector(selector)
+	if err != nil {
+		return nil, "", fmt.Errorf("find remember token: %w", err)
+	}
+	if token == nil {
+		return nil, "", nil
+	}
+	if time.Now().After(token.ExpiresAt) {
+		// Best-effort cleanup; expired-token path is non-fatal even if delete fails.
+		_ = s.rememberStore.Delete(selector)
+		return nil, "", nil
+	}
+	if !auth.ConstantTimeEqual(token.TokenHash, auth.HashToken(raw)) {
+		// Hash mismatch with a valid selector signals either token theft + a
+		// brute-force attempt or token-tampering. Treat it as a theft event
+		// and revoke every remember token this user owns so the attacker
+		// cannot fall back to another stolen pair. The user will need to
+		// re-authenticate on every device, which is the safe outcome.
+		log.Printf("RestoreFromRememberToken: hash mismatch for selector=%s user_id=%d; revoking all tokens for this user", selector, token.UserID)
+		if revokeErr := s.rememberStore.DeleteByUserID(token.UserID); revokeErr != nil {
+			log.Printf("RestoreFromRememberToken: DeleteByUserID failed after hash mismatch: %v", revokeErr)
+		}
+		return nil, "", nil
+	}
+
+	user, err := s.userRepo.FindByID(token.UserID)
+	if err != nil {
+		return nil, "", fmt.Errorf("find user: %w", err)
+	}
+	if user == nil {
+		// Orphan token — user was deleted. Clean it up so we don't keep matching.
+		_ = s.rememberStore.Delete(selector)
+		return nil, "", nil
+	}
+
+	sessionID, err := s.sessionStore.Create(user.ID, s.sessionTTL)
+	if err != nil {
+		return nil, "", fmt.Errorf("create session: %w", err)
+	}
+
+	// Refresh on use: bump last_used_at AND extend expires_at by another full
+	// rememberTTL window. Without sliding expiration, an active daily user
+	// would still be force-logged-out every TTL — which defeats the purpose
+	// of "remember me". Best-effort; if it fails the user is still restored.
+	now := time.Now()
+	_ = s.rememberStore.RefreshOnUse(selector, now, now.Add(s.rememberTTL))
+
+	return user, sessionID, nil
+}
+
+// RevokeRememberToken deletes the remember-token row identified by the
+// cookie's selector. Malformed cookies are silently ignored so that callers
+// (typically logout) can pass through any incoming cookie value without
+// pre-validation.
+func (s *authService) RevokeRememberToken(cookieValue string) error {
+	if s.rememberStore == nil {
+		// Remember-me disabled: nothing to revoke.
+		return nil
+	}
+	selector, _, ok := auth.DecodeRememberCookie(cookieValue)
+	if !ok {
+		return nil
+	}
+	return s.rememberStore.Delete(selector)
 }
 
 // Login authenticates with username and password, and returns a session ID

@@ -43,6 +43,9 @@ type Config struct {
 
 	// Session settings
 	SessionTTL time.Duration // How long an authenticated session remains valid
+
+	// Remember-me settings
+	RememberTTL time.Duration // How long a remember_token cookie remains valid
 }
 
 // Default maximum upload size (5MB)
@@ -58,6 +61,12 @@ const (
 const (
 	DefaultSessionTTL = 24 * time.Hour
 	MinSessionTTL     = time.Minute // Below this the value is almost certainly a mistake
+)
+
+// Remember-me defaults and bounds
+const (
+	DefaultRememberTTL = 30 * 24 * time.Hour // 30 days
+	MinRememberTTL     = time.Hour           // typo guard
 )
 
 // Load loads configuration from environment variables
@@ -82,6 +91,7 @@ func Load() *Config {
 		MaxUploadSize:  getEnvAsInt64("MAX_UPLOAD_SIZE", DefaultMaxUploadSize),
 		PostsPerPage:   getEnvAsIntInRange("POSTS_PER_PAGE", DefaultPostsPerPage, 1, MaxPostsPerPage),
 		SessionTTL:     getEnvAsDurationAtLeast("SESSION_TTL", DefaultSessionTTL, MinSessionTTL),
+		RememberTTL:    getEnvAsDurationAtLeast("REMEMBER_TTL", DefaultRememberTTL, MinRememberTTL),
 	}
 }
 

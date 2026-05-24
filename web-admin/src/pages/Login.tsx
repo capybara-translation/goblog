@@ -7,6 +7,7 @@ const BLOG_TITLE = import.meta.env.VITE_BLOG_TITLE || 'goblog';
 export function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -19,7 +20,7 @@ export function Login() {
     setIsSubmitting(true);
 
     try {
-      await login({ username, password });
+      await login({ username, password, remember_me: rememberMe });
       navigate('/posts');
     } catch (err) {
       setError(
@@ -81,6 +82,17 @@ export function Login() {
               disabled={isSubmitting}
             />
           </div>
+
+          <label className="flex items-center gap-2 text-sm text-primary-700">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              disabled={isSubmitting}
+              className="rounded border-primary-300 text-primary-900 focus:ring-primary-500"
+            />
+            Remember me
+          </label>
 
           <button
             type="submit"

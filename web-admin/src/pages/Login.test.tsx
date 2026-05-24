@@ -118,6 +118,7 @@ describe('Login', () => {
         expect(mockLogin).toHaveBeenCalledWith({
           username: 'admin',
           password: 'password',
+          remember_me: false,
         })
       })
 
@@ -324,6 +325,41 @@ describe('Login', () => {
     it('should have password type on password field', () => {
       renderLogin()
       expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password')
+    })
+  })
+
+  describe('Remember me', () => {
+    it('sends remember_me=true when the checkbox is checked', async () => {
+      const user = userEvent.setup()
+      mockLogin.mockResolvedValue(undefined)
+      renderLogin()
+
+      await user.type(screen.getByLabelText(/Username/), 'u')
+      await user.type(screen.getByLabelText(/Password/), 'p')
+      await user.click(screen.getByLabelText(/Remember me/))
+      await user.click(screen.getByRole('button', { name: /Sign in|Log in/ }))
+
+      await waitFor(() => {
+        expect(mockLogin).toHaveBeenCalledWith(
+          expect.objectContaining({ remember_me: true }),
+        )
+      })
+    })
+
+    it('sends remember_me=false when the checkbox is unchecked', async () => {
+      const user = userEvent.setup()
+      mockLogin.mockResolvedValue(undefined)
+      renderLogin()
+
+      await user.type(screen.getByLabelText(/Username/), 'u')
+      await user.type(screen.getByLabelText(/Password/), 'p')
+      await user.click(screen.getByRole('button', { name: /Sign in|Log in/ }))
+
+      await waitFor(() => {
+        expect(mockLogin).toHaveBeenCalledWith(
+          expect.objectContaining({ remember_me: false }),
+        )
+      })
     })
   })
 })

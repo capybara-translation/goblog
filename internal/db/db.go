@@ -19,8 +19,19 @@ func Open(dbPath string) (*sqlx.DB, error) {
 		return nil, fmt.Errorf("failed to create database directory: %w", err)
 	}
 
-	// Open the database
-	db, err := sqlx.Open("sqlite3", dbPath)
+	// Open the database with foreign-key enforcement enabled. SQLite leaves
+	// foreign keys OFF per connection by default, which means ON DELETE
+	// CASCADE clauses in the schema are silently ignored. Setting
+	// _foreign_keys=on in the DSN applies the PRAGMA to every pooled
+	// connection so cascades (e.g. deleting a post removes its post_views,
+	// deleting a user removes their remember_tokens) actually run.
+	dsn := dbPath
+	if strings.Contains(dsn, "?") {
+		dsn += "&_foreign_keys=on"
+	} else {
+		dsn += "?_foreign_keys=on"
+	}
+	db, err := sqlx.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}

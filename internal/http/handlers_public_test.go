@@ -166,7 +166,11 @@ var _ service.PostService = (*mockPostService)(nil)
 // mockAuthServiceForPublic is a minimal AuthService for public-handler tests
 // that need to exercise admin-only UI surfaced behind a session cookie.
 type mockAuthServiceForPublic struct {
-	getUserBySessionFunc func(sessionID string) (*domain.User, error)
+	getUserBySessionFunc         func(sessionID string) (*domain.User, error)
+	issueRememberTokenFunc       func(int64) (string, error)
+	restoreFromRememberTokenFunc func(string) (*domain.User, string, error)
+	revokeRememberTokenFunc      func(string) error
+	rememberTTL                  time.Duration
 }
 
 func (m *mockAuthServiceForPublic) Login(username, password, ipAddress string) (string, error) {
@@ -190,6 +194,34 @@ func (m *mockAuthServiceForPublic) CreateUser(username, password string) (*domai
 
 func (m *mockAuthServiceForPublic) SessionTTL() time.Duration {
 	return 24 * time.Hour
+}
+
+func (m *mockAuthServiceForPublic) IssueRememberToken(uid int64) (string, error) {
+	if m.issueRememberTokenFunc != nil {
+		return m.issueRememberTokenFunc(uid)
+	}
+	return "", nil
+}
+
+func (m *mockAuthServiceForPublic) RestoreFromRememberToken(c string) (*domain.User, string, error) {
+	if m.restoreFromRememberTokenFunc != nil {
+		return m.restoreFromRememberTokenFunc(c)
+	}
+	return nil, "", nil
+}
+
+func (m *mockAuthServiceForPublic) RevokeRememberToken(c string) error {
+	if m.revokeRememberTokenFunc != nil {
+		return m.revokeRememberTokenFunc(c)
+	}
+	return nil
+}
+
+func (m *mockAuthServiceForPublic) RememberTTL() time.Duration {
+	if m.rememberTTL > 0 {
+		return m.rememberTTL
+	}
+	return 30 * 24 * time.Hour
 }
 
 var _ service.AuthService = (*mockAuthServiceForPublic)(nil)
@@ -2411,6 +2443,50 @@ func TestHandleHome_AdminEditLink(t *testing.T) {
 			t.Errorf("invalid session must not surface edit links, body: %s", body)
 		}
 	})
+}
+
+func TestHandleHome_AdminEditLink_VisibleViaRememberToken(t *testing.T) {
+	publishedAt := time.Now()
+	posts := []*domain.Post{
+		{ID: 7, Title: "Editable", Slug: "editable", Status: domain.PostStatusPublished, PublishedAt: &publishedAt},
+	}
+	mockService := &mockPostService{
+		getPublishedPostsFunc: func(int, int) ([]*domain.Post, error) {
+			return posts, nil
+		},
+	}
+	authMock := &mockAuthServiceForPublic{
+		getUserBySessionFunc: func(string) (*domain.User, error) {
+			return nil, nil // session invalid
+		},
+		restoreFromRememberTokenFunc: func(cookie string) (*domain.User, string, error) {
+			if cookie == "rem-cookie" {
+				return &domain.User{ID: 1, Username: "admin"}, "new-sid", nil
+			}
+			return nil, "", nil
+		},
+	}
+	router := NewRouterWithTemplates(mockService, nil, authMock, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testUploadDir, testMaxUploadSize, testPostsPerPage)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "rem-cookie"})
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `href="/admin/posts/7/edit"`) {
+		t.Errorf("expected edit link via remember restoration, body: %s", body)
+	}
+
+	// Side effect: session cookie set on this GET response.
+	var sawSession bool
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == sessionCookieName && c.Value == "new-sid" {
+			sawSession = true
+		}
+	}
+	if !sawSession {
+		t.Errorf("expected new session cookie to be set as a side effect")
+	}
 }
 
 func TestHandlePostDetail_AdminEditLink(t *testing.T) {

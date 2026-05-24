@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/capybara-translation/goblog"
 	"github.com/capybara-translation/goblog/internal/auth"
@@ -35,7 +36,7 @@ func main() {
 	defer database.Close()
 
 	// Run migrations (from embedded files)
-	if err := db.RunMigrations(database, goblog.Migrations, "migrations/001_create_posts.sql", "migrations/002_create_users.sql", "migrations/003_add_is_pinned.sql", "migrations/004_create_ogp_cache.sql", "migrations/005_add_ogp_local_image.sql", "migrations/006_add_post_views.sql"); err != nil {
+	if err := db.RunMigrations(database, goblog.Migrations, "migrations/001_create_posts.sql", "migrations/002_create_users.sql", "migrations/003_add_is_pinned.sql", "migrations/004_create_ogp_cache.sql", "migrations/005_add_ogp_local_image.sql", "migrations/006_add_post_views.sql", "migrations/007_create_remember_tokens.sql"); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
@@ -50,10 +51,15 @@ func main() {
 	// Initialize SessionStore
 	sessionStore := auth.NewInMemorySessionStore()
 
+	// Remember-me tokens live in SQLite so they survive restarts (unlike
+	// sessions). Sweep expired rows hourly.
+	rememberStore := repo.NewSQLiteRememberTokenStore(database)
+	auth.StartRememberTokenCleanupLoop(rememberStore, time.Hour)
+
 	// Initialize service layer
 	postService := service.NewPostService(postRepo)
 	postViewService := service.NewPostViewService(postViewRepo)
-	authService := service.NewAuthService(userRepo, sessionStore, cfg.PasswordPolicy, cfg.SessionTTL)
+	authService := service.NewAuthService(userRepo, sessionStore, cfg.PasswordPolicy, cfg.SessionTTL, rememberStore, cfg.RememberTTL)
 
 	// Initialize OGP service for link cards
 	ogpFetcher := ogp.NewFetcher(ogp.FetchTimeout)
