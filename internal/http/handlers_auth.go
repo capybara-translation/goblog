@@ -190,6 +190,11 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		rememberValue, err := h.authService.IssueRememberToken(user.ID)
 		if err != nil {
 			log.Printf("HandleLogin: IssueRememberToken failed: %v", err)
+			// We may have already revoked the previously-presented token's DB
+			// row above, so the old cookie value is now invalid. Clear it so
+			// the browser stops sending a known-bad token until a later
+			// restore would otherwise lazily clear it.
+			h.clearRememberCookie(w)
 		} else {
 			// Remember cookie has its own (longer) MaxAge — derived from the
 			// service's remember TTL, not the session TTL.
@@ -212,15 +217,7 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		if revokeErr := h.authService.RevokeRememberToken(oldCookie.Value); revokeErr != nil {
 			log.Printf("HandleLogin: failed to revoke remember token on opt-out: %v", revokeErr)
 		}
-		http.SetCookie(w, &http.Cookie{
-			Name:     rememberCookieName,
-			Value:    "",
-			Path:     sessionCookiePath,
-			HttpOnly: true,
-			SameSite: http.SameSiteLaxMode,
-			MaxAge:   -1,
-			Secure:   h.secureCookie,
-		})
+		h.clearRememberCookie(w)
 	}
 
 	// Return user information (PasswordHash is excluded via json:"-")
@@ -277,6 +274,17 @@ func (h *AuthHandlers) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// Always clear the remember cookie.
+	h.clearRememberCookie(w)
+
+	respondJSON(w, http.StatusOK, map[string]string{"message": "Logout successful"})
+}
+
+// clearRememberCookie emits a deletion Set-Cookie for the remember_token.
+// The attributes must mirror those used when the cookie is set (Path,
+// HttpOnly, SameSite, Secure) or some browsers will not match-and-delete it.
+// Centralizing this avoids attribute drift across the login opt-out, the
+// issue-failure path, and logout.
+func (h *AuthHandlers) clearRememberCookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     rememberCookieName,
 		Value:    "",
@@ -286,8 +294,6 @@ func (h *AuthHandlers) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   -1,
 		Secure:   h.secureCookie,
 	})
-
-	respondJSON(w, http.StatusOK, map[string]string{"message": "Logout successful"})
 }
 
 // HandleMe returns the currently authenticated user. The session may be

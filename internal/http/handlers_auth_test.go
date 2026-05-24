@@ -3,6 +3,7 @@ package http
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -265,6 +266,45 @@ func TestHandleLogin_WithRememberMe_RevokesPreviousRememberCookieOnReissue(t *te
 	}
 	if !sawNewRemember {
 		t.Errorf("expected new remember cookie to be set")
+	}
+}
+
+func TestHandleLogin_WithRememberMe_IssueFailureClearsStaleCookie(t *testing.T) {
+	// If IssueRememberToken fails after the previously-presented token was
+	// revoked, the old cookie value is now invalid. The handler must clear it
+	// so the browser stops sending a known-bad token.
+	mockService := &mockAuthService{
+		loginFunc: func(string, string, string) (string, error) { return "sid", nil },
+		getUserBySessionFunc: func(string) (*domain.User, error) {
+			return &domain.User{ID: 9, Username: "u"}, nil
+		},
+		revokeRememberTokenFunc: func(string) error { return nil },
+		issueRememberTokenFunc: func(int64) (string, error) {
+			return "", errors.New("transient DB error")
+		},
+	}
+	handlers := NewAuthHandlers(mockService, false, nil)
+
+	reqBody := LoginRequest{Username: "u", Password: "p", RememberMe: true}
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "old-sel:old-raw"})
+	rec := httptest.NewRecorder()
+	handlers.HandleLogin(rec, req)
+
+	// Login itself still succeeds (session + CSRF are valid).
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (login should not abort on remember failure)", rec.Code)
+	}
+	var clearedRemember bool
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == rememberCookieName && c.MaxAge < 0 {
+			clearedRemember = true
+		}
+	}
+	if !clearedRemember {
+		t.Error("expected the stale remember cookie to be cleared when IssueRememberToken fails")
 	}
 }
 
