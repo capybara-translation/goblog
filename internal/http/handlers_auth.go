@@ -203,6 +203,24 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 				Secure:   h.secureCookie,
 			})
 		}
+	} else if oldCookie, err := r.Cookie(rememberCookieName); err == nil {
+		// "Remember me" was left unchecked but the browser still carries a
+		// remember_token from a previous opt-in on this device. Honor the
+		// unchecked box as an explicit opt-out: revoke the DB row and clear
+		// the cookie, otherwise the user would still be auto-restored after
+		// the session expires and the checkbox could never turn remember off.
+		if revokeErr := h.authService.RevokeRememberToken(oldCookie.Value); revokeErr != nil {
+			log.Printf("HandleLogin: failed to revoke remember token on opt-out: %v", revokeErr)
+		}
+		http.SetCookie(w, &http.Cookie{
+			Name:     rememberCookieName,
+			Value:    "",
+			Path:     sessionCookiePath,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+			MaxAge:   -1,
+			Secure:   h.secureCookie,
+		})
 	}
 
 	// Return user information (PasswordHash is excluded via json:"-")

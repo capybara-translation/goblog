@@ -87,9 +87,12 @@ type authService struct {
 // NewAuthService creates a new AuthService. sessionTTL controls how long a
 // freshly issued session remains valid; HTTP handlers read it back via
 // SessionTTL() to keep the session cookie's MaxAge in sync. rememberStore
-// persists "remember me" tokens (may be nil if remember-me is disabled, but
-// callers must then avoid invoking the remember-token methods); rememberTTL
-// is read back via RememberTTL() to keep the remember cookie's MaxAge in sync.
+// persists "remember me" tokens and may be nil to disable remember-me: the
+// remember-token methods degrade safely in that case (IssueRememberToken
+// returns an error, RestoreFromRememberToken is a no-op miss, and
+// RevokeRememberToken is a no-op), so callers do not need to guard against a
+// nil store. rememberTTL is read back via RememberTTL() to keep the remember
+// cookie's MaxAge in sync.
 func NewAuthService(
 	userRepo repo.UserRepository,
 	sessionStore auth.SessionStore,

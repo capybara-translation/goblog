@@ -299,6 +299,47 @@ func TestHandleLogin_WithoutRememberMe_DoesNotIssueRememberToken(t *testing.T) {
 	}
 }
 
+func TestHandleLogin_WithoutRememberMe_OptsOutOfExistingRememberToken(t *testing.T) {
+	var revokedValue string
+	mockService := &mockAuthService{
+		loginFunc: func(string, string, string) (string, error) { return "sid", nil },
+		getUserBySessionFunc: func(string) (*domain.User, error) {
+			return &domain.User{ID: 1, Username: "u"}, nil
+		},
+		revokeRememberTokenFunc: func(c string) error {
+			revokedValue = c
+			return nil
+		},
+		issueRememberTokenFunc: func(int64) (string, error) {
+			t.Error("IssueRememberToken must not be called when RememberMe is false")
+			return "", nil
+		},
+	}
+	handlers := NewAuthHandlers(mockService, false, nil)
+
+	reqBody := LoginRequest{Username: "u", Password: "p"} // remember_me false
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	// Browser still carries a remember token from a previous opt-in.
+	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "old-sel:old-raw"})
+	rec := httptest.NewRecorder()
+	handlers.HandleLogin(rec, req)
+
+	if revokedValue != "old-sel:old-raw" {
+		t.Errorf("expected opt-out to revoke the existing token, revoked %q", revokedValue)
+	}
+	var clearedRemember bool
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == rememberCookieName && c.MaxAge < 0 {
+			clearedRemember = true
+		}
+	}
+	if !clearedRemember {
+		t.Error("expected the existing remember cookie to be cleared when logging in with the box unchecked")
+	}
+}
+
 func TestHandleLogin_CookieMaxAgeMatchesSessionTTL(t *testing.T) {
 	tests := []struct {
 		name       string
