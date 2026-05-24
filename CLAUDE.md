@@ -26,7 +26,7 @@ goblogはGoで書かれたシンプルなブログシステムです。公開ペ
 - OGPリンクカード（外部URLのOGP情報取得・キャッシュ・ローカル画像保存）
 - 閲覧回数トラッキング（ボットフィルタリング、IP+UA重複排除）
 - Markdownプレビュー（サーバーサイドレンダリング、同期スクロール）
-- Remember me（短命セッション+長命 remember token、SQLite 保存、SHA-256 ハッシュ、selector+raw 分離、全公開 GET ハンドラで自動復元）
+- Remember me（短命セッション+長命 remember token、SQLite 保存、SHA-256 ハッシュ、selector+raw 分離、記事を表示する公開ページ（トップ / 記事詳細 / タグ別一覧）と `/auth/me` で自動復元）
 
 🚧 **計画中:**
 - RSS フィード

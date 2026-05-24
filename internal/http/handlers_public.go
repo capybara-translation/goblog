@@ -28,8 +28,7 @@ type PublicHandlers struct {
 	postService       service.PostService
 	postViewService   service.PostViewService
 	ogpService        service.OGPService
-	authService       service.AuthService // Optional; nil disables admin-only UI (edit links, etc.)
-	currentUserHelper *CurrentUserHelper  // Nil when authService is nil; resolves session-or-remember-token.
+	currentUserHelper *CurrentUserHelper // Nil disables admin-only UI (edit links, etc.); resolves session-or-remember-token.
 	mdConverter       markdown.Converter
 	blogTitle         string // Blog title
 	baseURL           string // Site base URL (for sitemap)
@@ -325,7 +324,6 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 		postService:       postService,
 		postViewService:   postViewService,
 		ogpService:        ogpService,
-		authService:       authService,
 		currentUserHelper: helper,
 		mdConverter:       converter,
 		blogTitle:         blogTitle,
@@ -371,7 +369,6 @@ func NewPublicHandlersFromPath(postService service.PostService, postViewService 
 	return &PublicHandlers{
 		postService:       postService,
 		postViewService:   postViewService,
-		authService:       authService,
 		currentUserHelper: helper,
 		blogTitle:         blogTitle,
 		baseURL:           baseURL,
