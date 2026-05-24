@@ -705,7 +705,7 @@ func TestHandleLogout_RevokesAndClearsRememberCookie(t *testing.T) {
 	}
 }
 
-func TestHandleLogout_NoRememberCookie_IsNoop(t *testing.T) {
+func TestHandleLogout_NoRememberCookie_DoesNotRevokeButStillClears(t *testing.T) {
 	called := false
 	mockService := &mockAuthService{
 		logoutFunc: func(string) error { return nil },
@@ -724,6 +724,18 @@ func TestHandleLogout_NoRememberCookie_IsNoop(t *testing.T) {
 
 	if called {
 		t.Error("RevokeRememberToken must not be called when cookie is absent")
+	}
+
+	// The remember cookie deletion is sent unconditionally, consistent with
+	// how session_id and csrf_token are always cleared.
+	var clearedRemember bool
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == rememberCookieName && c.MaxAge < 0 {
+			clearedRemember = true
+		}
+	}
+	if !clearedRemember {
+		t.Error("expected remember cookie deletion to be sent even when no remember cookie was present")
 	}
 }
 

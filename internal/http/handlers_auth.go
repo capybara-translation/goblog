@@ -249,23 +249,25 @@ func (h *AuthHandlers) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		Secure:   h.secureCookie, // Same as when set
 	})
 
-	// Revoke the remember token and clear its cookie. Both must happen even
-	// when one of them fails: the cookie clear keeps the browser from
-	// re-presenting a token whose DB row failed to delete, and vice versa.
+	// Revoke the remember token if one was presented. Revocation is
+	// conditional (there's nothing to delete without a cookie), but the
+	// cookie deletion below is unconditional — consistent with how the
+	// session and CSRF cookies are always cleared.
 	if rememberCookie, err := r.Cookie(rememberCookieName); err == nil {
 		if revokeErr := h.authService.RevokeRememberToken(rememberCookie.Value); revokeErr != nil {
 			log.Printf("HandleLogout: RevokeRememberToken failed: %v", revokeErr)
 		}
-		http.SetCookie(w, &http.Cookie{
-			Name:     rememberCookieName,
-			Value:    "",
-			Path:     sessionCookiePath,
-			HttpOnly: true,
-			SameSite: http.SameSiteLaxMode,
-			MaxAge:   -1,
-			Secure:   h.secureCookie,
-		})
 	}
+	// Always clear the remember cookie.
+	http.SetCookie(w, &http.Cookie{
+		Name:     rememberCookieName,
+		Value:    "",
+		Path:     sessionCookiePath,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+		Secure:   h.secureCookie,
+	})
 
 	respondJSON(w, http.StatusOK, map[string]string{"message": "Logout successful"})
 }

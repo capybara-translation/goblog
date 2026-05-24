@@ -71,17 +71,24 @@ func (h *CurrentUserHelper) Optional(w http.ResponseWriter, r *http.Request) (*d
 		return nil, nil
 	}
 
-	// 3. Restoration succeeded: emit fresh session + CSRF cookies. The
+	// 3. Restoration succeeded: emit fresh session + CSRF cookies. Generate
+	// the CSRF token FIRST: if it fails we must not emit the session cookie
+	// alone, because a session without a matching CSRF cookie would let the
+	// client read but never mutate (every POST/PUT/DELETE fails the CSRF
+	// check), and the next request would short-circuit on the now-valid
+	// session and never re-issue the CSRF token. Failing the whole
+	// restoration is the safe, self-correcting choice (the client retries
+	// from the remember cookie on the next request).
+	csrfToken, err := generateCSRFToken()
+	if err != nil {
+		log.Printf("CurrentUserHelper: generateCSRFToken failed during restore: %v", err)
+		return nil, err
+	}
 	// cookie MaxAge mirrors the session TTL (not the remember TTL): the
 	// remember cookie itself was already set with its own MaxAge at login.
 	cookieMaxAge := int(h.authService.SessionTTL() / time.Second)
 	h.setCookie(w, sessionCookieName, sessionID, cookieMaxAge, true)
-	csrfToken, err := generateCSRFToken()
-	if err != nil {
-		log.Printf("CurrentUserHelper: generateCSRFToken failed: %v", err)
-	} else {
-		h.setCookie(w, csrfCookieName, csrfToken, cookieMaxAge, false)
-	}
+	h.setCookie(w, csrfCookieName, csrfToken, cookieMaxAge, false)
 
 	return user, nil
 }

@@ -1163,6 +1163,26 @@ func TestAuthService_RevokeRememberToken_MalformedCookieIsNoop(t *testing.T) {
 	}
 }
 
+func TestAuthService_RememberMethods_NilStoreDoNotPanic(t *testing.T) {
+	// NewAuthService documents that rememberStore may be nil (remember-me
+	// disabled). The three remember methods must degrade gracefully instead
+	// of dereferencing a nil store and panicking.
+	svc := NewAuthService(&mockUserRepository{}, &mockSessionStore{}, config.PasswordPolicyNone, 24*time.Hour, nil, 24*time.Hour)
+
+	if _, err := svc.IssueRememberToken(1); err == nil {
+		t.Error("IssueRememberToken with nil store should return an error")
+	}
+
+	user, session, err := svc.RestoreFromRememberToken(auth.EncodeRememberCookie("sel", "raw"))
+	if err != nil || user != nil || session != "" {
+		t.Errorf("RestoreFromRememberToken with nil store should be a no-op miss, got user=%+v session=%q err=%v", user, session, err)
+	}
+
+	if err := svc.RevokeRememberToken(auth.EncodeRememberCookie("sel", "raw")); err != nil {
+		t.Errorf("RevokeRememberToken with nil store should be a no-op, got %v", err)
+	}
+}
+
 func TestAuthService_RememberTTL_PropagatesConstructorArg(t *testing.T) {
 	svc := newAuthServiceForTest(&mockUserRepository{}, &mockSessionStore{}, &mockRememberTokenStore{}, 14*24*time.Hour)
 	if got := svc.RememberTTL(); got != 14*24*time.Hour {

@@ -127,7 +127,13 @@ func (s *authService) RememberTTL() time.Duration {
 // IssueRememberToken creates a long-lived remember-me token for the user and
 // returns the cookie value (selector:rawToken) that the caller should set on
 // the client. Only the SHA-256 hash of the raw token is persisted.
+//
+// Returns an error if remember-me is not configured (rememberStore == nil) so
+// the caller can degrade gracefully rather than panicking.
 func (s *authService) IssueRememberToken(userID int64) (string, error) {
+	if s.rememberStore == nil {
+		return "", errors.New("remember-me is not configured")
+	}
 	selector := auth.GenerateSelector()
 	rawToken := auth.GenerateRawToken()
 	token := &domain.RememberToken{
@@ -149,6 +155,10 @@ func (s *authService) IssueRememberToken(userID int64) (string, error) {
 // as "no logged-in user" without leaking signal about which failure happened.
 // Only genuine infrastructure errors (DB / session store) are surfaced.
 func (s *authService) RestoreFromRememberToken(cookieValue string) (*domain.User, string, error) {
+	if s.rememberStore == nil {
+		// Remember-me disabled: treat any presented token as a miss.
+		return nil, "", nil
+	}
 	selector, raw, ok := auth.DecodeRememberCookie(cookieValue)
 	if !ok {
 		return nil, "", nil
@@ -208,6 +218,10 @@ func (s *authService) RestoreFromRememberToken(cookieValue string) (*domain.User
 // (typically logout) can pass through any incoming cookie value without
 // pre-validation.
 func (s *authService) RevokeRememberToken(cookieValue string) error {
+	if s.rememberStore == nil {
+		// Remember-me disabled: nothing to revoke.
+		return nil
+	}
 	selector, _, ok := auth.DecodeRememberCookie(cookieValue)
 	if !ok {
 		return nil
