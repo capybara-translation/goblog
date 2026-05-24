@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
+	"log"
 	"strings"
 	"time"
 
@@ -99,7 +100,13 @@ func StartRememberTokenCleanupLoop(store RememberTokenStore, interval time.Durat
 		for {
 			select {
 			case <-ticker.C:
-				_ = store.CleanupExpired()
+				if err := store.CleanupExpired(); err != nil {
+					// Log so a persistently failing sweep (e.g. DB
+					// unavailable) leaves an operational signal instead of
+					// silently letting expired rows accumulate. Matches the
+					// OGP cache cleanup loop's behavior.
+					log.Printf("remember-token cleanup failed: %v", err)
+				}
 			case <-stop:
 				return
 			}

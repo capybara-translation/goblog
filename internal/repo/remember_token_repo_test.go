@@ -16,10 +16,13 @@ import (
 func setupTestDBWithRememberTokens(t *testing.T) *sqlx.DB {
 	t.Helper()
 
-	db, err := sqlx.Open("sqlite3", ":memory:")
+	// Enable foreign-key enforcement to match production (internal/db.Open),
+	// so ON DELETE CASCADE behaves the same way under test.
+	db, err := sqlx.Open("sqlite3", ":memory:?_foreign_keys=on")
 	if err != nil {
 		t.Fatalf("failed to open test database: %v", err)
 	}
+	t.Cleanup(func() { db.Close() })
 
 	migrations := []string{
 		"../../migrations/002_create_users.sql",
