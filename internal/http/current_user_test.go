@@ -163,6 +163,33 @@ func TestCurrentUserHelper_Optional_SetsCacheControlPrivateOnRestore(t *testing.
 	}
 }
 
+func TestCurrentUserHelper_Optional_OverridesCacheableHeaderOnRestore(t *testing.T) {
+	helper := NewCurrentUserHelper(&mockAuthService{
+		getUserBySessionFunc: func(string) (*domain.User, error) { return nil, nil },
+		restoreFromRememberTokenFunc: func(string) (*domain.User, string, error) {
+			return &domain.User{ID: 1, Username: "u"}, "new-sid", nil
+		},
+		rememberTTL: 30 * 24 * time.Hour,
+	}, false)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "rem"})
+	rec := httptest.NewRecorder()
+	// Simulate a handler that opted into caching before the helper runs.
+	rec.Header().Set("Cache-Control", "public, max-age=300")
+
+	_, _ = helper.Optional(rec, req)
+
+	// Emitting an auth cookie must override the cacheable directive so a CDN
+	// cannot store and replay this admin's response to anonymous visitors.
+	cc := rec.Result().Header.Get("Cache-Control")
+	if strings.Contains(cc, "public") || strings.Contains(cc, "max-age=300") {
+		t.Errorf("Cache-Control = %q, want the cacheable directive overridden with private/no-store", cc)
+	}
+	if !strings.Contains(cc, "no-store") {
+		t.Errorf("Cache-Control = %q, want no-store", cc)
+	}
+}
+
 func TestCurrentUserHelper_Optional_NoCacheControlWhenSessionIsValid(t *testing.T) {
 	helper := NewCurrentUserHelper(&mockAuthService{
 		getUserBySessionFunc: func(string) (*domain.User, error) {

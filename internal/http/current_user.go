@@ -105,11 +105,12 @@ func (h *CurrentUserHelper) Optional(w http.ResponseWriter, r *http.Request) (*d
 func (h *CurrentUserHelper) setCookie(w http.ResponseWriter, name, value string, maxAge int, httpOnly bool) {
 	// Any response that emits a session/CSRF/remember Set-Cookie via this
 	// helper is user-specific and must not be cached by a CDN or shared
-	// proxy. We force the no-store directive here so the policy is owned by
-	// the helper itself rather than scattered across every public handler.
-	if w.Header().Get("Cache-Control") == "" {
-		w.Header().Set("Cache-Control", "private, no-store")
-	}
+	// proxy. Force the no-store directive UNCONDITIONALLY: emitting an auth
+	// cookie is a stronger signal than any cacheable directive a handler may
+	// have set earlier, so we overwrite rather than defer to it — otherwise a
+	// handler that opted into caching could let a CDN store this admin's
+	// response and serve it to anonymous visitors.
+	w.Header().Set("Cache-Control", "private, no-store")
 	http.SetCookie(w, &http.Cookie{
 		Name:     name,
 		Value:    value,
