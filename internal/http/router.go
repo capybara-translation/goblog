@@ -64,8 +64,10 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", staticFileServer))
 
 	// アップロードされた画像の配信（認証不要、ディレクトリリスティング無効）
+	// UUID ファイル名でアップロードされ、同 URL の中身は差し替えないため
+	// long-lived immutable キャッシュを付与している。
 	uploadsFileServer := http.FileServer(noDirListingFS{http.Dir(uploadDir)})
-	r.PathPrefix("/uploads/").Handler(http.StripPrefix("/uploads/", uploadsFileServer))
+	r.PathPrefix("/uploads/").Handler(uploadsCacheControl(http.StripPrefix("/uploads/", uploadsFileServer)))
 
 	// 公開ページ（SSR）
 	r.HandleFunc("/", publicHandlers.HandleHome).Methods("GET")
@@ -147,8 +149,10 @@ func NewRouterWithTemplates(postService service.PostService, postViewService ser
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", staticFileServer))
 
 	// Serve uploaded images (no authentication required, directory listing disabled)
+	// Filenames are UUIDs and contents are never updated in place, so we tag
+	// the responses with a long-lived immutable Cache-Control directive.
 	uploadsFileServer := http.FileServer(noDirListingFS{http.Dir(uploadDir)})
-	r.PathPrefix("/uploads/").Handler(http.StripPrefix("/uploads/", uploadsFileServer))
+	r.PathPrefix("/uploads/").Handler(uploadsCacheControl(http.StripPrefix("/uploads/", uploadsFileServer)))
 
 	// Public pages (SSR)
 	r.HandleFunc("/", publicHandlers.HandleHome).Methods("GET")
