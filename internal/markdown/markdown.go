@@ -71,7 +71,13 @@ func createPolicy() *bluemonday.Policy {
 	policy.AllowAttrs("data-line").Matching(regexp.MustCompile(`^\d+$`)).Globally()
 	// Allow attributes for link cards
 	policy.AllowAttrs("target", "rel").OnElements("a")
-	policy.AllowAttrs("loading", "alt").OnElements("img")
+	policy.AllowAttrs("alt").OnElements("img")
+	// Browser-hint attributes added by imageRenderer. Constrain values to
+	// the well-known token sets so a stray destination can't smuggle
+	// anything surprising past the sanitizer. Matching uses MatchString
+	// (unanchored), so the regexps must include ^...$ themselves.
+	policy.AllowAttrs("loading").Matching(regexp.MustCompile(`^(lazy|eager|auto)$`)).OnElements("img")
+	policy.AllowAttrs("decoding").Matching(regexp.MustCompile(`^(async|sync|auto)$`)).OnElements("img")
 	// Allow SVG elements for link card icons
 	policy.AllowElements("svg", "path")
 	policy.AllowAttrs("viewBox", "width", "height", "fill").OnElements("svg")
@@ -103,6 +109,16 @@ func createMarkdown(src []byte, ogpGetter OGPGetter) goldmark.Markdown {
 	rendererOpts = append(rendererOpts,
 		renderer.WithNodeRenderers(
 			util.Prioritized(&practicalLineRenderer{li: li}, 50),
+		),
+	)
+
+	// Override <img> rendering to add browser-hint attributes
+	// (loading, decoding). Priority < 1000 so this wins over goldmark's
+	// default image renderer. See image_extension.go for why
+	// fetchpriority is intentionally NOT emitted.
+	rendererOpts = append(rendererOpts,
+		renderer.WithNodeRenderers(
+			util.Prioritized(newImageRenderer(), 10),
 		),
 	)
 
