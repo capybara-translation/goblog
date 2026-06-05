@@ -61,21 +61,26 @@ func generateVariantsLimited(originalPath string, maxPixels int) error {
 	}
 
 	// Skip animated GIFs: gif.DecodeAll succeeds on still GIFs too, so
-	// we use frame count to disambiguate.
-	if filepath.Ext(originalPath) == ".gif" {
-		if isAnimatedGIFBytes(data) {
-			return nil
-		}
+	// we use frame count to disambiguate. Detect GIFs from magic bytes
+	// rather than the path extension so a manually-placed "foo.GIF" (or
+	// a file served by a misconfigured upstream) still trips the
+	// animation check; otherwise the renderer would silently flatten
+	// the animation into a single-frame WebP.
+	if isGIFBytes(data) && isAnimatedGIFBytes(data) {
+		return nil
 	}
 
 	// Gate on declared resolution before the full Decode allocates a
 	// width*height*4 RGBA buffer. DecodeConfig reads only the header,
-	// so the cost is microseconds.
+	// so the cost is microseconds. The multiplication is widened to
+	// int64 so a malicious header with extremely large dimensions
+	// cannot wrap to a small/negative int and bypass the budget on
+	// 32-bit builds.
 	cfg, _, err := stdimage.DecodeConfig(bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("decode config: %w", err)
 	}
-	if cfg.Width > 0 && cfg.Height > 0 && cfg.Width*cfg.Height > maxPixels {
+	if cfg.Width > 0 && cfg.Height > 0 && int64(cfg.Width)*int64(cfg.Height) > int64(maxPixels) {
 		return fmt.Errorf("%w: %dx%d exceeds %d-pixel budget", ErrTooLarge, cfg.Width, cfg.Height, maxPixels)
 	}
 
@@ -130,6 +135,15 @@ func generateVariantsLimited(originalPath string, maxPixels int) error {
 		}
 	}
 	return nil
+}
+
+// isGIFBytes recognizes a GIF87a or GIF89a header. Extension-agnostic
+// so renames or uppercase paths don't change the answer.
+func isGIFBytes(data []byte) bool {
+	if len(data) < 6 {
+		return false
+	}
+	return bytes.Equal(data[:6], []byte("GIF87a")) || bytes.Equal(data[:6], []byte("GIF89a"))
 }
 
 // isAnimatedGIFBytes reports whether the bytes encode a multi-frame GIF.

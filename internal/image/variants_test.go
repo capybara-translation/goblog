@@ -109,6 +109,28 @@ func TestGenerateVariants_SkipsWidthsLargerThanOriginal(t *testing.T) {
 	}
 }
 
+func TestGenerateVariants_AnimatedGIFSkippedRegardlessOfExtensionCase(t *testing.T) {
+	// Regression: animated GIF detection used to be gated on
+	// filepath.Ext(path) == ".gif", which silently let a manually-placed
+	// "foo.GIF" through to image.Decode → single-frame static WebP →
+	// lost animation. Detect via magic bytes instead so case (and other
+	// extension surprises) don't matter.
+	dir := t.TempDir()
+	original := filepath.Join(dir, "anim.GIF")
+	mustWriteAnimatedGIF(t, original, 800, 600)
+
+	if err := GenerateVariants(original); err != nil {
+		t.Fatalf("GenerateVariants on animated .GIF should succeed (no-op), got: %v", err)
+	}
+
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if filepath.Ext(e.Name()) == ".webp" {
+			t.Errorf(".GIF (uppercase) animation must not produce variants, found %s", e.Name())
+		}
+	}
+}
+
 func TestGenerateVariants_AnimatedGIFSkipped(t *testing.T) {
 	// We don't try to extract a still frame; producing a single-frame
 	// WebP from an animated GIF would be misleading. Confirm no .webp

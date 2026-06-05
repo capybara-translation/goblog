@@ -17,6 +17,13 @@ type Variant struct {
 // url is the raw Markdown destination (typically "/uploads/<uuid>.<ext>").
 // Implementations may return only the variants that physically exist;
 // the renderer does not assume any particular width is present.
+//
+// Ordering contract: returned variants MUST be sorted by ascending
+// Width. The renderer relies on this to pick the middle entry as the
+// legacy `src` fallback (so srcset-unaware clients fetch a sensibly
+// sized image), and to keep the emitted srcset attribute in canonical
+// "small-to-large" order. Implementations that aggregate from multiple
+// sources should sort before returning.
 type VariantsProvider interface {
 	Variants(url string) []Variant
 }

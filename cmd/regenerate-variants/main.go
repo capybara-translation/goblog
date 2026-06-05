@@ -9,13 +9,16 @@
 //
 //	UPLOAD_DIR=data/uploads go run cmd/regenerate-variants/main.go
 //
-// The command exits 0 on partial success and reports per-file errors
-// to stderr; one bad image does not stop the rest.
+// Per-file errors are reported to stderr; one bad image does not stop
+// the rest. The command exits 0 only if every file processed cleanly,
+// and exits non-zero (1) on any partial failure so CI / cron can
+// detect the regression without parsing stdout.
 package main
 
 import (
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,47 +39,53 @@ func main() {
 	dryRun := flag.Bool("dry-run", false, "list what would be processed without writing variants")
 	flag.Parse()
 
-	entries, err := os.ReadDir(*dir)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "read dir %s: %v\n", *dir, err)
-		os.Exit(1)
-	}
-
 	var processed, skipped, failed int
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
+
+	// WalkDir so files in subdirectories (e.g. /uploads/ogp-cache/<uuid>)
+	// also get backfilled — DiskVariantsService and VariantPath both
+	// support subdirectories, and treating only immediate children
+	// special would leave the OGP cache forever without variants.
+	walkErr := filepath.WalkDir(*dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "walk %s: %v\n", path, err)
+			return nil // continue with siblings
 		}
-		name := e.Name()
+		if d.IsDir() {
+			return nil
+		}
+		name := d.Name()
 		// Normalize the extension to lowercase so case-only variations
 		// of the suffix (.JPG, .Webp, …) feed into the same predicates
 		// as the canonical .jpg/.webp output of the upload pipeline.
 		ext := strings.ToLower(filepath.Ext(name))
-		// Only process supported originals.
 		switch ext {
 		case ".jpg", ".jpeg", ".png", ".webp", ".gif":
 		default:
-			continue
+			return nil
 		}
 		// Skip derived variants (those produced by VariantPath). Match on
 		// the lowercased name so e.g. "foo-800w.WEBP" is also skipped.
 		if image.IsVariantPath(strings.ToLower(name)) {
 			skipped++
-			continue
+			return nil
 		}
 
-		full := filepath.Join(*dir, name)
 		if *dryRun {
-			fmt.Printf("would process %s\n", full)
+			fmt.Printf("would process %s\n", path)
 			processed++
-			continue
+			return nil
 		}
-		if err := image.GenerateVariants(full); err != nil {
-			fmt.Fprintf(os.Stderr, "FAIL %s: %v\n", name, err)
+		if err := image.GenerateVariants(path); err != nil {
+			fmt.Fprintf(os.Stderr, "FAIL %s: %v\n", path, err)
 			failed++
-			continue
+			return nil
 		}
 		processed++
+		return nil
+	})
+	if walkErr != nil {
+		fmt.Fprintf(os.Stderr, "walk %s: %v\n", *dir, walkErr)
+		os.Exit(1)
 	}
 
 	fmt.Printf("done: %d processed, %d skipped (variants), %d failed\n", processed, skipped, failed)
