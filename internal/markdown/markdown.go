@@ -28,8 +28,9 @@ type Converter interface {
 }
 
 type converter struct {
-	policy    *bluemonday.Policy
-	ogpGetter OGPGetter
+	policy     *bluemonday.Policy
+	ogpGetter  OGPGetter
+	dimensions DimensionsProvider // optional; nil disables width/height emission
 }
 
 var (
@@ -47,11 +48,14 @@ func NewConverter() Converter {
 	return instance
 }
 
-// NewConverterWithOGP creates a new Converter with OGP link card support
-func NewConverterWithOGP(ogpGetter OGPGetter) Converter {
+// NewConverterFor creates a new Converter wired with the given OGP getter
+// (nil disables link cards) and dimensions provider (nil disables
+// width/height attribute emission on <img>).
+func NewConverterFor(ogpGetter OGPGetter, dimensions DimensionsProvider) Converter {
 	return &converter{
-		policy:    createPolicy(),
-		ogpGetter: ogpGetter,
+		policy:     createPolicy(),
+		ogpGetter:  ogpGetter,
+		dimensions: dimensions,
 	}
 }
 
@@ -86,7 +90,7 @@ func createPolicy() *bluemonday.Policy {
 }
 
 // createMarkdown creates a goldmark instance
-func createMarkdown(src []byte, ogpGetter OGPGetter) goldmark.Markdown {
+func createMarkdown(src []byte, ogpGetter OGPGetter, dimensions DimensionsProvider) goldmark.Markdown {
 	li := newLineIndex(src)
 
 	// Build renderer options
@@ -113,12 +117,13 @@ func createMarkdown(src []byte, ogpGetter OGPGetter) goldmark.Markdown {
 	)
 
 	// Override <img> rendering to add browser-hint attributes
-	// (loading, decoding). Priority < 1000 so this wins over goldmark's
-	// default image renderer. See image_extension.go for why
-	// fetchpriority is intentionally NOT emitted.
+	// (loading, decoding, and width/height if a DimensionsProvider is
+	// configured). Priority < 1000 so this wins over goldmark's default
+	// image renderer. See image_extension.go for why fetchpriority is
+	// intentionally NOT emitted.
 	rendererOpts = append(rendererOpts,
 		renderer.WithNodeRenderers(
-			util.Prioritized(newImageRenderer(), 10),
+			util.Prioritized(newImageRenderer(dimensions), 10),
 		),
 	)
 
@@ -141,7 +146,7 @@ func createMarkdown(src []byte, ogpGetter OGPGetter) goldmark.Markdown {
 // If OGP getter is configured, standalone URLs are converted to link cards
 func (c *converter) Convert(markdown string) (string, error) {
 	src := []byte(markdown)
-	md := createMarkdown(src, c.ogpGetter)
+	md := createMarkdown(src, c.ogpGetter, c.dimensions)
 
 	var buf bytes.Buffer
 	if err := md.Convert(src, &buf); err != nil {

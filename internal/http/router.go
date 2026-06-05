@@ -37,8 +37,13 @@ func (n noDirListingFS) Open(name string) (http.File, error) {
 func NewRouter(postService service.PostService, postViewService service.PostViewService, authService service.AuthService, ogpService service.OGPService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, uploadDir string, maxUploadSize int64, postsPerPage int, templatesFS, staticFS embed.FS) *mux.Router {
 	r := mux.NewRouter()
 
+	// Shared image-dimensions cache. The Markdown renderer asks it for
+	// width/height to emit on <img>; the upload handler primes it after
+	// each save so the first public-page render avoids a disk hit.
+	dimensions := service.NewDiskDimensionsService(uploadDir)
+
 	// Initialize public page handlers (using embedded templates)
-	publicHandlers := NewPublicHandlers(postService, postViewService, ogpService, authService, secureCookie, blogTitle, baseURL, postsPerPage, templatesFS)
+	publicHandlers := NewPublicHandlers(postService, postViewService, ogpService, authService, secureCookie, blogTitle, baseURL, postsPerPage, templatesFS, dimensions)
 
 	// Display custom 404 page for non-existent routes
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -56,7 +61,7 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 	currentUserHelper := NewCurrentUserHelper(authService, secureCookie)
 
 	// Initialize image upload handlers
-	imageHandlers := NewImageHandlers(uploadDir, maxUploadSize)
+	imageHandlers := NewImageHandlers(uploadDir, maxUploadSize, dimensions)
 
 	// Static files (favicon, etc.) - served from embedded files
 	staticSubFS, _ := fs.Sub(staticFS, "internal/view/static")
@@ -111,8 +116,8 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 	protectedAPI.HandleFunc("/posts/{id}/unpin", apiHandlers.HandleUnpinPost).Methods("POST")
 	protectedAPI.HandleFunc("/tags", apiHandlers.HandleGetTags).Methods("GET")
 
-	// Markdown preview (with OGP link card support)
-	previewHandler := NewPreviewHandler(ogpService)
+	// Markdown preview (with OGP link card support + width/height hints)
+	previewHandler := NewPreviewHandler(ogpService, dimensions)
 	protectedAPI.HandleFunc("/markdown/preview", previewHandler.HandlePreview).Methods("POST")
 
 	// Image upload
@@ -125,8 +130,11 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 func NewRouterWithTemplates(postService service.PostService, postViewService service.PostViewService, authService service.AuthService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, templatePattern string, uploadDir string, maxUploadSize int64, postsPerPage int) *mux.Router {
 	r := mux.NewRouter()
 
+	// Shared image-dimensions cache (see NewRouter for rationale).
+	dimensions := service.NewDiskDimensionsService(uploadDir)
+
 	// Initialize public page handlers (loading templates from filesystem)
-	publicHandlers := NewPublicHandlersFromPath(postService, postViewService, authService, secureCookie, blogTitle, baseURL, templatePattern, postsPerPage)
+	publicHandlers := NewPublicHandlersFromPath(postService, postViewService, authService, secureCookie, blogTitle, baseURL, templatePattern, postsPerPage, dimensions)
 
 	// Display custom 404 page for non-existent routes
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -143,7 +151,7 @@ func NewRouterWithTemplates(postService service.PostService, postViewService ser
 	currentUserHelper := NewCurrentUserHelper(authService, secureCookie)
 
 	// Initialize image upload handlers
-	imageHandlers := NewImageHandlers(uploadDir, maxUploadSize)
+	imageHandlers := NewImageHandlers(uploadDir, maxUploadSize, dimensions)
 
 	// Static files (served from filesystem)
 	staticFileServer := http.FileServer(http.Dir("internal/view/static"))
@@ -197,8 +205,8 @@ func NewRouterWithTemplates(postService service.PostService, postViewService ser
 	protectedAPI.HandleFunc("/posts/{id}/unpin", apiHandlers.HandleUnpinPost).Methods("POST")
 	protectedAPI.HandleFunc("/tags", apiHandlers.HandleGetTags).Methods("GET")
 
-	// Markdown preview (without OGP support in test mode)
-	testPreviewHandler := NewPreviewHandler(nil)
+	// Markdown preview (without OGP support in test mode; dimensions still flow)
+	testPreviewHandler := NewPreviewHandler(nil, dimensions)
 	protectedAPI.HandleFunc("/markdown/preview", testPreviewHandler.HandlePreview).Methods("POST")
 
 	// Image upload

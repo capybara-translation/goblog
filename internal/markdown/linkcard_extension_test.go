@@ -83,7 +83,7 @@ func TestIsValidURL(t *testing.T) {
 func TestLinkCardRenderer_ExtractStandaloneURL(t *testing.T) {
 	// Test cases for standalone URL extraction by running through the full converter
 	ogpGetter := newMockOGPGetter()
-	converter := NewConverterWithOGP(ogpGetter)
+	converter := NewConverterFor(ogpGetter, nil)
 
 	tests := []struct {
 		name           string
@@ -150,7 +150,7 @@ func TestLinkCardRenderer_ExtractStandaloneURL(t *testing.T) {
 
 func TestLinkCardRenderer_HTMLStructure(t *testing.T) {
 	ogpGetter := newMockOGPGetter()
-	converter := NewConverterWithOGP(ogpGetter)
+	converter := NewConverterFor(ogpGetter, nil)
 
 	result, err := converter.Convert("https://example.com")
 	if err != nil {
@@ -201,7 +201,7 @@ func TestLinkCardRenderer_LocalImagePathPreferred(t *testing.T) {
 			},
 		},
 	}
-	converter := NewConverterWithOGP(ogpGetter)
+	converter := NewConverterFor(ogpGetter, nil)
 
 	result, err := converter.Convert("https://example.com/local-cached")
 	if err != nil {
@@ -230,7 +230,7 @@ func TestLinkCardRenderer_FallsBackToImageURL(t *testing.T) {
 			},
 		},
 	}
-	converter := NewConverterWithOGP(ogpGetter)
+	converter := NewConverterFor(ogpGetter, nil)
 
 	result, err := converter.Convert("https://example.com/no-local")
 	if err != nil {

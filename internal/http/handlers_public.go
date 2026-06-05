@@ -29,7 +29,6 @@ type PublicHandlers struct {
 	postViewService   service.PostViewService
 	ogpService        service.OGPService
 	currentUserHelper *CurrentUserHelper // Nil disables admin-only UI (edit links, etc.); resolves session-or-remember-token.
-	mdConverter       markdown.Converter
 	blogTitle         string // Blog title
 	baseURL           string // Site base URL (for sitemap)
 	postsPerPage      int    // Posts per page on listing views
@@ -122,25 +121,19 @@ func formatDateDetailWithTZ(t time.Time) string {
 	return localTime.Format("2006-01-02 15:04") + " (" + localTime.Format("MST") + ", " + getUTCOffsetString(localTime) + ")"
 }
 
-// mdConverter is a singleton instance of the Markdown converter
+// mdConverter is a singleton used by the package-level markdownExcerpt
+// (called from ogp_meta.go to build OGP description tags). The per-request
+// converter used in NewPublicHandlers* is configured separately with OGP
+// and DimensionsProvider; this singleton is intentionally bare because
+// excerpting strips HTML anyway, making link cards / width-height
+// irrelevant to its output.
 var mdConverter = markdown.NewConverter()
 
-// renderMarkdown converts Markdown to HTML
-func renderMarkdown(content string) template.HTML {
-	htmlContent, err := mdConverter.Convert(content)
-	if err != nil {
-		// On error, return HTML-escaped text
-		return template.HTML(template.HTMLEscapeString(content))
-	}
-	return template.HTML(htmlContent)
-}
-
-// markdownExcerpt converts Markdown to plain text and truncates it
+// markdownExcerpt converts Markdown to plain text and truncates it.
+// Called from ogp_meta.go for OGP description tags.
 func markdownExcerpt(content string, maxLen int) string {
-	// Markdown -> HTML -> plain text -> truncate
 	htmlContent, err := mdConverter.Convert(content)
 	if err != nil {
-		// On error, return truncated original text
 		return truncateRunes(content, maxLen)
 	}
 	plainText := stripHTMLTags(htmlContent)
@@ -224,31 +217,11 @@ func highlightHTMLContent(htmlContent string, query string) string {
 	return result.String()
 }
 
-// renderMarkdownWithHighlight converts Markdown to HTML and highlights the search query
-func renderMarkdownWithHighlight(content string, query string) template.HTML {
-	htmlContent, err := mdConverter.Convert(content)
-	if err != nil {
-		// On error, return HTML-escaped text
-		return template.HTML(template.HTMLEscapeString(content))
-	}
-
-	if query == "" {
-		return template.HTML(htmlContent)
-	}
-
-	highlighted := highlightHTMLContent(htmlContent, query)
-	return template.HTML(highlighted)
-}
-
-// NewPublicHandlers creates PublicHandlers from embedded templates
-func NewPublicHandlers(postService service.PostService, postViewService service.PostViewService, ogpService service.OGPService, authService service.AuthService, secureCookie bool, blogTitle, baseURL string, postsPerPage int, templatesFS embed.FS) *PublicHandlers {
-	// Create markdown converter with OGP support
-	var converter markdown.Converter
-	if ogpService != nil {
-		converter = markdown.NewConverterWithOGP(ogpService)
-	} else {
-		converter = markdown.NewConverter()
-	}
+// NewPublicHandlers creates PublicHandlers from embedded templates.
+// dimensions may be nil; when non-nil, the rendered <img> tags carry
+// width/height attributes resolved from the upload directory on disk.
+func NewPublicHandlers(postService service.PostService, postViewService service.PostViewService, ogpService service.OGPService, authService service.AuthService, secureCookie bool, blogTitle, baseURL string, postsPerPage int, templatesFS embed.FS, dimensions markdown.DimensionsProvider) *PublicHandlers {
+	converter := markdown.NewConverterFor(ogpService, dimensions)
 
 	// Define custom template functions with closure-based markdown functions
 	funcMap := template.FuncMap{
@@ -325,7 +298,6 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 		postViewService:   postViewService,
 		ogpService:        ogpService,
 		currentUserHelper: helper,
-		mdConverter:       converter,
 		blogTitle:         blogTitle,
 		baseURL:           baseURL,
 		postsPerPage:      postsPerPage,
@@ -337,21 +309,48 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 	}
 }
 
-// NewPublicHandlersFromPath creates PublicHandlers by loading templates from the filesystem (for testing)
-func NewPublicHandlersFromPath(postService service.PostService, postViewService service.PostViewService, authService service.AuthService, secureCookie bool, blogTitle, baseURL, templatePattern string, postsPerPage int) *PublicHandlers {
+// NewPublicHandlersFromPath creates PublicHandlers by loading templates from the filesystem (for testing).
+// dimensions may be nil.
+func NewPublicHandlersFromPath(postService service.PostService, postViewService service.PostViewService, authService service.AuthService, secureCookie bool, blogTitle, baseURL, templatePattern string, postsPerPage int, dimensions markdown.DimensionsProvider) *PublicHandlers {
 	dir := filepath.Dir(templatePattern)
 	layoutPath := filepath.Join(dir, "layout.html")
 
-	// Define custom template functions
+	// Match NewPublicHandlers' wiring so dimensions/OGP-driven attributes
+	// flow through the test build too. ogpService is intentionally nil
+	// here; tests that exercise OGP go through NewRouter (embedded path).
+	converter := markdown.NewConverterFor(nil, dimensions)
+
 	funcMap := template.FuncMap{
-		"truncate":                    truncateRunes,
-		"splitTags":                   splitTags,
-		"formatDateWithTZ":            formatDateWithTZ,
-		"formatDateDetailWithTZ":      formatDateDetailWithTZ,
-		"highlightQuery":              highlightQuery,
-		"renderMarkdown":              renderMarkdown,
-		"renderMarkdownWithHighlight": renderMarkdownWithHighlight,
-		"markdownExcerpt":             markdownExcerpt,
+		"truncate":               truncateRunes,
+		"splitTags":              splitTags,
+		"formatDateWithTZ":       formatDateWithTZ,
+		"formatDateDetailWithTZ": formatDateDetailWithTZ,
+		"highlightQuery":         highlightQuery,
+		"renderMarkdown": func(content string) template.HTML {
+			htmlContent, err := converter.Convert(content)
+			if err != nil {
+				return template.HTML(template.HTMLEscapeString(content))
+			}
+			return template.HTML(htmlContent)
+		},
+		"renderMarkdownWithHighlight": func(content string, query string) template.HTML {
+			htmlContent, err := converter.Convert(content)
+			if err != nil {
+				return template.HTML(template.HTMLEscapeString(content))
+			}
+			if query == "" {
+				return template.HTML(htmlContent)
+			}
+			return template.HTML(highlightHTMLContent(htmlContent, query))
+		},
+		"markdownExcerpt": func(content string, maxLen int) string {
+			htmlContent, err := converter.Convert(content)
+			if err != nil {
+				return truncateRunes(content, maxLen)
+			}
+			plainText := stripHTMLTags(htmlContent)
+			return truncateRunes(plainText, maxLen)
+		},
 	}
 
 	// Create independent template sets for each page
