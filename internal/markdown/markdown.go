@@ -82,6 +82,13 @@ func createPolicy() *bluemonday.Policy {
 	// (unanchored), so the regexps must include ^...$ themselves.
 	policy.AllowAttrs("loading").Matching(regexp.MustCompile(`^(lazy|eager|auto)$`)).OnElements("img")
 	policy.AllowAttrs("decoding").Matching(regexp.MustCompile(`^(async|sync|auto)$`)).OnElements("img")
+	// Intrinsic dimensions, emitted by imageRenderer from DimensionsProvider.
+	// bluemonday.UGCPolicy()'s AllowImages() also allows these (with a
+	// NumberOrPercent matcher), but stating them explicitly here makes the
+	// CLS feature robust against future upstream policy changes — if width
+	// or height ever drops out of the default set, the renderer would
+	// otherwise silently stop producing the attributes.
+	policy.AllowAttrs("width", "height").Matching(regexp.MustCompile(`^[0-9]+$`)).OnElements("img")
 	// Allow SVG elements for link card icons
 	policy.AllowElements("svg", "path")
 	policy.AllowAttrs("viewBox", "width", "height", "fill").OnElements("svg")

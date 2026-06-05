@@ -154,6 +154,37 @@ func TestDiskDimensions_CachesNegativeForUploadsPrefix(t *testing.T) {
 	}
 }
 
+func TestDiskDimensions_QueryStringDoesNotFragmentCache(t *testing.T) {
+	// resolve() strips ?... and #... before disk lookup, so two URLs that
+	// only differ in query/fragment back the SAME on-disk file. The cache
+	// must collapse them into a single entry — otherwise an admin who
+	// previews markdown referencing /uploads/x.jpg?v=1, ?v=2, ?v=3, ...
+	// can grow the cache unboundedly via attacker-controlled query strings.
+	dir := t.TempDir()
+	mustWritePNG(t, filepath.Join(dir, "shared.png"), 50, 60)
+
+	d := NewDiskDimensionsService(dir)
+
+	for _, u := range []string{
+		"/uploads/shared.png",
+		"/uploads/shared.png?v=1",
+		"/uploads/shared.png?v=2",
+		"/uploads/shared.png#anchor",
+		"/uploads/shared.png?cachebust=abc#frag",
+	} {
+		w, h, ok := d.Get(u)
+		if !ok || w != 50 || h != 60 {
+			t.Errorf("Get(%q) = (%d, %d, %v), want (50, 60, true)", u, w, h, ok)
+		}
+	}
+
+	count := 0
+	d.cache.Range(func(_, _ any) bool { count++; return true })
+	if count != 1 {
+		t.Errorf("cache should hold exactly 1 entry for the shared file, found %d", count)
+	}
+}
+
 func TestDiskDimensions_PrimePopulatesCache(t *testing.T) {
 	// Prime is the path used after upload: the upload handler already
 	// has the bytes in memory and shouldn't pay for a re-decode at
@@ -164,6 +195,56 @@ func TestDiskDimensions_PrimePopulatesCache(t *testing.T) {
 	w, h, ok := d.Get("/uploads/just-saved.jpg")
 	if !ok || w != 1920 || h != 1080 {
 		t.Errorf("after Prime: (%d, %d, %v) want (1920, 1080, true)", w, h, ok)
+	}
+}
+
+func TestDiskDimensions_PrimeIgnoresNonUploadURLs(t *testing.T) {
+	// Prime must enforce the same /uploads/ guard as Get so a future
+	// caller cannot accidentally pollute the cache with attacker-controlled
+	// keys (e.g., a refactor that synthesizes the URL from an unchecked
+	// header). Today's only caller already passes /uploads/<uuid>, so this
+	// is defense in depth.
+	d := NewDiskDimensionsService(t.TempDir())
+
+	for _, u := range []string{
+		"https://example.com/x.jpg",
+		"data:image/png;base64,abc",
+		"/static/foo.png",
+		"",
+	} {
+		d.Prime(u, 100, 100)
+	}
+
+	count := 0
+	d.cache.Range(func(_, _ any) bool { count++; return true })
+	if count != 0 {
+		t.Errorf("Prime must reject non-/uploads/ URLs, found %d cache entries", count)
+	}
+}
+
+func TestDiskDimensions_PrimeNoOpWhenUploadDirEmpty(t *testing.T) {
+	// uploadDir="" is the "disabled" mode (NewDiskDimensionsService doc).
+	// Prime must mirror Get and refuse to populate the cache in that mode.
+	d := NewDiskDimensionsService("")
+	d.Prime("/uploads/x.jpg", 100, 100)
+
+	count := 0
+	d.cache.Range(func(_, _ any) bool { count++; return true })
+	if count != 0 {
+		t.Errorf("Prime should no-op when uploadDir is empty, found %d cache entries", count)
+	}
+}
+
+func TestDiskDimensions_PrimeNormalizesKey(t *testing.T) {
+	// Prime with a URL carrying ?... or #... must use the same normalized
+	// key as Get, otherwise a later render with a different query string
+	// would re-hit disk despite a fresh upload having primed the cache.
+	d := NewDiskDimensionsService(t.TempDir())
+	d.Prime("/uploads/x.jpg?v=upload", 1024, 768)
+
+	w, h, ok := d.Get("/uploads/x.jpg?v=render")
+	if !ok || w != 1024 || h != 768 {
+		t.Errorf("Get after Prime with different query: (%d, %d, %v) want (1024, 768, true)", w, h, ok)
 	}
 }
 

@@ -54,18 +54,19 @@ func NewDiskDimensionsService(uploadDir string) *DiskDimensionsService {
 // Get returns (width, height, true) for known /uploads/* URLs and
 // (0, 0, false) for anything else. Implements markdown.DimensionsProvider.
 func (s *DiskDimensionsService) Get(url string) (int, int, bool) {
-	if v, ok := s.cache.Load(url); ok {
+	key := cacheKey(url)
+	if v, ok := s.cache.Load(key); ok {
 		d := v.(cachedDim)
 		return d.w, d.h, d.ok
 	}
-	w, h, ok := s.resolve(url)
+	w, h, ok := s.resolve(key)
 	// Only memoize results we'd be willing to repeat: a positive lookup
 	// or a /uploads/* miss. External URLs and other non-/uploads/ strings
 	// short-circuit cheaply inside resolve, so skipping the Store leaves
 	// no disk hit to amortize while keeping the cache bounded by the
 	// upload directory's URL space.
-	if ok || strings.HasPrefix(url, uploadsPrefix) {
-		s.cache.Store(url, cachedDim{w: w, h: h, ok: ok})
+	if ok || strings.HasPrefix(key, uploadsPrefix) {
+		s.cache.Store(key, cachedDim{w: w, h: h, ok: ok})
 	}
 	return w, h, ok
 }
@@ -74,26 +75,41 @@ func (s *DiskDimensionsService) Get(url string) (int, int, bool) {
 // already decoded an image (e.g., the upload handler, which strips
 // metadata via image.Decode) can avoid forcing a first-render disk
 // hit by priming here.
+//
+// Prime enforces the same /uploads/ prefix + non-empty uploadDir guards
+// as Get; non-conforming inputs are silently dropped so a future caller
+// can't accidentally pollute the cache with attacker-controlled keys.
 func (s *DiskDimensionsService) Prime(url string, width, height int) {
-	if width <= 0 || height <= 0 {
+	if width <= 0 || height <= 0 || s.uploadDir == "" {
 		return
 	}
-	s.cache.Store(url, cachedDim{w: width, h: height, ok: true})
+	key := cacheKey(url)
+	if !strings.HasPrefix(key, uploadsPrefix) {
+		return
+	}
+	s.cache.Store(key, cachedDim{w: width, h: height, ok: true})
+}
+
+// cacheKey normalizes a URL for use as a sync.Map key. Stripping the
+// query/fragment ensures that "/uploads/x.jpg?v=1" and "/uploads/x.jpg?v=2"
+// collapse to a single cache entry (resolve() reads the same on-disk
+// file regardless of trailing ?... or #...).
+func cacheKey(url string) string {
+	if i := strings.IndexAny(url, "?#"); i >= 0 {
+		return url[:i]
+	}
+	return url
 }
 
 // resolve does the disk lookup. Only /uploads/<safe-path> URLs are
-// accepted; the resolved path must stay under uploadDir.
+// accepted; the resolved path must stay under uploadDir. The url argument
+// is expected to be already-normalized via cacheKey (no query/fragment).
 func (s *DiskDimensionsService) resolve(url string) (int, int, bool) {
 	if !strings.HasPrefix(url, uploadsPrefix) || s.uploadDir == "" {
 		return 0, 0, false
 	}
 
-	// Strip a possible query/fragment so e.g. "/uploads/x.jpg?v=2" still
-	// resolves to "x.jpg" on disk.
 	rel := url[len(uploadsPrefix):]
-	if i := strings.IndexAny(rel, "?#"); i >= 0 {
-		rel = rel[:i]
-	}
 	// Reject empty, "." (which would otherwise resolve to uploadDir
 	// itself), absolute paths, and anything containing ".." segments.
 	if rel == "" || rel == "." || strings.Contains(rel, "..") || filepath.IsAbs(rel) {
