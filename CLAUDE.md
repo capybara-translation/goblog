@@ -30,6 +30,7 @@ goblogはGoで書かれたシンプルなブログシステムです。公開ペ
 
 🚧 **計画中:**
 - RSS フィード
+- Tier 4: CSS 最適化（render-blocking 解消 + 未使用 Tailwind CSS の除去）。Tier 1-3 の画像最適化で LCP 94.2s → 10.6s まで改善したが、Lighthouse Performance score は依然 56。残る支配要因は HTML/CSS の初期配信時間 (FCP 9.8s) で、`render-blocking-insight` で 8.9s、`unused-css-rules` で 237 KiB の改善余地あり。Tailwind の `--minify` + `--content` による purge で Perf score 90+ 到達見込み
 
 ## アーキテクチャ
 
