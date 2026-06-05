@@ -21,7 +21,7 @@ import (
 )
 
 func TestNewImageHandlers(t *testing.T) {
-	handlers := NewImageHandlers("/tmp/uploads", 5*1024*1024)
+	handlers := NewImageHandlers("/tmp/uploads", 5*1024*1024, nil)
 
 	if handlers.uploadDir != "/tmp/uploads" {
 		t.Errorf("expected uploadDir to be /tmp/uploads, got %s", handlers.uploadDir)
@@ -39,7 +39,7 @@ func TestHandleUploadImage(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
-	handlers := NewImageHandlers(tempDir, 5*1024*1024)
+	handlers := NewImageHandlers(tempDir, 5*1024*1024, nil)
 
 	tests := []struct {
 		name           string
@@ -239,7 +239,7 @@ func TestHandleUploadImage_FileTooLarge(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Set 100 byte limit
-	handlers := NewImageHandlers(tempDir, 100)
+	handlers := NewImageHandlers(tempDir, 100, nil)
 
 	// Create 200 byte file
 	largeData := make([]byte, 200)
@@ -266,7 +266,7 @@ func TestHandleUploadImage_FileActuallySaved(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
-	handlers := NewImageHandlers(tempDir, 5*1024*1024)
+	handlers := NewImageHandlers(tempDir, 5*1024*1024, nil)
 
 	jpegData := createJPEGData()
 	req, err := createMultipartRequest("image", "test.jpg", jpegData, "image/jpeg")
@@ -517,4 +517,81 @@ func createWebPData() []byte {
 	var buf bytes.Buffer
 	webp.Encode(&buf, img, &webp.Options{Lossless: true})
 	return buf.Bytes()
+}
+
+// recordingPrimer captures Prime calls for assertion.
+type recordingPrimer struct {
+	calls []primeCall
+}
+
+type primeCall struct {
+	url           string
+	width, height int
+}
+
+func (r *recordingPrimer) Prime(url string, width, height int) {
+	r.calls = append(r.calls, primeCall{url, width, height})
+}
+
+// After a successful upload the handler must Prime the dimensions cache
+// with the saved URL and the actual pixel size of the file, so the next
+// public-page render doesn't have to hit disk for the same image.
+func TestHandleUploadImage_PrimesDimensionsCache(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "upload_primer_test")
+	if err != nil {
+		t.Fatalf("temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	primer := &recordingPrimer{}
+	handlers := NewImageHandlers(tempDir, 5*1024*1024, primer)
+
+	req, err := createMultipartRequest("image", "test.jpg", createJPEGData(), "image/jpeg")
+	if err != nil {
+		t.Fatalf("create request: %v", err)
+	}
+	rec := httptest.NewRecorder()
+	handlers.HandleUploadImage(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("upload failed: %d, body=%s", rec.Code, rec.Body.String())
+	}
+	if len(primer.calls) != 1 {
+		t.Fatalf("expected exactly 1 Prime call, got %d (%+v)", len(primer.calls), primer.calls)
+	}
+	c := primer.calls[0]
+
+	// createJPEGData encodes a 10×10 image.
+	if c.width != 10 || c.height != 10 {
+		t.Errorf("Prime dimensions = (%d, %d), want (10, 10)", c.width, c.height)
+	}
+
+	var response ImageUploadResponse
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if c.url != response.URL {
+		t.Errorf("Prime URL = %q, want response URL %q", c.url, response.URL)
+	}
+}
+
+// When primer is nil the handler must still succeed (back-compat path).
+func TestHandleUploadImage_NilPrimerIsNoOp(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "upload_nil_primer_test")
+	if err != nil {
+		t.Fatalf("temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	handlers := NewImageHandlers(tempDir, 5*1024*1024, nil)
+	req, err := createMultipartRequest("image", "test.png", createPNGData(), "image/png")
+	if err != nil {
+		t.Fatalf("create request: %v", err)
+	}
+	rec := httptest.NewRecorder()
+	handlers.HandleUploadImage(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Errorf("upload with nil primer failed: %d", rec.Code)
+	}
 }

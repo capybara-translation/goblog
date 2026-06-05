@@ -409,7 +409,7 @@ func (m *mockOGPGetter) Get(url string) *ogp.Data {
 
 func TestConvert_LinkCard(t *testing.T) {
 	ogpGetter := newMockOGPGetter()
-	converter := NewConverterWithOGP(ogpGetter)
+	converter := NewConverterFor(ogpGetter, nil)
 
 	tests := []struct {
 		name        string
@@ -514,7 +514,7 @@ func TestConvert_LinkCardXSS(t *testing.T) {
 			},
 		},
 	}
-	converter := NewConverterWithOGP(ogpGetter)
+	converter := NewConverterFor(ogpGetter, nil)
 
 	result, err := converter.Convert("https://example.com")
 	if err != nil {
@@ -558,15 +558,15 @@ func TestConvert_LinkCardXSS(t *testing.T) {
 	}
 }
 
-func TestNewConverterWithOGP(t *testing.T) {
+func TestNewConverterFor(t *testing.T) {
 	ogpGetter := newMockOGPGetter()
 
-	// NewConverterWithOGP should return a new instance each time (not singleton)
-	c1 := NewConverterWithOGP(ogpGetter)
-	c2 := NewConverterWithOGP(ogpGetter)
+	// NewConverterFor should return a new instance each time (not singleton)
+	c1 := NewConverterFor(ogpGetter, nil)
+	c2 := NewConverterFor(ogpGetter, nil)
 
 	if c1 == c2 {
-		t.Error("NewConverterWithOGP() should return different instances")
+		t.Error("NewConverterFor() should return different instances")
 	}
 }
 

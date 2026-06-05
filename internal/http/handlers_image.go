@@ -3,6 +3,7 @@ package http
 import (
 	"bytes"
 	"fmt"
+	"image"
 	"io"
 	"log"
 	"net/http"
@@ -13,17 +14,29 @@ import (
 	"github.com/google/uuid"
 )
 
+// DimensionsPrimer is the subset of *service.DiskDimensionsService that
+// the upload handler depends on. Defining it locally lets us inject a
+// fake in tests without importing the concrete service.
+type DimensionsPrimer interface {
+	Prime(url string, width, height int)
+}
+
 // ImageHandlers is a handler that processes image uploads
 type ImageHandlers struct {
 	uploadDir     string
 	maxUploadSize int64
+	primer        DimensionsPrimer // optional; nil disables cache priming
 }
 
-// NewImageHandlers creates a new ImageHandlers
-func NewImageHandlers(uploadDir string, maxUploadSize int64) *ImageHandlers {
+// NewImageHandlers creates a new ImageHandlers. primer may be nil; when
+// non-nil, the handler reports width/height of each saved image so the
+// public-page Markdown renderer can emit it without a first-render disk
+// hit.
+func NewImageHandlers(uploadDir string, maxUploadSize int64, primer DimensionsPrimer) *ImageHandlers {
 	return &ImageHandlers{
 		uploadDir:     uploadDir,
 		maxUploadSize: maxUploadSize,
+		primer:        primer,
 	}
 }
 
@@ -127,9 +140,26 @@ func (h *ImageHandlers) HandleUploadImage(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	uploadURL := "/uploads/" + newFilename
+
+	// Prime the dimensions cache so the first public-page render after an
+	// upload doesn't trigger a disk hit. DecodeConfig reads only the
+	// image header (microseconds-to-low-milliseconds), so this is cheap
+	// relative to the rest of the upload pipeline. Failing here is a
+	// silent regression of the CLS feature — the bytes passed
+	// validateMagicBytes + StripMetadata, so DecodeConfig should succeed.
+	// If it doesn't, log so an operator can notice rather than swallowing.
+	if h.primer != nil {
+		if cfg, _, err := image.DecodeConfig(bytes.NewReader(strippedBytes)); err == nil {
+			h.primer.Prime(uploadURL, cfg.Width, cfg.Height)
+		} else {
+			log.Printf("upload dimensions decode failed for %s (%s): %v", uploadURL, contentType, err)
+		}
+	}
+
 	// Return response
 	response := ImageUploadResponse{
-		URL:      "/uploads/" + newFilename,
+		URL:      uploadURL,
 		Filename: sanitizeFilename(header.Filename),
 	}
 

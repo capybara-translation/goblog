@@ -2,6 +2,7 @@ package markdown
 
 import (
 	"bytes"
+	"strconv"
 
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/renderer"
@@ -27,11 +28,12 @@ import (
 // so the "first image seen" flag is per-document and never leaks across
 // requests.
 type imageRenderer struct {
-	seenFirst bool
+	seenFirst  bool
+	dimensions DimensionsProvider // may be nil
 }
 
-func newImageRenderer() *imageRenderer {
-	return &imageRenderer{}
+func newImageRenderer(dimensions DimensionsProvider) *imageRenderer {
+	return &imageRenderer{dimensions: dimensions}
 }
 
 func (r *imageRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
@@ -69,6 +71,20 @@ func (r *imageRenderer) renderImage(w util.BufWriter, source []byte, node ast.No
 	// and bluemonday sanitizes again downstream.
 	if node.Attributes() != nil {
 		ghtml.RenderAttributes(w, node, ghtml.ImageAttributeFilter)
+	}
+
+	// Intrinsic dimensions help the browser reserve layout space before
+	// the bytes arrive. The provider is responsible for refusing any
+	// URL it cannot trust (external URLs, paths outside /uploads/) by
+	// returning ok=false; the renderer treats absence as "skip silently".
+	if r.dimensions != nil {
+		if width, height, ok := r.dimensions.Get(string(n.Destination)); ok && width > 0 && height > 0 {
+			_, _ = w.WriteString(` width="`)
+			_, _ = w.WriteString(strconv.Itoa(width))
+			_, _ = w.WriteString(`" height="`)
+			_, _ = w.WriteString(strconv.Itoa(height))
+			_ = w.WriteByte('"')
+		}
 	}
 
 	_, _ = w.WriteString(` decoding="async"`)
