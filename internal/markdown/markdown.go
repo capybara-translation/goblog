@@ -113,8 +113,9 @@ func createMarkdown(src []byte, ogpGetter OGPGetter) goldmark.Markdown {
 	)
 
 	// Override <img> rendering to add browser-hint attributes
-	// (loading, decoding, fetchpriority). Priority < 1000 so this wins
-	// over goldmark's default image renderer.
+	// (loading, decoding). Priority < 1000 so this wins over goldmark's
+	// default image renderer. See image_extension.go for why
+	// fetchpriority is intentionally NOT emitted.
 	rendererOpts = append(rendererOpts,
 		renderer.WithNodeRenderers(
 			util.Prioritized(newImageRenderer(), 10),

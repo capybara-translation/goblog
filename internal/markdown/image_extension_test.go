@@ -108,9 +108,13 @@ func TestConvert_ImageAttributes_SurviveSanitizer(t *testing.T) {
 
 // --- helpers ---
 
-// NewConverterForTest returns a non-singleton converter (without OGP getter).
-// The package-level NewConverter() uses sync.Once and would cache state
-// across tests; for tests of stateful renderers we need a fresh instance.
+// NewConverterForTest returns a fresh, non-singleton converter (without
+// OGP getter). NewConverter() is process-wide via sync.Once, so the
+// first caller fixes its policy/ogpGetter for the whole test binary;
+// using a fresh instance here keeps these tests insulated from whatever
+// other tests/packages initialized the singleton with. (The imageRenderer
+// itself is created per Convert() call in createMarkdown, so its
+// "first image seen" state never leaks across calls regardless.)
 func NewConverterForTest() Converter {
 	return &converter{policy: createPolicy()}
 }

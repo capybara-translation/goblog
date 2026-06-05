@@ -6,6 +6,26 @@ import (
 	"testing"
 )
 
+// /uploads/ is a static read-only asset endpoint. POST/PUT/DELETE etc.
+// must be rejected at the router so that an accidental future
+// piggyback handler doesn't end up with non-idempotent traffic getting
+// the long-lived immutable Cache-Control header. This test wires up
+// the full NewRouterWithTemplates path so we catch regressions in
+// router.go itself, not just in middleware unit tests.
+func TestUploadsRoute_RejectsNonGETHEAD(t *testing.T) {
+	mockService := &mockPostService{}
+	router := NewRouterWithTemplates(mockService, nil, nil, false, nil, "goblog", "http://localhost:8080", "../view/templates/*.html", "", 5*1024*1024, 20)
+
+	for _, method := range []string{"POST", "PUT", "DELETE", "PATCH"} {
+		req := httptest.NewRequest(method, "/uploads/whatever.jpg", nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Errorf("%s /uploads/whatever.jpg: expected 405, got %d", method, rec.Code)
+		}
+	}
+}
+
 func TestUploadsCacheControl_AddsImmutableHeader(t *testing.T) {
 	called := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
