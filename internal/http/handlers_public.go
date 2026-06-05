@@ -218,10 +218,11 @@ func highlightHTMLContent(htmlContent string, query string) string {
 }
 
 // NewPublicHandlers creates PublicHandlers from embedded templates.
-// dimensions may be nil; when non-nil, the rendered <img> tags carry
-// width/height attributes resolved from the upload directory on disk.
-func NewPublicHandlers(postService service.PostService, postViewService service.PostViewService, ogpService service.OGPService, authService service.AuthService, secureCookie bool, blogTitle, baseURL string, postsPerPage int, templatesFS embed.FS, dimensions markdown.DimensionsProvider) *PublicHandlers {
-	converter := markdown.NewConverterFor(ogpService, dimensions)
+// dimensions and variants may be nil; when non-nil, the rendered <img>
+// tags carry width/height and srcset/sizes attributes resolved from the
+// upload directory on disk.
+func NewPublicHandlers(postService service.PostService, postViewService service.PostViewService, ogpService service.OGPService, authService service.AuthService, secureCookie bool, blogTitle, baseURL string, postsPerPage int, templatesFS embed.FS, dimensions markdown.DimensionsProvider, variants markdown.VariantsProvider) *PublicHandlers {
+	converter := markdown.NewConverterFor(ogpService, dimensions, variants)
 
 	// Define custom template functions with closure-based markdown functions
 	funcMap := template.FuncMap{
@@ -310,15 +311,16 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 }
 
 // NewPublicHandlersFromPath creates PublicHandlers by loading templates from the filesystem (for testing).
-// dimensions may be nil.
-func NewPublicHandlersFromPath(postService service.PostService, postViewService service.PostViewService, authService service.AuthService, secureCookie bool, blogTitle, baseURL, templatePattern string, postsPerPage int, dimensions markdown.DimensionsProvider) *PublicHandlers {
+// dimensions and variants may be nil.
+func NewPublicHandlersFromPath(postService service.PostService, postViewService service.PostViewService, authService service.AuthService, secureCookie bool, blogTitle, baseURL, templatePattern string, postsPerPage int, dimensions markdown.DimensionsProvider, variants markdown.VariantsProvider) *PublicHandlers {
 	dir := filepath.Dir(templatePattern)
 	layoutPath := filepath.Join(dir, "layout.html")
 
-	// Match NewPublicHandlers' wiring so dimensions/OGP-driven attributes
-	// flow through the test build too. ogpService is intentionally nil
-	// here; tests that exercise OGP go through NewRouter (embedded path).
-	converter := markdown.NewConverterFor(nil, dimensions)
+	// Match NewPublicHandlers' wiring so dimensions/variants/OGP-driven
+	// attributes flow through the test build too. ogpService is
+	// intentionally nil here; tests that exercise OGP go through NewRouter
+	// (embedded path).
+	converter := markdown.NewConverterFor(nil, dimensions, variants)
 
 	funcMap := template.FuncMap{
 		"truncate":               truncateRunes,

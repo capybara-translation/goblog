@@ -15,7 +15,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/chai2010/webp"
 )
@@ -572,6 +574,112 @@ func TestHandleUploadImage_PrimesDimensionsCache(t *testing.T) {
 	}
 	if c.url != response.URL {
 		t.Errorf("Prime URL = %q, want response URL %q", c.url, response.URL)
+	}
+}
+
+// TestHandleUploadImage_VariantGoroutineRecoversFromPanic guards two
+// pieces of wiring at once: (1) variantFn runs in a background goroutine
+// the handler can survive losing, and (2) a deliberate panic inside that
+// goroutine is recovered, reported via variantDone, and does NOT take
+// down the process. Without recover() a malicious image whose decoder
+// panics would crash the whole server.
+func TestHandleUploadImage_VariantGoroutineRecoversFromPanic(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "upload_variant_panic_test")
+	if err != nil {
+		t.Fatalf("temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	done := make(chan error, 1)
+	handlers := NewImageHandlers(tempDir, 5*1024*1024, nil)
+	handlers.variantFn = func(path string) error {
+		panic("simulated decoder panic")
+	}
+	handlers.variantDone = func(_ string, err error) {
+		done <- err
+	}
+
+	req, err := createMultipartRequest("image", "test.jpg", createJPEGData(), "image/jpeg")
+	if err != nil {
+		t.Fatalf("create request: %v", err)
+	}
+	rec := httptest.NewRecorder()
+	handlers.HandleUploadImage(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("handler must not surface variant failures to the client, got %d", rec.Code)
+	}
+
+	select {
+	case got := <-done:
+		if got == nil {
+			t.Errorf("variantDone should report the recovered panic as an error, got nil")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatalf("variantDone never fired — goroutine likely deadlocked or never started")
+	}
+}
+
+// TestHandleUploadImage_VariantSemaphoreBoundsConcurrency confirms the
+// per-goroutine semaphore is wired in: with capacity capped to 1, two
+// uploads that block inside variantFn can't both be in flight at the
+// same time.
+func TestHandleUploadImage_VariantSemaphoreBoundsConcurrency(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "upload_variant_sem_test")
+	if err != nil {
+		t.Fatalf("temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	handlers := NewImageHandlers(tempDir, 5*1024*1024, nil)
+	// Force serialized execution by replacing the semaphore with a
+	// capacity-1 channel.
+	handlers.variantSem = make(chan struct{}, 1)
+
+	var inFlight int32
+	var peak int32
+	release := make(chan struct{})
+
+	handlers.variantFn = func(path string) error {
+		n := atomic.AddInt32(&inFlight, 1)
+		if n > atomic.LoadInt32(&peak) {
+			atomic.StoreInt32(&peak, n)
+		}
+		<-release
+		atomic.AddInt32(&inFlight, -1)
+		return nil
+	}
+	doneCh := make(chan struct{}, 2)
+	handlers.variantDone = func(_ string, _ error) {
+		doneCh <- struct{}{}
+	}
+
+	for i := 0; i < 2; i++ {
+		req, err := createMultipartRequest("image", "test.jpg", createJPEGData(), "image/jpeg")
+		if err != nil {
+			t.Fatalf("create request: %v", err)
+		}
+		rec := httptest.NewRecorder()
+		handlers.HandleUploadImage(rec, req)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("upload %d failed: %d", i, rec.Code)
+		}
+	}
+
+	// Give the second goroutine a moment to reach the semaphore wait.
+	time.Sleep(50 * time.Millisecond)
+
+	if got := atomic.LoadInt32(&peak); got > 1 {
+		t.Errorf("variant goroutines ran in parallel despite capacity=1; peak in-flight = %d", got)
+	}
+
+	close(release)
+	for i := 0; i < 2; i++ {
+		select {
+		case <-doneCh:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("variantDone never fired for upload %d", i)
+		}
 	}
 }
 

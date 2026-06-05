@@ -429,12 +429,12 @@ type PreviewHandler struct {
 	converter markdown.Converter
 }
 
-// NewPreviewHandler creates a new PreviewHandler with optional OGP and
-// dimensions support. dimensions may be nil; when non-nil, previews show
-// width/height attributes the same way the public pages do, so editors
-// see the final layout without an upload + reload cycle.
-func NewPreviewHandler(ogpService service.OGPService, dimensions markdown.DimensionsProvider) *PreviewHandler {
-	return &PreviewHandler{converter: markdown.NewConverterFor(ogpService, dimensions)}
+// NewPreviewHandler creates a new PreviewHandler with optional OGP,
+// dimensions, and variants support. Each may be nil; when non-nil,
+// previews mirror the public-page rendering (width/height + srcset/sizes)
+// so editors see the final layout without an upload + reload cycle.
+func NewPreviewHandler(ogpService service.OGPService, dimensions markdown.DimensionsProvider, variants markdown.VariantsProvider) *PreviewHandler {
+	return &PreviewHandler{converter: markdown.NewConverterFor(ogpService, dimensions, variants)}
 }
 
 // HandlePreview converts Markdown to HTML and returns it

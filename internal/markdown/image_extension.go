@@ -30,11 +30,18 @@ import (
 type imageRenderer struct {
 	seenFirst  bool
 	dimensions DimensionsProvider // may be nil
+	variants   VariantsProvider   // may be nil
 }
 
-func newImageRenderer(dimensions DimensionsProvider) *imageRenderer {
-	return &imageRenderer{dimensions: dimensions}
+func newImageRenderer(dimensions DimensionsProvider, variants VariantsProvider) *imageRenderer {
+	return &imageRenderer{dimensions: dimensions, variants: variants}
 }
+
+// articleSizes is the responsive sizes attribute used for body images.
+// "672px" matches Tailwind's max-w-2xl (the article container in
+// layout.html); below 768px the image takes the full viewport width.
+// If the article width ever changes, update this together.
+const articleSizes = "(max-width: 768px) 100vw, 672px"
 
 func (r *imageRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
 	reg.Register(ast.KindImage, r.renderImage)
@@ -46,12 +53,24 @@ func (r *imageRenderer) renderImage(w util.BufWriter, source []byte, node ast.No
 	}
 	n := node.(*ast.Image)
 
+	// Pick the URL for the src attribute: when WebP variants exist we use
+	// the middle width as the legacy-client default; otherwise the
+	// original. Variants are also written out as a srcset further down.
+	var vs []Variant
+	if r.variants != nil {
+		vs = r.variants.Variants(string(n.Destination))
+	}
+	srcURL := n.Destination
+	if len(vs) > 0 {
+		srcURL = []byte(vs[len(vs)/2].URL)
+	}
+
 	_, _ = w.WriteString(`<img src="`)
 	// Mirror goldmark's safety: only emit the URL when it's not classified
 	// as a dangerous scheme. bluemonday will sanitize again downstream,
 	// but defense in depth is cheap here.
-	if !ghtml.IsDangerousURL(n.Destination) {
-		_, _ = w.Write(util.EscapeHTML(util.URLEscape(n.Destination, true)))
+	if !ghtml.IsDangerousURL(srcURL) {
+		_, _ = w.Write(util.EscapeHTML(util.URLEscape(srcURL, true)))
 	}
 	_, _ = w.WriteString(`" alt="`)
 	_, _ = w.Write(util.EscapeHTML(collectImageAltText(n, source)))
@@ -60,6 +79,22 @@ func (r *imageRenderer) renderImage(w util.BufWriter, source []byte, node ast.No
 	if n.Title != nil {
 		_, _ = w.WriteString(` title="`)
 		_, _ = w.Write(util.EscapeHTML(n.Title))
+		_ = w.WriteByte('"')
+	}
+
+	if len(vs) > 0 {
+		_, _ = w.WriteString(` srcset="`)
+		for i, v := range vs {
+			if i > 0 {
+				_, _ = w.WriteString(", ")
+			}
+			_, _ = w.Write(util.EscapeHTML(util.URLEscape([]byte(v.URL), true)))
+			_, _ = w.WriteString(" ")
+			_, _ = w.WriteString(strconv.Itoa(v.Width))
+			_, _ = w.WriteString("w")
+		}
+		_, _ = w.WriteString(`" sizes="`)
+		_, _ = w.WriteString(articleSizes)
 		_ = w.WriteByte('"')
 	}
 
