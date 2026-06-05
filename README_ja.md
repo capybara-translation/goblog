@@ -312,6 +312,25 @@ sudo systemctl restart goblog
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
+### 既存画像のWebP派生バックフィル（初回のみ）
+
+`make deploy` は `regenerate-variants` バイナリを配置するだけで、**自動実行はしません**。新規アップロードはアップロードハンドラが派生 WebP をその場で生成しますが、派生画像パイプラインが導入される前にアップロード済みの画像（および将来新しい幅を追加した時の既存画像）は、手動で 1 回だけバックフィルする必要があります。
+
+```bash
+# 実行中のサービスが使っている UPLOAD_DIR を確認する（goblog.service の
+# Environment= 行で設定されている値）。CLI には同じディレクトリを渡す。
+sudo systemctl show goblog -p Environment
+
+# 確認した値と同じ UPLOAD_DIR を渡して実行。WalkDir でサブディレクトリ
+# まで降りるため、/uploads/ogp-cache/ のリンクカード画像もバックフィル
+# 対象に含まれる。
+sudo UPLOAD_DIR=/opt/goblog/data/uploads /opt/goblog/bin/regenerate-variants
+```
+
+このコマンドは idempotent（`-480w.webp` / `-800w.webp` / `-1200w.webp` 派生がすでに揃っている画像はスキップ）なので、途中で失敗したり、後から再デプロイした後でも安全に再実行できます。終了コードが非ゼロのときは少なくとも 1 ファイル失敗しているので、stderr に出ている `FAIL` 行を確認してください。
+
+バックフィル後の `goblog` 再起動は不要です。レンダラの派生キャッシュは画像ごとに初回リクエスト時に作られるため、バックフィル完了後の次のページ閲覧から新しい派生が自動的に使われます。
+
 ## 利用可能なMakeコマンド
 
 開発でよく使うコマンドをMakefileにまとめています：

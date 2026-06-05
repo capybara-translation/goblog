@@ -316,6 +316,25 @@ sudo systemctl restart goblog
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
+### Backfilling WebP Variants for Existing Uploads (one-time)
+
+`make deploy` lays down the `regenerate-variants` binary but does **not** run it automatically. The upload handler resizes every new image into WebP variants on the fly, but images uploaded before the variants pipeline existed (or images already on disk before adding new widths) need to be backfilled once by hand.
+
+```bash
+# Verify the UPLOAD_DIR the running service is using (set in the
+# goblog.service Environment= line) so the CLI walks the same tree.
+sudo systemctl show goblog -p Environment
+
+# Run the backfill with the same UPLOAD_DIR. WalkDir descends into
+# subdirectories too (e.g. /uploads/ogp-cache/), so OGP-cached link-card
+# images are covered as well.
+sudo UPLOAD_DIR=/opt/goblog/data/uploads /opt/goblog/bin/regenerate-variants
+```
+
+The command is idempotent — images whose `-480w.webp` / `-800w.webp` / `-1200w.webp` siblings already exist are skipped, so re-running after a partial run (or after a later deploy) is safe. A non-zero exit code means at least one file failed; check stderr for the per-file `FAIL` lines.
+
+There's no need to restart `goblog` after backfill. The renderer's variants cache is populated on first request per image; a fresh page view after backfill picks up the new files automatically.
+
 ## Available Make Commands
 
 Common development commands are organized in the Makefile:
