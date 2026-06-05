@@ -17,6 +17,7 @@ help:
 	@echo "  make install-admin - Install admin SPA npm dependencies"
 	@echo "  make deps         - Download Go dependencies"
 	@echo "  make adduser      - Add admin user"
+	@echo "  make regenerate-variants - Backfill WebP variants for existing /uploads images"
 	@echo "  make build-admin   - Build admin SPA"
 	@echo "  make build-css     - Build Tailwind CSS for public pages"
 	@echo "  make dev-admin     - Start admin SPA development server"
@@ -66,6 +67,11 @@ adduser:
 	@echo "Adding admin user..."
 	go run cmd/adduser/main.go
 
+# Backfill WebP variants for existing /uploads images (one-shot after deploy)
+regenerate-variants:
+	@echo "Regenerating WebP variants under $${UPLOAD_DIR:-data/uploads}..."
+	go run cmd/regenerate-variants/main.go
+
 # Reset database and insert test data (also rebuilds admin SPA)
 reset: clean build-admin build-css seed
 
@@ -76,14 +82,15 @@ build: install install-admin build-admin build-css
 	go build -o bin/goblog cmd/goblog/main.go
 	go build -o bin/seed cmd/seed/main.go
 	go build -o bin/adduser cmd/adduser/main.go
-	@echo "Build complete: bin/goblog, bin/seed, bin/adduser"
+	go build -o bin/regenerate-variants cmd/regenerate-variants/main.go
+	@echo "Build complete: bin/goblog, bin/seed, bin/adduser, bin/regenerate-variants"
 
 # Build and deploy to /opt/goblog (Linux production server only)
 deploy: build
 	@echo "Deploying to /opt/goblog..."
 	sudo mkdir -p /opt/goblog/bin
-	sudo mv bin/goblog bin/adduser bin/seed /opt/goblog/bin/
-	sudo chown root:root /opt/goblog/bin/goblog /opt/goblog/bin/adduser /opt/goblog/bin/seed
+	sudo mv bin/goblog bin/adduser bin/seed bin/regenerate-variants /opt/goblog/bin/
+	sudo chown root:root /opt/goblog/bin/goblog /opt/goblog/bin/adduser /opt/goblog/bin/seed /opt/goblog/bin/regenerate-variants
 	sudo systemctl daemon-reload
 	sudo systemctl restart goblog
 	@echo "Deploy complete"

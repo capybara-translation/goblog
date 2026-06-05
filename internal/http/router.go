@@ -42,8 +42,13 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 	// each save so the first public-page render avoids a disk hit.
 	dimensions := service.NewDiskDimensionsService(uploadDir)
 
+	// Shared WebP variants cache. The renderer asks it for the set of
+	// "-Nw.webp" siblings of each /uploads/<file> URL to compose srcset.
+	// The upload handler generates the variants in a background goroutine.
+	variants := service.NewDiskVariantsService(uploadDir)
+
 	// Initialize public page handlers (using embedded templates)
-	publicHandlers := NewPublicHandlers(postService, postViewService, ogpService, authService, secureCookie, blogTitle, baseURL, postsPerPage, templatesFS, dimensions)
+	publicHandlers := NewPublicHandlers(postService, postViewService, ogpService, authService, secureCookie, blogTitle, baseURL, postsPerPage, templatesFS, dimensions, variants)
 
 	// Display custom 404 page for non-existent routes
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -116,8 +121,8 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 	protectedAPI.HandleFunc("/posts/{id}/unpin", apiHandlers.HandleUnpinPost).Methods("POST")
 	protectedAPI.HandleFunc("/tags", apiHandlers.HandleGetTags).Methods("GET")
 
-	// Markdown preview (with OGP link card support + width/height hints)
-	previewHandler := NewPreviewHandler(ogpService, dimensions)
+	// Markdown preview (with OGP link card support + width/height + srcset)
+	previewHandler := NewPreviewHandler(ogpService, dimensions, variants)
 	protectedAPI.HandleFunc("/markdown/preview", previewHandler.HandlePreview).Methods("POST")
 
 	// Image upload
@@ -130,11 +135,12 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 func NewRouterWithTemplates(postService service.PostService, postViewService service.PostViewService, authService service.AuthService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, templatePattern string, uploadDir string, maxUploadSize int64, postsPerPage int) *mux.Router {
 	r := mux.NewRouter()
 
-	// Shared image-dimensions cache (see NewRouter for rationale).
+	// Shared image-dimensions / variants caches (see NewRouter for rationale).
 	dimensions := service.NewDiskDimensionsService(uploadDir)
+	variants := service.NewDiskVariantsService(uploadDir)
 
 	// Initialize public page handlers (loading templates from filesystem)
-	publicHandlers := NewPublicHandlersFromPath(postService, postViewService, authService, secureCookie, blogTitle, baseURL, templatePattern, postsPerPage, dimensions)
+	publicHandlers := NewPublicHandlersFromPath(postService, postViewService, authService, secureCookie, blogTitle, baseURL, templatePattern, postsPerPage, dimensions, variants)
 
 	// Display custom 404 page for non-existent routes
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -205,8 +211,8 @@ func NewRouterWithTemplates(postService service.PostService, postViewService ser
 	protectedAPI.HandleFunc("/posts/{id}/unpin", apiHandlers.HandleUnpinPost).Methods("POST")
 	protectedAPI.HandleFunc("/tags", apiHandlers.HandleGetTags).Methods("GET")
 
-	// Markdown preview (without OGP support in test mode; dimensions still flow)
-	testPreviewHandler := NewPreviewHandler(nil, dimensions)
+	// Markdown preview (without OGP support in test mode; dimensions + variants still flow)
+	testPreviewHandler := NewPreviewHandler(nil, dimensions, variants)
 	protectedAPI.HandleFunc("/markdown/preview", testPreviewHandler.HandlePreview).Methods("POST")
 
 	// Image upload

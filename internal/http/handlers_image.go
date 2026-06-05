@@ -9,8 +9,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
+	imagepkg "github.com/capybara-translation/goblog/internal/image"
 	"github.com/google/uuid"
 )
 
@@ -26,17 +28,39 @@ type ImageHandlers struct {
 	uploadDir     string
 	maxUploadSize int64
 	primer        DimensionsPrimer // optional; nil disables cache priming
+	// variantSem bounds the number of concurrent variant-generation
+	// goroutines so a burst of uploads cannot peg every CPU core (each
+	// resize chews ~100-500 ms of wall time per width). Buffered to
+	// GOMAXPROCS, so steady-state throughput matches what the box can
+	// actually do.
+	variantSem chan struct{}
+	// variantFn is the function the upload goroutine calls. Production
+	// uses imagepkg.GenerateVariants; tests swap in a stub to verify
+	// wiring without paying for real WebP encodes.
+	variantFn func(path string) error
+	// variantDone, if non-nil, is invoked after each variant attempt
+	// (success, error, or recovered panic). Tests use this to wait for
+	// the background goroutine; production leaves it nil.
+	variantDone func(path string, err error)
 }
 
 // NewImageHandlers creates a new ImageHandlers. primer may be nil; when
 // non-nil, the handler reports width/height of each saved image so the
 // public-page Markdown renderer can emit it without a first-render disk
-// hit.
+// hit. Variant generation runs in a per-upload goroutine bounded by
+// GOMAXPROCS-sized semaphore and protected by a panic recover, so a
+// malicious image or a runaway resize cannot bring down the process.
 func NewImageHandlers(uploadDir string, maxUploadSize int64, primer DimensionsPrimer) *ImageHandlers {
+	procs := runtime.GOMAXPROCS(0)
+	if procs < 1 {
+		procs = 1
+	}
 	return &ImageHandlers{
 		uploadDir:     uploadDir,
 		maxUploadSize: maxUploadSize,
 		primer:        primer,
+		variantSem:    make(chan struct{}, procs),
+		variantFn:     imagepkg.GenerateVariants,
 	}
 }
 
@@ -157,6 +181,19 @@ func (h *ImageHandlers) HandleUploadImage(w http.ResponseWriter, r *http.Request
 		}
 	}
 
+	// Resize WebP variants in the background so the editor isn't kept
+	// waiting on encoding (480w + 800w + 1200w of a phone-camera photo
+	// is a few hundred milliseconds of CPU). The renderer falls back to
+	// the original src until the variants land, so a slow goroutine just
+	// means missing the srcset on the first few page views.
+	//
+	// Two safeties:
+	//   * variantSem bounds concurrency to GOMAXPROCS so a burst of
+	//     uploads can't peg every core.
+	//   * recover() turns a hostile image's decoder panic into a logged
+	//     error instead of taking down the process.
+	go h.runVariantGeneration(safePath)
+
 	// Return response
 	response := ImageUploadResponse{
 		URL:      uploadURL,
@@ -164,6 +201,30 @@ func (h *ImageHandlers) HandleUploadImage(w http.ResponseWriter, r *http.Request
 	}
 
 	writeJSON(w, http.StatusCreated, response)
+}
+
+// runVariantGeneration is the body of the per-upload goroutine. It is
+// a separate method to keep HandleUploadImage readable and to give the
+// test build a clean place to hang assertions via variantDone.
+func (h *ImageHandlers) runVariantGeneration(path string) {
+	var err error
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("variant generation panic for %s: %v", path, r)
+			err = fmt.Errorf("panic: %v", r)
+		}
+		if h.variantDone != nil {
+			h.variantDone(path, err)
+		}
+	}()
+
+	h.variantSem <- struct{}{}
+	defer func() { <-h.variantSem }()
+
+	err = h.variantFn(path)
+	if err != nil {
+		log.Printf("variant generation failed for %s: %v", path, err)
+	}
 }
 
 // validateMagicBytes validates the magic bytes of a file
