@@ -45,8 +45,8 @@ func TestReactionRepository_AddAndSummaries(t *testing.T) {
 	if len(summaries) != 4 {
 		t.Fatalf("expected 4 active summaries, got %d", len(summaries))
 	}
-	if summaries[0].ID != 1 || summaries[0].Count != 1 || !summaries[0].Reacted {
-		t.Fatalf("type 1 should have count=1 reacted=true, got %+v", summaries[0])
+	if summaries[0].Emoji != "👍" || summaries[0].Count != 1 || !summaries[0].Reacted {
+		t.Fatalf("first active type (👍) should have count=1 reacted=true, got %+v", summaries[0])
 	}
 	if summaries[1].Count != 0 || summaries[1].Reacted {
 		t.Fatalf("type 2 should have count=0 reacted=false, got %+v", summaries[1])
@@ -87,6 +87,30 @@ func TestReactionRepository_Remove(t *testing.T) {
 	}
 	if summaries[0].Count != 0 || summaries[0].Reacted {
 		t.Fatalf("after remove expected count=0 reacted=false, got %+v", summaries[0])
+	}
+}
+
+func TestReactionRepository_EmptyVisitorAndNoReactions(t *testing.T) {
+	db := setupReactionTestDB(t)
+	defer db.Close()
+	r := NewReactionRepository(db)
+
+	// Query with an empty visitorKey before any Add calls.
+	summaries, err := r.FindSummariesByPostID(1, "")
+	if err != nil {
+		t.Fatalf("FindSummaries failed: %v", err)
+	}
+	// All 4 active types must be returned even when the post has no reactions.
+	if len(summaries) != 4 {
+		t.Fatalf("expected 4 active summaries, got %d", len(summaries))
+	}
+	for _, s := range summaries {
+		if s.Count != 0 {
+			t.Errorf("emoji %s: expected count=0, got %d", s.Emoji, s.Count)
+		}
+		if s.Reacted {
+			t.Errorf("emoji %s: expected reacted=false for empty visitorKey, got true", s.Emoji)
+		}
 	}
 }
 

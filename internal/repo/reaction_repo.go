@@ -20,6 +20,7 @@ type ReactionRepository interface {
 	Add(postID, reactionTypeID int64, visitorKey string) error
 
 	// Remove deletes a visitor's reaction of the given type on the post.
+	// It is a no-op (no error) if no matching reaction exists.
 	Remove(postID, reactionTypeID int64, visitorKey string) error
 
 	// IsActiveType reports whether the reaction type exists and is active.
