@@ -113,7 +113,7 @@ func main() {
 	defer database.Close()
 
 	// Run migrations (from embedded files)
-	if err := db.RunMigrations(database, goblog.Migrations, "migrations/001_create_posts.sql", "migrations/002_create_users.sql", "migrations/003_add_is_pinned.sql"); err != nil {
+	if err := db.RunMigrations(database, goblog.Migrations, goblog.MigrationFiles...); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: Failed to run migrations: %v\n", err)
 		os.Exit(1)
 	}
