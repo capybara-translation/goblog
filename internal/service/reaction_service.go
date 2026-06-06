@@ -69,6 +69,10 @@ func (s *reactionService) GetReactionsForPost(postID int64, visitorKey string) (
 	return s.repo.FindSummariesByPostID(postID, visitorKey)
 }
 
+// GetPostReactions resolves the slug (published only) and returns summaries.
+// An empty visitorKey is intentionally allowed here: this is a public read path
+// where the post is already published; an empty key simply yields reacted=false
+// for every reaction type and does not constitute an information leak.
 func (s *reactionService) GetPostReactions(slug, visitorKey string) ([]*domain.PostReactionSummary, error) {
 	post, err := s.resolvePublished(slug)
 	if err != nil {

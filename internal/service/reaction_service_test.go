@@ -38,13 +38,13 @@ func (m *mockReactionRepo) IsActiveType(reactionTypeID int64) (bool, error) {
 	return m.isActive, nil
 }
 
-func publishedPost() *domain.Post {
+func reactionTestPost() *domain.Post {
 	return &domain.Post{ID: 1, Slug: "p1", Status: domain.PostStatusPublished}
 }
 
 func TestReactionService_AddReaction_Success(t *testing.T) {
 	repo := &mockReactionRepo{isActive: true, summaries: []*domain.PostReactionSummary{{ID: 1, Count: 1, Reacted: true}}}
-	svc := NewReactionService(&mockReactionPostLookup{post: publishedPost()}, repo)
+	svc := NewReactionService(&mockReactionPostLookup{post: reactionTestPost()}, repo)
 
 	got, err := svc.AddReaction("p1", 1, "visitor-key")
 	if err != nil {
@@ -73,7 +73,7 @@ func TestReactionService_AddReaction_PostNotFound(t *testing.T) {
 
 func TestReactionService_AddReaction_InactiveType(t *testing.T) {
 	repo := &mockReactionRepo{isActive: false}
-	svc := NewReactionService(&mockReactionPostLookup{post: publishedPost()}, repo)
+	svc := NewReactionService(&mockReactionPostLookup{post: reactionTestPost()}, repo)
 
 	_, err := svc.AddReaction("p1", 999, "visitor-key")
 	if !errors.Is(err, ErrReactionTypeInactive) {
@@ -86,7 +86,7 @@ func TestReactionService_AddReaction_InactiveType(t *testing.T) {
 
 func TestReactionService_AddReaction_EmptyVisitor(t *testing.T) {
 	repo := &mockReactionRepo{isActive: true}
-	svc := NewReactionService(&mockReactionPostLookup{post: publishedPost()}, repo)
+	svc := NewReactionService(&mockReactionPostLookup{post: reactionTestPost()}, repo)
 
 	_, err := svc.AddReaction("p1", 1, "")
 	if !errors.Is(err, ErrReactionVisitorEmpty) {
@@ -96,7 +96,7 @@ func TestReactionService_AddReaction_EmptyVisitor(t *testing.T) {
 
 func TestReactionService_RemoveReaction_Success(t *testing.T) {
 	repo := &mockReactionRepo{summaries: []*domain.PostReactionSummary{{ID: 1, Count: 0}}}
-	svc := NewReactionService(&mockReactionPostLookup{post: publishedPost()}, repo)
+	svc := NewReactionService(&mockReactionPostLookup{post: reactionTestPost()}, repo)
 
 	_, err := svc.RemoveReaction("p1", 1, "visitor-key")
 	if err != nil {
@@ -109,7 +109,7 @@ func TestReactionService_RemoveReaction_Success(t *testing.T) {
 
 func TestReactionService_RemoveReaction_EmptyVisitor(t *testing.T) {
 	repo := &mockReactionRepo{}
-	svc := NewReactionService(&mockReactionPostLookup{post: publishedPost()}, repo)
+	svc := NewReactionService(&mockReactionPostLookup{post: reactionTestPost()}, repo)
 
 	_, err := svc.RemoveReaction("p1", 1, "")
 	if !errors.Is(err, ErrReactionVisitorEmpty) {
