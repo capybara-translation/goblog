@@ -28,9 +28,14 @@
     }
   };
 
+  let seq = 0;
   const send = async (url, method) => {
+    const mySeq = ++seq;
     const res = await fetch(url, { method, headers: HEADERS, credentials: "same-origin" });
-    if (res.ok) apply((await res.json()).reactions);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (mySeq !== seq) return; // superseded by a newer request; don't roll back
+    apply(data.reactions);
   };
 
   // On load: fetch reacted state (and refreshed counts). This also issues the
