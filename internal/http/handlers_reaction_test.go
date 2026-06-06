@@ -194,3 +194,32 @@ func TestReactionHandler_Add_RateLimited_429(t *testing.T) {
 		t.Fatalf("second request expected 429, got %d", code)
 	}
 }
+
+func TestReactionHandler_Remove_RateLimited_429(t *testing.T) {
+	svc := &mockReactionService{
+		remove: func(slug string, typeID int64, vk string) ([]*domain.PostReactionSummary, error) {
+			return []*domain.PostReactionSummary{}, nil
+		},
+	}
+	h := NewReactionHandlers(svc, false, nil)
+	// Non-zero window so the second call within the window is deterministically blocked.
+	h.limiter = newIPRateLimiter(1, time.Hour)
+	r := mux.NewRouter()
+	sub := r.PathPrefix("/api/v1/posts/{slug}/reactions").Subrouter()
+	sub.HandleFunc("/{reactionTypeID:[0-9]+}", h.HandleRemove).Methods("DELETE")
+
+	doDelete := func() int {
+		req := httptest.NewRequest("DELETE", "/api/v1/posts/p1/reactions/1", nil)
+		req.RemoteAddr = "9.9.9.9:1111"
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	if code := doDelete(); code != http.StatusOK {
+		t.Fatalf("first request expected 200, got %d", code)
+	}
+	if code := doDelete(); code != http.StatusTooManyRequests {
+		t.Fatalf("second request expected 429, got %d", code)
+	}
+}

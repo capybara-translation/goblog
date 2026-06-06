@@ -34,6 +34,9 @@ type ReactionHandlers struct {
 	service        service.ReactionService
 	secureCookie   bool
 	trustedProxies []*net.IPNet
+	// limiter is intentionally shared between HandleAdd and HandleRemove so the
+	// combined write rate per IP is bounded to reactionRateLimit/reactionRateWindow
+	// regardless of which verb is used.
 	limiter        *ipRateLimiter
 }
 
@@ -138,6 +141,9 @@ func (h *ReactionHandlers) writeError(w http.ResponseWriter, err error) {
 	case errors.Is(err, service.ErrReactionTypeInactive):
 		respondJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid reaction type"})
 	case errors.Is(err, service.ErrReactionVisitorEmpty):
+		// Unreachable from these handlers: visitorKey() always returns a non-empty
+		// SHA-256 hash because GenerateRawToken panics on CSPRNG failure rather than
+		// returning an empty string. Kept as a defensive mapping for any future caller.
 		respondJSON(w, http.StatusBadRequest, ErrorResponse{Error: "missing visitor"})
 	default:
 		log.Printf("reaction handler error: %v", err)
