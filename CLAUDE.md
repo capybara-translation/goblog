@@ -254,7 +254,7 @@ func (m *mockPostRepository) FindAll(status *domain.PostStatus, limit, offset in
 
 ### 7. 記事リアクション
 - **匿名識別**: `reaction_visitor` Cookie（32 バイト乱数、HttpOnly、SameSite=Lax、400 日）。DB には raw 値を保存せず SHA-256 ハッシュ（visitor_key）のみ。
-- **CSRF**: 公開状態変更 API（POST/DELETE）は `X-Requested-With` ヘッダ必須。cross-site form / simple request を遮断する。Double-Submit Cookie はこの機能には過剰として不採用。
+- **CSRF**: 公開状態変更 API（POST/DELETE）は `X-Requested-With` ヘッダ必須。cross-site form / simple request を遮断する。Double-Submit Cookie はこの機能には過剰として不採用。CORS を導入する際は、リアクション API を `Access-Control-Allow-Headers` の許可対象から除外するか、Origin チェックを追加すること（X-Requested-With 防御はブラウザの preflight 強制に依存しているため、CORS を緩めると突破されうる）。
 - **レート制限**: IP 単位 30 回/分（インメモリ・単一インスタンス前提）。複数インスタンス化時は Redis 等の共有ストアへの移行が必要。
 - **CDN 注意**: リアクション GET エンドポイントは `reaction_visitor` の Set-Cookie 副作用を持つためキャッシュ対象外にすべき。件数の SSR は visitor 非依存だが reacted 状態は JS で付与するためページ自体のキャッシュ性は変えない（Remember me の CDN 注意と同様）。
 
