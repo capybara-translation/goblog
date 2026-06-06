@@ -2,10 +2,7 @@ package auth
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/base64"
-	"encoding/hex"
 	"log"
 	"strings"
 	"time"
@@ -47,34 +44,9 @@ func GenerateSelector() string {
 	return base64.URLEncoding.EncodeToString(b)
 }
 
-// GenerateRawToken returns 32 cryptographically random bytes, base64-url
-// encoded. The raw token is the secret; only its hash is stored.
-func GenerateRawToken() string {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		panic("auth: rand.Read failed for raw token: " + err.Error())
-	}
-	return base64.URLEncoding.EncodeToString(b)
-}
-
-// HashToken hashes a raw token with SHA-256 and returns its hex encoding.
-// SHA-256 is sufficient here: the raw token has 256 bits of entropy so a
-// brute-force preimage attack is infeasible even without bcrypt's slowness.
-func HashToken(raw string) string {
-	sum := sha256.Sum256([]byte(raw))
-	return hex.EncodeToString(sum[:])
-}
-
-// ConstantTimeEqual reports whether a and b are equal, comparing in constant
-// time for equal-length inputs. crypto/subtle.ConstantTimeCompare returns
-// immediately when the lengths differ, so the comparison is only constant-time
-// when a and b have the same length. That holds for the intended use here:
-// both operands are HashToken outputs (fixed-length hex-encoded SHA-256), so
-// the length is constant and not secret, and the prefix-match timing channel
-// is what we need to close.
-func ConstantTimeEqual(a, b string) bool {
-	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
-}
+// GenerateRawToken, HashToken, and ConstantTimeEqual — the general token
+// primitives the remember-me scheme also relies on — live in token.go so they
+// can be shared without implying remember-me specificity.
 
 // EncodeRememberCookie builds the cookie value: "<selector>:<raw_token>".
 func EncodeRememberCookie(selector, rawToken string) string {
