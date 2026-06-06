@@ -26,6 +26,34 @@
         </footer>
     </article>
 
+    {{if .Reactions}}
+    <style>
+      #post-reactions .reaction-active {
+        border-color: #6b7280;
+        background-color: #e5e7eb;
+        font-weight: 600;
+      }
+      #post-reactions .reaction-btn[disabled] { opacity: 0.5; cursor: default; }
+    </style>
+    <section id="post-reactions" data-post-slug="{{.Post.Slug}}"
+             class="bg-primary-100 rounded-lg shadow-sm p-5">
+        <h3 class="text-sm font-sans font-semibold mb-3 text-primary-600">この記事へのリアクション</h3>
+        <div class="flex flex-wrap gap-2">
+            {{range .Reactions}}
+            <button type="button"
+                    class="reaction-btn inline-flex items-center gap-1 rounded-full border border-primary-200 px-3 py-1 text-sm font-sans text-primary-700 hover:bg-primary-200 transition-colors"
+                    data-reaction-id="{{.ID}}"
+                    aria-pressed="false"
+                    title="{{.Label}}">
+                <span class="reaction-emoji">{{.Emoji}}</span>
+                <span class="reaction-count">{{.Count}}</span>
+            </button>
+            {{end}}
+        </div>
+    </section>
+    <script src="/static/js/reactions.js" defer></script>
+    {{end}}
+
     <nav class="flex justify-center">
         <a href="/posts" class="inline-flex items-center text-primary-600 hover:text-primary-800 font-sans text-sm font-medium transition-colors">
             <svg class="mr-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

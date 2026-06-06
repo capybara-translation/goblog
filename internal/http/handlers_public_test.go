@@ -13,6 +13,7 @@ import (
 
 	"github.com/capybara-translation/goblog/internal/domain"
 	"github.com/capybara-translation/goblog/internal/service"
+	"github.com/gorilla/mux"
 )
 
 const (
@@ -2366,6 +2367,57 @@ func TestHandleHome_PostsPerPageIsConfigurable(t *testing.T) {
 	wantOffset := (3 - 1) * customPerPage
 	if gotOffset != wantOffset {
 		t.Errorf("offset = %d, want %d", gotOffset, wantOffset)
+	}
+}
+
+// TestHandlePostDetail_RendersReactionCounts verifies that when a reaction
+// service is wired, HandlePostDetail renders the reaction UI block (SSR).
+func TestHandlePostDetail_RendersReactionCounts(t *testing.T) {
+	publishedAt := time.Now()
+	postSvc := &mockPostService{
+		getPostBySlugFunc: func(slug string) (*domain.Post, error) {
+			if slug == "p1" {
+				return &domain.Post{
+					ID:          1,
+					Title:       "Test Reactions Post",
+					Slug:        "p1",
+					Content:     "body",
+					Status:      domain.PostStatusPublished,
+					PublishedAt: &publishedAt,
+				}, nil
+			}
+			return nil, nil
+		},
+	}
+	reactionSvc := &mockReactionService{
+		getForPost: func(postID int64, vk string) ([]*domain.PostReactionSummary, error) {
+			return []*domain.PostReactionSummary{
+				{ID: 1, Emoji: "👍", Label: "いいね", Count: 7, Reacted: false},
+			}, nil
+		},
+	}
+
+	h := NewPublicHandlersFromPath(postSvc, nil, reactionSvc, nil, testSecureCookie, testBlogTitle, testBaseURL, testTemplatePattern, testPostsPerPage, nil, nil)
+
+	r := mux.NewRouter()
+	r.HandleFunc("/posts/{slug}", h.HandlePostDetail).Methods("GET")
+
+	req := httptest.NewRequest(http.MethodGet, "/posts/p1", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d\nbody: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `id="post-reactions"`) {
+		t.Errorf("expected body to contain id=\"post-reactions\"\nbody: %s", body)
+	}
+	if !strings.Contains(body, "👍") {
+		t.Errorf("expected body to contain emoji 👍\nbody: %s", body)
+	}
+	if !strings.Contains(body, ">7<") {
+		t.Errorf("expected body to contain reaction count >7<\nbody: %s", body)
 	}
 }
 
