@@ -34,7 +34,7 @@ func (n noDirListingFS) Open(name string) (http.File, error) {
 }
 
 // NewRouter creates the application router using embedded resources
-func NewRouter(postService service.PostService, postViewService service.PostViewService, authService service.AuthService, ogpService service.OGPService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, uploadDir string, maxUploadSize int64, postsPerPage int, templatesFS, staticFS embed.FS) *mux.Router {
+func NewRouter(postService service.PostService, postViewService service.PostViewService, authService service.AuthService, ogpService service.OGPService, reactionService service.ReactionService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, uploadDir string, maxUploadSize int64, postsPerPage int, templatesFS, staticFS embed.FS) *mux.Router {
 	r := mux.NewRouter()
 
 	// Shared image-dimensions cache. The Markdown renderer asks it for
@@ -48,7 +48,7 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 	variants := service.NewDiskVariantsService(uploadDir)
 
 	// Initialize public page handlers (using embedded templates)
-	publicHandlers := NewPublicHandlers(postService, postViewService, ogpService, authService, secureCookie, blogTitle, baseURL, postsPerPage, templatesFS, dimensions, variants)
+	publicHandlers := NewPublicHandlers(postService, postViewService, ogpService, reactionService, authService, secureCookie, blogTitle, baseURL, postsPerPage, templatesFS, dimensions, variants)
 
 	// Display custom 404 page for non-existent routes
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -100,6 +100,14 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 	api.HandleFunc("/health", HandleHealth).Methods("GET")
 	api.HandleFunc("/auth/login", authHandlers.HandleLogin).Methods("POST")
 
+	// 公開リアクション API（認証不要、X-Requested-With + IP レート制限で保護）
+	reactionHandlers := NewReactionHandlers(reactionService, secureCookie, trustedProxies)
+	reactions := api.PathPrefix("/posts/{slug}/reactions").Subrouter()
+	reactions.Use(RequireXRequestedWith())
+	reactions.HandleFunc("", reactionHandlers.HandleGet).Methods("GET")
+	reactions.HandleFunc("/{reactionTypeID:[0-9]+}", reactionHandlers.HandleAdd).Methods("POST")
+	reactions.HandleFunc("/{reactionTypeID:[0-9]+}", reactionHandlers.HandleRemove).Methods("DELETE")
+
 	// 認証が必要なエンドポイント
 	protectedAPI := api.PathPrefix("").Subrouter()
 	protectedAPI.Use(AuthMiddleware(currentUserHelper))
@@ -140,7 +148,7 @@ func NewRouterWithTemplates(postService service.PostService, postViewService ser
 	variants := service.NewDiskVariantsService(uploadDir)
 
 	// Initialize public page handlers (loading templates from filesystem)
-	publicHandlers := NewPublicHandlersFromPath(postService, postViewService, authService, secureCookie, blogTitle, baseURL, templatePattern, postsPerPage, dimensions, variants)
+	publicHandlers := NewPublicHandlersFromPath(postService, postViewService, nil, authService, secureCookie, blogTitle, baseURL, templatePattern, postsPerPage, dimensions, variants)
 
 	// Display custom 404 page for non-existent routes
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {

@@ -28,6 +28,7 @@ type PublicHandlers struct {
 	postService       service.PostService
 	postViewService   service.PostViewService
 	ogpService        service.OGPService
+	reactionService   service.ReactionService // Nil disables the SSR reaction block.
 	currentUserHelper *CurrentUserHelper // Nil disables admin-only UI (edit links, etc.); resolves session-or-remember-token.
 	blogTitle         string // Blog title
 	baseURL           string // Site base URL (for sitemap)
@@ -221,7 +222,7 @@ func highlightHTMLContent(htmlContent string, query string) string {
 // dimensions and variants may be nil; when non-nil, the rendered <img>
 // tags carry width/height and srcset/sizes attributes resolved from the
 // upload directory on disk.
-func NewPublicHandlers(postService service.PostService, postViewService service.PostViewService, ogpService service.OGPService, authService service.AuthService, secureCookie bool, blogTitle, baseURL string, postsPerPage int, templatesFS embed.FS, dimensions markdown.DimensionsProvider, variants markdown.VariantsProvider) *PublicHandlers {
+func NewPublicHandlers(postService service.PostService, postViewService service.PostViewService, ogpService service.OGPService, reactionService service.ReactionService, authService service.AuthService, secureCookie bool, blogTitle, baseURL string, postsPerPage int, templatesFS embed.FS, dimensions markdown.DimensionsProvider, variants markdown.VariantsProvider) *PublicHandlers {
 	converter := markdown.NewConverterFor(ogpService, dimensions, variants)
 
 	// Define custom template functions with closure-based markdown functions
@@ -298,6 +299,7 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 		postService:       postService,
 		postViewService:   postViewService,
 		ogpService:        ogpService,
+		reactionService:   reactionService,
 		currentUserHelper: helper,
 		blogTitle:         blogTitle,
 		baseURL:           baseURL,
@@ -312,7 +314,7 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 
 // NewPublicHandlersFromPath creates PublicHandlers by loading templates from the filesystem (for testing).
 // dimensions and variants may be nil.
-func NewPublicHandlersFromPath(postService service.PostService, postViewService service.PostViewService, authService service.AuthService, secureCookie bool, blogTitle, baseURL, templatePattern string, postsPerPage int, dimensions markdown.DimensionsProvider, variants markdown.VariantsProvider) *PublicHandlers {
+func NewPublicHandlersFromPath(postService service.PostService, postViewService service.PostViewService, reactionService service.ReactionService, authService service.AuthService, secureCookie bool, blogTitle, baseURL, templatePattern string, postsPerPage int, dimensions markdown.DimensionsProvider, variants markdown.VariantsProvider) *PublicHandlers {
 	dir := filepath.Dir(templatePattern)
 	layoutPath := filepath.Join(dir, "layout.html")
 
@@ -370,6 +372,7 @@ func NewPublicHandlersFromPath(postService service.PostService, postViewService 
 	return &PublicHandlers{
 		postService:       postService,
 		postViewService:   postViewService,
+		reactionService:   reactionService,
 		currentUserHelper: helper,
 		blogTitle:         blogTitle,
 		baseURL:           baseURL,
@@ -527,6 +530,18 @@ func (h *PublicHandlers) HandlePostDetail(w http.ResponseWriter, r *http.Request
 		}()
 	}
 
+	// Attach reaction summaries for SSR (counts only; visitor-independent so
+	// the page stays cacheable — reacted state is layered on by reactions.js).
+	var reactions []*domain.PostReactionSummary
+	if h.reactionService != nil {
+		summaries, err := h.reactionService.GetReactionsForPost(post.ID, "")
+		if err != nil {
+			log.Printf("failed to get reactions for post %d: %v", post.ID, err)
+		} else {
+			reactions = summaries
+		}
+	}
+
 	data := map[string]any{
 		"SiteTitle":   h.blogTitle,
 		"Post":        post,
@@ -534,6 +549,7 @@ func (h *PublicHandlers) HandlePostDetail(w http.ResponseWriter, r *http.Request
 		"OGP":         h.postOGP(post, r.URL.Path),
 		"Query":       "",
 		"IsAdmin":     h.isAdminRequest(w, r),
+		"Reactions":   reactions,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
