@@ -21,8 +21,6 @@ CREATE TABLE IF NOT EXISTS post_reactions (
     UNIQUE(post_id, reaction_type_id, visitor_key)
 );
 
-CREATE INDEX IF NOT EXISTS idx_post_reactions_post_id
-    ON post_reactions(post_id);
 CREATE INDEX IF NOT EXISTS idx_post_reactions_post_type
     ON post_reactions(post_id, reaction_type_id);
 
