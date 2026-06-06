@@ -1,57 +1,57 @@
 // Progressive enhancement for article reactions. Counts are server-rendered;
 // this script layers on the visitor's reacted state and handles toggling.
-(function () {
+//
+// Baseline: modern browsers. The script relies on fetch/Promise/Element.closest
+// (all ES2015+ Web APIs) and is served as-is (not transpiled), so it is written
+// in ES2015+ syntax to match. It is wrapped in an IIFE to avoid leaking globals.
+(() => {
   "use strict";
 
-  var root = document.getElementById("post-reactions");
+  const root = document.getElementById("post-reactions");
   if (!root) return;
 
-  var slug = root.getAttribute("data-post-slug");
+  const slug = root.getAttribute("data-post-slug");
   if (!slug) return;
 
-  var base = "/api/v1/posts/" + encodeURIComponent(slug) + "/reactions";
-  var HEADERS = { "X-Requested-With": "XMLHttpRequest" };
+  const base = `/api/v1/posts/${encodeURIComponent(slug)}/reactions`;
+  const HEADERS = { "X-Requested-With": "XMLHttpRequest" };
 
-  function apply(reactions) {
+  const apply = (reactions) => {
     if (!reactions) return;
-    reactions.forEach(function (r) {
-      var btn = root.querySelector('.reaction-btn[data-reaction-id="' + r.id + '"]');
-      if (!btn) return;
-      var countEl = btn.querySelector(".reaction-count");
+    for (const r of reactions) {
+      const btn = root.querySelector(`.reaction-btn[data-reaction-id="${r.id}"]`);
+      if (!btn) continue;
+      const countEl = btn.querySelector(".reaction-count");
       if (countEl) countEl.textContent = r.count;
       btn.setAttribute("aria-pressed", r.reacted ? "true" : "false");
       btn.classList.toggle("reaction-active", !!r.reacted);
-    });
-  }
+    }
+  };
+
+  const send = async (url, method) => {
+    const res = await fetch(url, { method, headers: HEADERS, credentials: "same-origin" });
+    if (res.ok) apply((await res.json()).reactions);
+  };
 
   // On load: fetch reacted state (and refreshed counts). This also issues the
   // visitor cookie server-side so the first click is attributed correctly.
-  fetch(base, { headers: HEADERS, credentials: "same-origin" })
-    .then(function (res) { return res.ok ? res.json() : null; })
-    .then(function (data) { if (data) apply(data.reactions); })
-    .catch(function () { /* reactions are non-critical; ignore */ });
+  // Reactions are non-critical, so failures are swallowed (SSR counts remain).
+  send(base, "GET").catch(() => {});
 
-  root.addEventListener("click", function (ev) {
-    var btn = ev.target.closest(".reaction-btn");
+  root.addEventListener("click", async (ev) => {
+    const btn = ev.target.closest(".reaction-btn");
     if (!btn || btn.disabled) return;
 
-    var id = btn.getAttribute("data-reaction-id");
-    var pressed = btn.getAttribute("aria-pressed") === "true";
-    var method = pressed ? "DELETE" : "POST";
+    const id = btn.getAttribute("data-reaction-id");
+    const method = btn.getAttribute("aria-pressed") === "true" ? "DELETE" : "POST";
 
     btn.disabled = true;
-    fetch(base + "/" + encodeURIComponent(id), {
-      method: method,
-      headers: HEADERS,
-      credentials: "same-origin"
-    })
-      .then(function (res) { return res.ok ? res.json() : null; })
-      .then(function (data) {
-        if (data) apply(data.reactions);
-        btn.disabled = false;
-      })
-      .catch(function () {
-        btn.disabled = false; // re-enable even if the request failed
-      });
+    try {
+      await send(`${base}/${encodeURIComponent(id)}`, method);
+    } catch {
+      // Request failed; leave the SSR/previous state in place.
+    } finally {
+      btn.disabled = false;
+    }
   });
 })();
