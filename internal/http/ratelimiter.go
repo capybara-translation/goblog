@@ -44,8 +44,9 @@ func (l *ipRateLimiter) Allow(ip string) bool {
 	defer l.mu.Unlock()
 
 	now := l.now()
-	if w, ok := l.windows[ip]; ok && !now.After(w.resetAt) {
-		// Existing, unexpired window for this IP.
+	if w, ok := l.windows[ip]; ok && now.Before(w.resetAt) {
+		// Existing, unexpired window for this IP. The window is active while
+		// now < resetAt; at exactly resetAt it is considered expired (see below).
 		if w.count >= l.limit {
 			return false
 		}
@@ -69,10 +70,12 @@ func (l *ipRateLimiter) Allow(ip string) bool {
 	return true
 }
 
-// sweepExpired removes windows whose reset time has passed. Caller holds l.mu.
+// sweepExpired removes windows whose reset time has passed. A window is expired
+// once now >= resetAt (i.e. not before it), matching the boundary used by Allow.
+// Caller holds l.mu.
 func (l *ipRateLimiter) sweepExpired(now time.Time) {
 	for ip, w := range l.windows {
-		if now.After(w.resetAt) {
+		if !now.Before(w.resetAt) {
 			delete(l.windows, ip)
 		}
 	}

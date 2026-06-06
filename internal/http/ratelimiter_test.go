@@ -6,6 +6,22 @@ import (
 	"time"
 )
 
+func TestIPRateLimiter_ExpiresExactlyAtResetAt(t *testing.T) {
+	now := time.Unix(1000, 0)
+	l := newIPRateLimiter(1, time.Minute)
+	l.now = func() time.Time { return now }
+
+	if !l.Allow("1.2.3.4") {
+		t.Fatal("first request should be allowed")
+	}
+	// At exactly resetAt (now + window) the window is expired, so a new window
+	// starts and the request is allowed — not blocked for the boundary instant.
+	now = now.Add(time.Minute)
+	if !l.Allow("1.2.3.4") {
+		t.Fatal("request at exactly resetAt should start a fresh window (allowed)")
+	}
+}
+
 func TestIPRateLimiter_HardCap(t *testing.T) {
 	now := time.Unix(1000, 0)
 	l := newIPRateLimiter(1, time.Minute)
