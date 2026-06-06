@@ -45,9 +45,11 @@
                     class="reaction-btn inline-flex items-center gap-1 rounded-full border border-primary-200 px-3 py-1 text-sm font-sans text-primary-700 hover:bg-primary-200 transition-colors"
                     data-reaction-id="{{.ID}}"
                     aria-pressed="false"
+                    aria-label="{{.Label}}"
+                    aria-describedby="reaction-count-{{.ID}}"
                     title="{{.Label}}">
-                <span class="reaction-emoji">{{.Emoji}}</span>
-                <span class="reaction-count">{{.Count}}</span>
+                <span class="reaction-emoji" aria-hidden="true">{{.Emoji}}</span>
+                <span class="reaction-count" id="reaction-count-{{.ID}}" aria-live="polite">{{.Count}}</span>
             </button>
             {{end}}
         </div>

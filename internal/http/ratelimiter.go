@@ -5,9 +5,13 @@ import (
 	"time"
 )
 
-// maxTrackedIPs bounds the limiter map. When exceeded on insert we sweep
-// expired windows. This is a single-instance, in-memory limiter; a multi-
-// instance deployment would move this to a shared store (e.g. Redis).
+// maxTrackedIPs is a hard cap on the limiter map size. When a new IP would push
+// the map past it, we first reclaim expired windows; if the map is still full
+// (a flood of many distinct, not-yet-expired IPs within one window), we refuse
+// to track further new IPs so the map cannot grow without bound. Already-tracked
+// IPs keep being rate-limited normally. This is a single-instance, in-memory
+// limiter; a multi-instance deployment would move this to a shared store
+// (e.g. Redis).
 const maxTrackedIPs = 10000
 
 type rlWindow struct {
@@ -40,18 +44,28 @@ func (l *ipRateLimiter) Allow(ip string) bool {
 	defer l.mu.Unlock()
 
 	now := l.now()
-	w, ok := l.windows[ip]
-	if !ok || now.After(w.resetAt) {
-		if len(l.windows) > maxTrackedIPs {
-			l.sweepExpired(now)
+	if w, ok := l.windows[ip]; ok && !now.After(w.resetAt) {
+		// Existing, unexpired window for this IP.
+		if w.count >= l.limit {
+			return false
 		}
-		l.windows[ip] = &rlWindow{count: 1, resetAt: now.Add(l.window)}
+		w.count++
 		return true
 	}
-	if w.count >= l.limit {
-		return false
+
+	// New IP, or its previous window has expired and is being replaced. Before
+	// inserting, enforce the hard cap on map size to guard against a memory DoS
+	// from a flood of distinct IPs within a single window.
+	if len(l.windows) >= maxTrackedIPs {
+		l.sweepExpired(now)
+		if len(l.windows) >= maxTrackedIPs {
+			// Table still full of live windows — nothing to reclaim. Refuse to
+			// track this new IP rather than grow unbounded. (Already-tracked
+			// IPs above are unaffected.)
+			return false
+		}
 	}
-	w.count++
+	l.windows[ip] = &rlWindow{count: 1, resetAt: now.Add(l.window)}
 	return true
 }
 

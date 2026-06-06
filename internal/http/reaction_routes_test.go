@@ -71,8 +71,9 @@ func TestReactionRoutes_POST_WithXRequestedWith_NotForbidden(t *testing.T) {
 	}
 }
 
-// TestReactionRoutes_GET_WithoutXRequestedWith_NotForbidden verifies that
-// GET bypasses the RequireXRequestedWith middleware (reads are always allowed).
+// TestReactionRoutes_GET_WithoutXRequestedWith_NotForbidden verifies that the
+// RequireXRequestedWith middleware still runs for GET but exempts it (read-only
+// methods are allowed through without the header).
 func TestReactionRoutes_GET_WithoutXRequestedWith_NotForbidden(t *testing.T) {
 	router := buildReactionRoutesRouter()
 
