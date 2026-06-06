@@ -22,6 +22,9 @@ const (
 	// reactionRateLimit / reactionRateWindow bound write requests per IP.
 	reactionRateLimit  = 30
 	reactionRateWindow = 60 * time.Second
+	// reactionReadRateLimit bounds read (GET) requests per IP per reactionRateWindow.
+	// Kept generous so normal browsing is not blocked.
+	reactionReadRateLimit = 120
 )
 
 // reactionListResponse is the JSON envelope for reaction summaries.
@@ -37,7 +40,8 @@ type ReactionHandlers struct {
 	// limiter is intentionally shared between HandleAdd and HandleRemove so the
 	// combined write rate per IP is bounded to reactionRateLimit/reactionRateWindow
 	// regardless of which verb is used.
-	limiter        *ipRateLimiter
+	limiter     *ipRateLimiter
+	readLimiter *ipRateLimiter
 }
 
 // NewReactionHandlers creates ReactionHandlers. trustedProxies are raw strings
@@ -48,6 +52,7 @@ func NewReactionHandlers(reactionService service.ReactionService, secureCookie b
 		secureCookie:   secureCookie,
 		trustedProxies: parseTrustedProxies(trustedProxies),
 		limiter:        newIPRateLimiter(reactionRateLimit, reactionRateWindow),
+		readLimiter:    newIPRateLimiter(reactionReadRateLimit, reactionRateWindow),
 	}
 }
 
@@ -74,6 +79,10 @@ func (h *ReactionHandlers) visitorKey(w http.ResponseWriter, r *http.Request) st
 // HandleGet returns the reaction summaries for a post (issuing a visitor cookie
 // if needed so reacted state is correct on the first interaction).
 func (h *ReactionHandlers) HandleGet(w http.ResponseWriter, r *http.Request) {
+	if !h.allowRead(r) {
+		respondJSON(w, http.StatusTooManyRequests, ErrorResponse{Error: "too many requests"})
+		return
+	}
 	slug := mux.Vars(r)["slug"]
 	vk := h.visitorKey(w, r)
 	summaries, err := h.service.GetPostReactions(slug, vk)
@@ -81,7 +90,7 @@ func (h *ReactionHandlers) HandleGet(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, err)
 		return
 	}
-	respondJSON(w, http.StatusOK, reactionListResponse{Reactions: nonNilSummaries(summaries)})
+	h.respondReactions(w, summaries)
 }
 
 // HandleAdd records a reaction.
@@ -102,7 +111,7 @@ func (h *ReactionHandlers) HandleAdd(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, err)
 		return
 	}
-	respondJSON(w, http.StatusOK, reactionListResponse{Reactions: nonNilSummaries(summaries)})
+	h.respondReactions(w, summaries)
 }
 
 // HandleRemove removes a reaction.
@@ -123,11 +132,22 @@ func (h *ReactionHandlers) HandleRemove(w http.ResponseWriter, r *http.Request) 
 		h.writeError(w, err)
 		return
 	}
-	respondJSON(w, http.StatusOK, reactionListResponse{Reactions: nonNilSummaries(summaries)})
+	h.respondReactions(w, summaries)
 }
 
 func (h *ReactionHandlers) allow(r *http.Request) bool {
 	return h.limiter.Allow(clientIP(r, h.trustedProxies))
+}
+
+func (h *ReactionHandlers) allowRead(r *http.Request) bool {
+	return h.readLimiter.Allow(clientIP(r, h.trustedProxies))
+}
+
+// respondReactions writes reaction summaries as JSON, marked uncacheable
+// because the response can carry a per-visitor Set-Cookie and reacted state.
+func (h *ReactionHandlers) respondReactions(w http.ResponseWriter, summaries []*domain.PostReactionSummary) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	respondJSON(w, http.StatusOK, reactionListResponse{Reactions: nonNilSummaries(summaries)})
 }
 
 func (h *ReactionHandlers) parseTypeID(r *http.Request) (int64, error) {

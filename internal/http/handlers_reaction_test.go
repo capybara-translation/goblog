@@ -195,6 +195,54 @@ func TestReactionHandler_Add_RateLimited_429(t *testing.T) {
 	}
 }
 
+func TestReactionHandler_Get_RateLimited_429(t *testing.T) {
+	svc := &mockReactionService{
+		get: func(slug, vk string) ([]*domain.PostReactionSummary, error) {
+			return []*domain.PostReactionSummary{}, nil
+		},
+	}
+	h := NewReactionHandlers(svc, false, nil)
+	h.readLimiter = newIPRateLimiter(1, time.Hour)
+	r := mux.NewRouter()
+	sub := r.PathPrefix("/api/v1/posts/{slug}/reactions").Subrouter()
+	sub.HandleFunc("", h.HandleGet).Methods("GET")
+
+	doGet := func() int {
+		req := httptest.NewRequest("GET", "/api/v1/posts/p1/reactions", nil)
+		req.RemoteAddr = "9.9.9.9:1111"
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	if code := doGet(); code != http.StatusOK {
+		t.Fatalf("first request expected 200, got %d", code)
+	}
+	if code := doGet(); code != http.StatusTooManyRequests {
+		t.Fatalf("second request expected 429, got %d", code)
+	}
+}
+
+func TestReactionHandler_Get_SetsCacheControl(t *testing.T) {
+	svc := &mockReactionService{
+		get: func(slug, vk string) ([]*domain.PostReactionSummary, error) {
+			return []*domain.PostReactionSummary{}, nil
+		},
+	}
+	router := reactionTestRouter(svc)
+
+	req := httptest.NewRequest("GET", "/api/v1/posts/p1/reactions", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("Cache-Control"); got != "private, no-store" {
+		t.Fatalf("expected Cache-Control: private, no-store, got %q", got)
+	}
+}
+
 func TestReactionHandler_Remove_RateLimited_429(t *testing.T) {
 	svc := &mockReactionService{
 		remove: func(slug string, typeID int64, vk string) ([]*domain.PostReactionSummary, error) {
