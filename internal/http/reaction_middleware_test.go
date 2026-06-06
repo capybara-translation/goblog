@@ -40,16 +40,22 @@ func TestRequireXRequestedWith_AllowsWithHeader(t *testing.T) {
 	}
 }
 
-func TestRequireXRequestedWith_SkipsGet(t *testing.T) {
-	h := RequireXRequestedWith()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
+func TestRequireXRequestedWith_SkipsReadOnlyMethods(t *testing.T) {
+	methods := []string{http.MethodGet, http.MethodHead, http.MethodOptions}
 
-	req := httptest.NewRequest("GET", "/api/v1/posts/p1/reactions", nil) // no header
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
+	for _, method := range methods {
+		t.Run(method, func(t *testing.T) {
+			h := RequireXRequestedWith()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET should bypass the header check, got %d", rec.Code)
+			req := httptest.NewRequest(method, "/api/v1/posts/p1/reactions", nil) // no X-Requested-With
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("%s should bypass the header check, got %d", method, rec.Code)
+			}
+		})
 	}
 }

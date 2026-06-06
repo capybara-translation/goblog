@@ -64,22 +64,6 @@ func parseTrustedProxies(proxies []string) []*net.IPNet {
 	return nets
 }
 
-// isTrustedProxy checks if the given IP address is in the trusted proxy list
-func (h *AuthHandlers) isTrustedProxy(ipStr string) bool {
-	if len(h.trustedProxies) == 0 {
-		return false
-	}
-	ip := net.ParseIP(ipStr)
-	if ip == nil {
-		return false
-	}
-	for _, n := range h.trustedProxies {
-		if n.Contains(ip) {
-			return true
-		}
-	}
-	return false
-}
 
 // LoginRequest is the request body for login
 type LoginRequest struct {
@@ -314,31 +298,10 @@ func (h *AuthHandlers) HandleMe(w http.ResponseWriter, r *http.Request) {
 }
 
 // getClientIP retrieves the client IP address from the request.
-// Only trusts X-Forwarded-For / X-Real-IP headers when the direct connection
-// comes from a trusted proxy (configured via TRUSTED_PROXIES env var).
+// Delegates to the shared clientIP helper (client_ip.go); trusted-proxy
+// gating and XFF/X-Real-IP parsing live there to avoid duplication.
 func (h *AuthHandlers) getClientIP(r *http.Request) string {
-	// Extract IP from RemoteAddr (always available, "IP:port" format)
-	remoteIP := extractIP(r.RemoteAddr)
-
-	// Only use proxy headers if the direct connection is from a trusted proxy
-	if h.isTrustedProxy(remoteIP) {
-		// Check X-Forwarded-For header
-		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			// X-Forwarded-For format is "client, proxy1, proxy2"
-			// The first IP address is the client's IP
-			if idx := strings.Index(xff, ","); idx != -1 {
-				return strings.TrimSpace(xff[:idx])
-			}
-			return strings.TrimSpace(xff)
-		}
-
-		// Check X-Real-IP header (alternative proxy header)
-		if xri := r.Header.Get("X-Real-IP"); xri != "" {
-			return strings.TrimSpace(xri)
-		}
-	}
-
-	return remoteIP
+	return clientIP(r, h.trustedProxies)
 }
 
 // extractIP extracts the IP address from an "IP:port" string
