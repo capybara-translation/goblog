@@ -46,8 +46,12 @@
       credentials: "same-origin"
     })
       .then(function (res) { return res.ok ? res.json() : null; })
-      .then(function (data) { if (data) apply(data.reactions); })
-      .catch(function () { /* ignore; leave SSR state */ })
-      .finally(function () { btn.disabled = false; });
+      .then(function (data) {
+        if (data) apply(data.reactions);
+        btn.disabled = false;
+      })
+      .catch(function () {
+        btn.disabled = false; // re-enable even if the request failed
+      });
   });
 })();

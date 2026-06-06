@@ -2419,6 +2419,49 @@ func TestHandlePostDetail_RendersReactionCounts(t *testing.T) {
 	if !strings.Contains(body, ">7<") {
 		t.Errorf("expected body to contain reaction count >7<\nbody: %s", body)
 	}
+	if !strings.Contains(body, `title="いいね"`) {
+		t.Errorf("expected body to contain title=\"いいね\" (Label rendered into button title attribute)\nbody: %s", body)
+	}
+}
+
+// TestHandlePostDetail_NoReactionBlock_WhenServiceNil verifies that when
+// reactionService is nil, HandlePostDetail does NOT render the reaction block.
+// This locks in the {{if .Reactions}} nil-guard in the template.
+func TestHandlePostDetail_NoReactionBlock_WhenServiceNil(t *testing.T) {
+	publishedAt := time.Now()
+	postSvc := &mockPostService{
+		getPostBySlugFunc: func(slug string) (*domain.Post, error) {
+			if slug == "p1" {
+				return &domain.Post{
+					ID:          1,
+					Title:       "Test Reactions Post",
+					Slug:        "p1",
+					Content:     "body",
+					Status:      domain.PostStatusPublished,
+					PublishedAt: &publishedAt,
+				}, nil
+			}
+			return nil, nil
+		},
+	}
+
+	// nil reactionService — the reactions block must be absent.
+	h := NewPublicHandlersFromPath(postSvc, nil, nil, nil, testSecureCookie, testBlogTitle, testBaseURL, testTemplatePattern, testPostsPerPage, nil, nil)
+
+	r := mux.NewRouter()
+	r.HandleFunc("/posts/{slug}", h.HandlePostDetail).Methods("GET")
+
+	req := httptest.NewRequest(http.MethodGet, "/posts/p1", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d\nbody: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, `id="post-reactions"`) {
+		t.Errorf("expected body NOT to contain id=\"post-reactions\" when reactionService is nil\nbody: %s", body)
+	}
 }
 
 func TestHandleTagPosts_PostsPerPageIsConfigurable(t *testing.T) {
