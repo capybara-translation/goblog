@@ -530,8 +530,12 @@ func (h *PublicHandlers) HandlePostDetail(w http.ResponseWriter, r *http.Request
 		}()
 	}
 
-	// Attach reaction summaries for SSR (counts only; visitor-independent so
-	// the page stays cacheable — reacted state is layered on by reactions.js).
+	// Attach reaction summaries for SSR. Counts are visitor-independent (empty
+	// visitor key => reacted=false everywhere), so they don't add a per-visitor
+	// dimension to the rendered HTML; the per-visitor reacted state is layered
+	// on client-side by reactions.js. (The post page itself is still not blindly
+	// CDN-cacheable — remember-token restore can emit Set-Cookie — but the
+	// reaction block does not make that any worse.)
 	var reactions []*domain.PostReactionSummary
 	if h.reactionService != nil {
 		summaries, err := h.reactionService.GetReactionsForPost(post.ID, "")
