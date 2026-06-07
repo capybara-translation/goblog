@@ -53,7 +53,9 @@ emit_metric() {
 # so those failure paths are covered too; `work` may be unset, hence "${work:-}".
 finish() {
     local rc=$?
-    rm -rf "${work:-}"
+    # Only clean up if mktemp already ran; never call `rm` with an empty path
+    # (the trap can fire before $work is set, e.g. on the S3_BUCKET guard).
+    [ -n "${work:-}" ] && rm -rf "$work"
     if [ "$rc" -ne 0 ]; then
         emit_metric 0
     fi
