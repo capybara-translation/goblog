@@ -2429,8 +2429,10 @@ func TestHandlePostDetail_RendersReactionCounts(t *testing.T) {
 	if !strings.Contains(body, ">7<") {
 		t.Errorf("expected body to contain reaction count >7<\nbody: %s", body)
 	}
-	if !strings.Contains(body, `aria-label="いいね"`) {
-		t.Errorf("expected body to contain aria-label=\"いいね\"\nbody: %s", body)
+	// The reaction type's label is intentionally NOT surfaced in the HTML
+	// (no aria-label / title): emoji interpretation is left to the reader.
+	if strings.Contains(body, "いいね") {
+		t.Errorf("reaction label should not appear in the rendered HTML\nbody: %s", body)
 	}
 }
 
