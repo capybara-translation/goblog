@@ -50,6 +50,11 @@ type PostRepository interface {
 
 	// FindPinnedPublished retrieves pinned published posts
 	FindPinnedPublished() ([]*domain.Post, error)
+
+	// FindPublishedBySlugs returns the published posts matching the given slugs.
+	// Missing or non-published slugs are simply absent from the result. Returns an
+	// empty slice for empty input.
+	FindPublishedBySlugs(slugs []string) ([]*domain.Post, error)
 }
 
 // postRepository is the SQLite implementation of PostRepository
@@ -335,5 +340,31 @@ func (r *postRepository) FindPinnedPublished() ([]*domain.Post, error) {
 		return nil, fmt.Errorf("failed to query pinned posts: %w", err)
 	}
 
+	return posts, nil
+}
+
+// FindPublishedBySlugs returns published posts for the given slugs.
+func (r *postRepository) FindPublishedBySlugs(slugs []string) ([]*domain.Post, error) {
+	if len(slugs) == 0 {
+		return []*domain.Post{}, nil
+	}
+
+	placeholders := make([]string, len(slugs))
+	args := make([]any, len(slugs)+1)
+	for i, s := range slugs {
+		placeholders[i] = "?"
+		args[i] = s
+	}
+	args[len(slugs)] = string(domain.PostStatusPublished)
+
+	query := fmt.Sprintf(
+		"SELECT * FROM posts WHERE slug IN (%s) AND status = ?",
+		strings.Join(placeholders, ","),
+	)
+
+	var posts []*domain.Post
+	if err := r.db.Select(&posts, query, args...); err != nil {
+		return nil, fmt.Errorf("failed to query posts by slugs: %w", err)
+	}
 	return posts, nil
 }

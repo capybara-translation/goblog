@@ -116,6 +116,10 @@ func (m *mockPostRepository) FindPinnedPublished() ([]*domain.Post, error) {
 	return nil, nil
 }
 
+func (m *mockPostRepository) FindPublishedBySlugs(slugs []string) ([]*domain.Post, error) {
+	return []*domain.Post{}, nil
+}
+
 func TestPostService_GetPublishedPosts(t *testing.T) {
 	now := time.Now()
 	publishedPosts := []*domain.Post{

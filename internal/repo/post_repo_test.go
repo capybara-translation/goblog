@@ -1050,3 +1050,93 @@ func TestPostRepository_FindPinnedPublished(t *testing.T) {
 		}
 	})
 }
+
+func TestPostRepository_FindPublishedBySlugs(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	repo := NewPostRepository(db)
+	now := time.Now()
+
+	pub1 := &domain.Post{
+		Title:       "Published One",
+		Slug:        "pub-one",
+		Content:     "c",
+		Status:      domain.PostStatusPublished,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		PublishedAt: &now,
+	}
+	pub2 := &domain.Post{
+		Title:       "Published Two",
+		Slug:        "pub-two",
+		Content:     "c",
+		Status:      domain.PostStatusPublished,
+		CreatedAt:   now.Add(time.Hour),
+		UpdatedAt:   now.Add(time.Hour),
+		PublishedAt: &now,
+	}
+	draft := &domain.Post{
+		Title:     "Draft Post",
+		Slug:      "draft-one",
+		Content:   "c",
+		Status:    domain.PostStatusDraft,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	for _, p := range []*domain.Post{pub1, pub2, draft} {
+		if err := repo.Create(p); err != nil {
+			t.Fatalf("failed to create post: %v", err)
+		}
+	}
+
+	t.Run("returns matching published posts", func(t *testing.T) {
+		results, err := repo.FindPublishedBySlugs([]string{"pub-one", "pub-two"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(results) != 2 {
+			t.Fatalf("expected 2 posts, got %d", len(results))
+		}
+		slugs := map[string]bool{}
+		for _, p := range results {
+			slugs[p.Slug] = true
+		}
+		if !slugs["pub-one"] || !slugs["pub-two"] {
+			t.Errorf("missing expected slugs, got %v", slugs)
+		}
+	})
+
+	t.Run("excludes draft slug", func(t *testing.T) {
+		results, err := repo.FindPublishedBySlugs([]string{"pub-one", "draft-one"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(results) != 1 {
+			t.Fatalf("expected 1 result (draft excluded), got %d", len(results))
+		}
+		if results[0].Slug != "pub-one" {
+			t.Errorf("expected slug pub-one, got %s", results[0].Slug)
+		}
+	})
+
+	t.Run("ignores nonexistent slug", func(t *testing.T) {
+		results, err := repo.FindPublishedBySlugs([]string{"pub-one", "does-not-exist"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(results) != 1 {
+			t.Fatalf("expected 1 result, got %d", len(results))
+		}
+	})
+
+	t.Run("empty input returns empty slice", func(t *testing.T) {
+		results, err := repo.FindPublishedBySlugs([]string{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(results) != 0 {
+			t.Fatalf("expected empty slice, got %d", len(results))
+		}
+	})
+}

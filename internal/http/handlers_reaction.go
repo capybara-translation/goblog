@@ -1,0 +1,234 @@
+package http
+
+import (
+	"errors"
+	"log"
+	"net"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/capybara-translation/goblog/internal/auth"
+	"github.com/capybara-translation/goblog/internal/domain"
+	"github.com/capybara-translation/goblog/internal/service"
+	"github.com/gorilla/mux"
+)
+
+const (
+	// reactionVisitorCookieName identifies the anonymous reaction visitor.
+	reactionVisitorCookieName = "reaction_visitor"
+	// reactionVisitorMaxAge is 400 days (browser cap on cookie lifetime).
+	reactionVisitorMaxAge = 400 * 24 * 60 * 60
+	// reactionRateLimit / reactionRateWindow bound write requests per IP.
+	reactionRateLimit  = 30
+	reactionRateWindow = 60 * time.Second
+	// reactionReadRateLimit bounds read (GET) requests per IP per reactionRateWindow.
+	// Kept generous so normal browsing is not blocked.
+	reactionReadRateLimit = 120
+)
+
+// reactionListResponse is the JSON envelope for reaction summaries.
+type reactionListResponse struct {
+	Reactions []*domain.PostReactionSummary `json:"reactions"`
+}
+
+// ReactionHandlers groups the public reaction endpoints.
+type ReactionHandlers struct {
+	service        service.ReactionService
+	secureCookie   bool
+	trustedProxies []*net.IPNet
+	// limiter is intentionally shared between HandleAdd and HandleRemove so the
+	// combined write rate per IP is bounded to reactionRateLimit/reactionRateWindow
+	// regardless of which verb is used.
+	limiter     *ipRateLimiter
+	readLimiter *ipRateLimiter
+}
+
+// NewReactionHandlers creates ReactionHandlers. trustedProxies are raw strings
+// (IP/CIDR) parsed the same way as the auth handler.
+func NewReactionHandlers(reactionService service.ReactionService, secureCookie bool, trustedProxies []string) *ReactionHandlers {
+	return &ReactionHandlers{
+		service:        reactionService,
+		secureCookie:   secureCookie,
+		trustedProxies: parseTrustedProxies(trustedProxies),
+		limiter:        newIPRateLimiter(reactionRateLimit, reactionRateWindow),
+		readLimiter:    newIPRateLimiter(reactionReadRateLimit, reactionRateWindow),
+	}
+}
+
+// visitorKey returns the SHA-256 hash of the visitor cookie, issuing a fresh
+// HttpOnly cookie (random 32 bytes) when none is present. The raw cookie value
+// is never stored; only its hash is used as visitor_key.
+func (h *ReactionHandlers) visitorKey(w http.ResponseWriter, r *http.Request) string {
+	if c, err := r.Cookie(reactionVisitorCookieName); err == nil && c.Value != "" {
+		return auth.HashToken(c.Value)
+	}
+	raw := auth.GenerateRawToken()
+	http.SetCookie(w, &http.Cookie{
+		Name:     reactionVisitorCookieName,
+		Value:    raw,
+		Path:     "/",
+		MaxAge:   reactionVisitorMaxAge,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   h.secureCookie,
+	})
+	return auth.HashToken(raw)
+}
+
+// HandleGet returns the reaction summaries for a post (issuing a visitor cookie
+// if needed so reacted state is correct on the first interaction).
+func (h *ReactionHandlers) HandleGet(w http.ResponseWriter, r *http.Request) {
+	if !h.allowRead(r) {
+		respondJSON(w, http.StatusTooManyRequests, ErrorResponse{Error: "too many requests"})
+		return
+	}
+	slug := mux.Vars(r)["slug"]
+	vk := h.visitorKey(w, r)
+	summaries, err := h.service.GetPostReactions(slug, vk)
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+	h.respondReactions(w, summaries)
+}
+
+// HandleAdd records a reaction.
+func (h *ReactionHandlers) HandleAdd(w http.ResponseWriter, r *http.Request) {
+	if !h.allow(r) {
+		respondJSON(w, http.StatusTooManyRequests, ErrorResponse{Error: "too many requests"})
+		return
+	}
+	slug := mux.Vars(r)["slug"]
+	typeID, err := h.parseTypeID(r)
+	if err != nil {
+		respondJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid reaction type id"})
+		return
+	}
+	vk := h.visitorKey(w, r)
+	summaries, err := h.service.AddReaction(slug, typeID, vk)
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+	h.respondReactions(w, summaries)
+}
+
+// HandleRemove removes a reaction.
+func (h *ReactionHandlers) HandleRemove(w http.ResponseWriter, r *http.Request) {
+	if !h.allow(r) {
+		respondJSON(w, http.StatusTooManyRequests, ErrorResponse{Error: "too many requests"})
+		return
+	}
+	slug := mux.Vars(r)["slug"]
+	typeID, err := h.parseTypeID(r)
+	if err != nil {
+		respondJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid reaction type id"})
+		return
+	}
+	vk := h.visitorKey(w, r)
+	summaries, err := h.service.RemoveReaction(slug, typeID, vk)
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+	h.respondReactions(w, summaries)
+}
+
+func (h *ReactionHandlers) allow(r *http.Request) bool {
+	return h.limiter.Allow(clientIP(r, h.trustedProxies))
+}
+
+func (h *ReactionHandlers) allowRead(r *http.Request) bool {
+	return h.readLimiter.Allow(clientIP(r, h.trustedProxies))
+}
+
+// respondReactions writes reaction summaries as JSON, marked uncacheable
+// because the response can carry a per-visitor Set-Cookie and reacted state.
+func (h *ReactionHandlers) respondReactions(w http.ResponseWriter, summaries []*domain.PostReactionSummary) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	respondJSON(w, http.StatusOK, reactionListResponse{Reactions: nonNilSummaries(summaries)})
+}
+
+func (h *ReactionHandlers) parseTypeID(r *http.Request) (int64, error) {
+	return strconv.ParseInt(mux.Vars(r)["reactionTypeID"], 10, 64)
+}
+
+func (h *ReactionHandlers) writeError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, service.ErrReactionPostNotFound):
+		respondJSON(w, http.StatusNotFound, ErrorResponse{Error: "post not found"})
+	case errors.Is(err, service.ErrReactionTypeInactive):
+		respondJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid reaction type"})
+	case errors.Is(err, service.ErrReactionVisitorEmpty):
+		// Unreachable from these handlers: visitorKey() always returns a non-empty
+		// SHA-256 hash because GenerateRawToken panics on CSPRNG failure rather than
+		// returning an empty string. Kept as a defensive mapping for any future caller.
+		respondJSON(w, http.StatusBadRequest, ErrorResponse{Error: "missing visitor"})
+	default:
+		log.Printf("reaction handler error: %v", err)
+		respondJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+	}
+}
+
+// reactionMapResponse is the JSON envelope for the batch reacted-state endpoint,
+// keyed by post slug.
+type reactionMapResponse struct {
+	Reactions map[string][]*domain.PostReactionSummary `json:"reactions"`
+}
+
+// maxBatchReactionSlugs caps how many slugs one batch request may resolve.
+const maxBatchReactionSlugs = 100
+
+// HandleBatchGet returns reaction summaries (count + per-visitor reacted) for a
+// set of post slugs in one request, so a listing page fetches reacted state
+// once instead of per card. GET /api/v1/reactions?slugs=a,b,c
+func (h *ReactionHandlers) HandleBatchGet(w http.ResponseWriter, r *http.Request) {
+	if !h.allowRead(r) {
+		respondJSON(w, http.StatusTooManyRequests, ErrorResponse{Error: "too many requests"})
+		return
+	}
+	slugs := parseSlugList(r.URL.Query().Get("slugs"))
+	vk := h.visitorKey(w, r)
+	m, err := h.service.GetReactionsBySlugs(slugs, vk)
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+	if m == nil {
+		m = map[string][]*domain.PostReactionSummary{}
+	}
+	w.Header().Set("Cache-Control", "private, no-store")
+	respondJSON(w, http.StatusOK, reactionMapResponse{Reactions: m})
+}
+
+// parseSlugList splits a comma-separated slug list, trims, drops empties and
+// duplicates, and caps the count.
+func parseSlugList(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, s := range strings.Split(raw, ",") {
+		s = strings.TrimSpace(s)
+		if s == "" || seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
+		if len(out) >= maxBatchReactionSlugs {
+			break
+		}
+	}
+	return out
+}
+
+// nonNilSummaries guarantees a non-nil slice so JSON serializes "[]" not "null".
+func nonNilSummaries(s []*domain.PostReactionSummary) []*domain.PostReactionSummary {
+	if s == nil {
+		return []*domain.PostReactionSummary{}
+	}
+	return s
+}

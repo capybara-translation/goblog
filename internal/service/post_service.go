@@ -90,6 +90,10 @@ type PostService interface {
 
 	// SetPinned sets the pinned status of a post
 	SetPinned(id int64, pinned bool) (*domain.Post, error)
+
+	// GetPublishedPostsBySlugs retrieves published posts for the given slugs (for
+	// batch reaction lookups on listing pages).
+	GetPublishedPostsBySlugs(slugs []string) ([]*domain.Post, error)
 }
 
 type postService struct {
@@ -322,6 +326,11 @@ func (s *postService) CountSearchPublishedPosts(query string) (int, error) {
 // GetPinnedPosts retrieves pinned published posts (for public pages)
 func (s *postService) GetPinnedPosts() ([]*domain.Post, error) {
 	return s.repo.FindPinnedPublished()
+}
+
+// GetPublishedPostsBySlugs retrieves published posts for the given slugs.
+func (s *postService) GetPublishedPostsBySlugs(slugs []string) ([]*domain.Post, error) {
+	return s.repo.FindPublishedBySlugs(slugs)
 }
 
 // SetPinned sets the pinned status of a post

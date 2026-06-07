@@ -26,6 +26,13 @@
         </footer>
     </article>
 
+    {{if .Post.Reactions}}
+    <section class="bg-primary-100 rounded-lg shadow-sm p-5" aria-labelledby="post-reactions-heading">
+        <h3 id="post-reactions-heading" class="text-sm font-sans font-semibold mb-3 text-primary-600 text-center">この記事へのリアクション</h3>
+        {{template "reactionButtons" .Post}}
+    </section>
+    {{end}}
+
     <nav class="flex justify-center">
         <a href="/posts" class="inline-flex items-center text-primary-600 hover:text-primary-800 font-sans text-sm font-medium transition-colors">
             <svg class="mr-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
