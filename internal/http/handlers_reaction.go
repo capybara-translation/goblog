@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/capybara-translation/goblog/internal/auth"
@@ -169,6 +170,59 @@ func (h *ReactionHandlers) writeError(w http.ResponseWriter, err error) {
 		log.Printf("reaction handler error: %v", err)
 		respondJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
 	}
+}
+
+// reactionMapResponse is the JSON envelope for the batch reacted-state endpoint,
+// keyed by post slug.
+type reactionMapResponse struct {
+	Reactions map[string][]*domain.PostReactionSummary `json:"reactions"`
+}
+
+// maxBatchReactionSlugs caps how many slugs one batch request may resolve.
+const maxBatchReactionSlugs = 100
+
+// HandleBatchGet returns reaction summaries (count + per-visitor reacted) for a
+// set of post slugs in one request, so a listing page fetches reacted state
+// once instead of per card. GET /api/v1/reactions?slugs=a,b,c
+func (h *ReactionHandlers) HandleBatchGet(w http.ResponseWriter, r *http.Request) {
+	if !h.allowRead(r) {
+		respondJSON(w, http.StatusTooManyRequests, ErrorResponse{Error: "too many requests"})
+		return
+	}
+	slugs := parseSlugList(r.URL.Query().Get("slugs"))
+	vk := h.visitorKey(w, r)
+	m, err := h.service.GetReactionsBySlugs(slugs, vk)
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+	if m == nil {
+		m = map[string][]*domain.PostReactionSummary{}
+	}
+	w.Header().Set("Cache-Control", "private, no-store")
+	respondJSON(w, http.StatusOK, reactionMapResponse{Reactions: m})
+}
+
+// parseSlugList splits a comma-separated slug list, trims, drops empties and
+// duplicates, and caps the count.
+func parseSlugList(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, s := range strings.Split(raw, ",") {
+		s = strings.TrimSpace(s)
+		if s == "" || seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
+		if len(out) >= maxBatchReactionSlugs {
+			break
+		}
+	}
+	return out
 }
 
 // nonNilSummaries guarantees a non-nil slice so JSON serializes "[]" not "null".

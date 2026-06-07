@@ -41,6 +41,11 @@
                     {{end}}
                 </div>
             </footer>
+            {{if .Reactions}}
+            <div class="mt-4 pt-4 border-t border-primary-200">
+                {{template "reactionButtons" .}}
+            </div>
+            {{end}}
         </article>
         {{end}}
 

@@ -2394,10 +2394,13 @@ func TestHandlePostDetail_RendersReactionCounts(t *testing.T) {
 		},
 	}
 	reactionSvc := &mockReactionService{
-		getForPost: func(postID int64, vk string) ([]*domain.PostReactionSummary, error) {
-			return []*domain.PostReactionSummary{
-				{ID: 1, Emoji: "👍", Label: "いいね", Count: 7, Reacted: false},
-			}, nil
+		attach: func(posts []*domain.Post) error {
+			for _, p := range posts {
+				p.Reactions = []*domain.PostReactionSummary{
+					{ID: 1, Emoji: "👍", Label: "いいね", Count: 7, Reacted: false},
+				}
+			}
+			return nil
 		},
 	}
 
@@ -2414,8 +2417,11 @@ func TestHandlePostDetail_RendersReactionCounts(t *testing.T) {
 		t.Fatalf("expected status 200, got %d\nbody: %s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, `id="post-reactions"`) {
-		t.Errorf("expected body to contain id=\"post-reactions\"\nbody: %s", body)
+	if !strings.Contains(body, `reaction-block`) {
+		t.Errorf("expected body to contain \"reaction-block\" class\nbody: %s", body)
+	}
+	if !strings.Contains(body, `data-post-slug="p1"`) {
+		t.Errorf("expected body to contain data-post-slug=\"p1\"\nbody: %s", body)
 	}
 	if !strings.Contains(body, "👍") {
 		t.Errorf("expected body to contain emoji 👍\nbody: %s", body)
@@ -2423,14 +2429,14 @@ func TestHandlePostDetail_RendersReactionCounts(t *testing.T) {
 	if !strings.Contains(body, ">7<") {
 		t.Errorf("expected body to contain reaction count >7<\nbody: %s", body)
 	}
-	if !strings.Contains(body, `title="いいね"`) {
-		t.Errorf("expected body to contain title=\"いいね\" (Label rendered into button title attribute)\nbody: %s", body)
+	if !strings.Contains(body, `aria-label="いいね"`) {
+		t.Errorf("expected body to contain aria-label=\"いいね\"\nbody: %s", body)
 	}
 }
 
 // TestHandlePostDetail_NoReactionBlock_WhenServiceNil verifies that when
 // reactionService is nil, HandlePostDetail does NOT render the reaction block.
-// This locks in the {{if .Reactions}} nil-guard in the template.
+// This locks in the {{if .Post.Reactions}} nil-guard in the template.
 func TestHandlePostDetail_NoReactionBlock_WhenServiceNil(t *testing.T) {
 	publishedAt := time.Now()
 	postSvc := &mockPostService{
@@ -2463,8 +2469,67 @@ func TestHandlePostDetail_NoReactionBlock_WhenServiceNil(t *testing.T) {
 		t.Fatalf("expected status 200, got %d\nbody: %s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	if strings.Contains(body, `id="post-reactions"`) {
-		t.Errorf("expected body NOT to contain id=\"post-reactions\" when reactionService is nil\nbody: %s", body)
+	// The CSS style in layout.html mentions "reaction-block" class names, so we
+	// check for the rendered data attribute that only appears when reactions exist.
+	if strings.Contains(body, `data-post-slug=`) {
+		t.Errorf("expected body NOT to contain data-post-slug= when reactionService is nil\nbody: %s", body)
+	}
+}
+
+// TestHandleHome_RendersReactionButtons verifies that when a reaction service
+// is wired and AttachReactions populates post.Reactions, the home page renders
+// the reaction-block for each post card.
+func TestHandleHome_RendersReactionButtons(t *testing.T) {
+	publishedAt := time.Now()
+	postSvc := &mockPostService{
+		getPublishedPostsFunc: func(limit, offset int) ([]*domain.Post, error) {
+			return []*domain.Post{
+				{
+					ID:          1,
+					Title:       "Post With Reactions",
+					Slug:        "p1",
+					Content:     "body",
+					Status:      domain.PostStatusPublished,
+					PublishedAt: &publishedAt,
+				},
+			}, nil
+		},
+	}
+	reactionSvc := &mockReactionService{
+		attach: func(posts []*domain.Post) error {
+			for _, p := range posts {
+				p.Reactions = []*domain.PostReactionSummary{
+					{ID: 1, Emoji: "👍", Label: "いいね", Count: 5, Reacted: false},
+				}
+			}
+			return nil
+		},
+	}
+
+	h := NewPublicHandlersFromPath(postSvc, nil, reactionSvc, nil, testSecureCookie, testBlogTitle, testBaseURL, testTemplatePattern, testPostsPerPage, nil, nil)
+
+	r := mux.NewRouter()
+	r.HandleFunc("/", h.HandleHome).Methods("GET")
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d\nbody: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `reaction-block`) {
+		t.Errorf("expected body to contain \"reaction-block\" class\nbody: %s", body)
+	}
+	if !strings.Contains(body, `data-post-slug="p1"`) {
+		t.Errorf("expected body to contain data-post-slug=\"p1\"\nbody: %s", body)
+	}
+	if !strings.Contains(body, ">5<") {
+		t.Errorf("expected body to contain reaction count >5<\nbody: %s", body)
+	}
+	if !strings.Contains(body, "👍") {
+		t.Errorf("expected body to contain emoji 👍\nbody: %s", body)
 	}
 }
 

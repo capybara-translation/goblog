@@ -1,62 +1,79 @@
 // Progressive enhancement for article reactions. Counts are server-rendered;
-// this script layers on the visitor's reacted state and handles toggling.
-//
-// Baseline: modern browsers. The script relies on fetch/Promise/Element.closest
-// (all ES2015+ Web APIs) and is served as-is (not transpiled), so it is written
-// in ES2015+ syntax to match. It is wrapped in an IIFE to avoid leaking globals.
+// this script overlays per-visitor reacted state and handles toggling. It
+// supports multiple reaction blocks on one page (e.g. the home/tag listings):
+// reacted state is fetched in a single batch request, while each block handles
+// its own click toggles.
 (() => {
   "use strict";
 
-  const root = document.getElementById("post-reactions");
-  if (!root) return;
+  const blocks = Array.from(document.querySelectorAll(".reaction-block[data-post-slug]"));
+  if (!blocks.length) return;
 
-  const slug = root.getAttribute("data-post-slug");
-  if (!slug) return;
-
-  const base = `/api/v1/posts/${encodeURIComponent(slug)}/reactions`;
   const HEADERS = { "X-Requested-With": "XMLHttpRequest" };
 
-  const apply = (reactions) => {
+  const applyToBlock = (root, reactions) => {
     if (!reactions) return;
-    for (const r of reactions) {
+    reactions.forEach((r) => {
       const btn = root.querySelector(`.reaction-btn[data-reaction-id="${r.id}"]`);
-      if (!btn) continue;
+      if (!btn) return;
       const countEl = btn.querySelector(".reaction-count");
       if (countEl) countEl.textContent = r.count;
       btn.setAttribute("aria-pressed", r.reacted ? "true" : "false");
       btn.classList.toggle("reaction-active", !!r.reacted);
-    }
+    });
   };
 
-  let seq = 0;
-  const send = async (url, method) => {
-    const mySeq = ++seq;
-    const res = await fetch(url, { method, headers: HEADERS, credentials: "same-origin" });
-    if (!res.ok) return;
-    const data = await res.json();
-    if (mySeq !== seq) return; // superseded by a newer request; don't roll back
-    apply(data.reactions);
-  };
+  // Index blocks by slug and fetch all reacted state in one request.
+  const bySlug = new Map();
+  blocks.forEach((root) => {
+    const slug = root.getAttribute("data-post-slug");
+    if (slug) bySlug.set(slug, root);
+  });
+  const qs = Array.from(bySlug.keys()).map(encodeURIComponent).join(",");
+  if (qs) {
+    fetch(`/api/v1/reactions?slugs=${qs}`, { headers: HEADERS, credentials: "same-origin" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data || !data.reactions) return;
+        bySlug.forEach((root, slug) => {
+          if (data.reactions[slug]) applyToBlock(root, data.reactions[slug]);
+        });
+      })
+      .catch(() => {});
+  }
 
-  // On load: fetch reacted state (and refreshed counts). This also issues the
-  // visitor cookie server-side so the first click is attributed correctly.
-  // Reactions are non-critical, so failures are swallowed (SSR counts remain).
-  send(base, "GET").catch(() => {});
+  // Per-block click handling (toggle add/remove) with a generation guard so a
+  // slow response can't roll back a newer one within the same block.
+  blocks.forEach((root) => {
+    const slug = root.getAttribute("data-post-slug");
+    if (!slug) return;
+    const base = `/api/v1/posts/${encodeURIComponent(slug)}/reactions`;
+    let seq = 0;
 
-  root.addEventListener("click", async (ev) => {
-    const btn = ev.target.closest(".reaction-btn");
-    if (!btn || btn.disabled) return;
+    root.addEventListener("click", async (ev) => {
+      const btn = ev.target.closest(".reaction-btn");
+      if (!btn || btn.disabled || !root.contains(btn)) return;
 
-    const id = btn.getAttribute("data-reaction-id");
-    const method = btn.getAttribute("aria-pressed") === "true" ? "DELETE" : "POST";
+      const id = btn.getAttribute("data-reaction-id");
+      const method = btn.getAttribute("aria-pressed") === "true" ? "DELETE" : "POST";
+      const mySeq = ++seq;
 
-    btn.disabled = true;
-    try {
-      await send(`${base}/${encodeURIComponent(id)}`, method);
-    } catch {
-      // Request failed; leave the SSR/previous state in place.
-    } finally {
-      btn.disabled = false;
-    }
+      btn.disabled = true;
+      try {
+        const res = await fetch(`${base}/${encodeURIComponent(id)}`, {
+          method,
+          headers: HEADERS,
+          credentials: "same-origin",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (mySeq === seq) applyToBlock(root, data.reactions);
+        }
+      } catch {
+        // Non-critical; leave current state.
+      } finally {
+        btn.disabled = false;
+      }
+    });
   });
 })();

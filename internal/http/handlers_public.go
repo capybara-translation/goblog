@@ -469,6 +469,12 @@ func (h *PublicHandlers) HandleHome(w http.ResponseWriter, r *http.Request) {
 		posts = posts[:perPage]
 	}
 
+	if h.reactionService != nil {
+		if err := h.reactionService.AttachReactions(posts); err != nil {
+			log.Printf("failed to attach reactions: %v", err)
+		}
+	}
+
 	data := map[string]any{
 		"SiteTitle":   h.blogTitle,
 		"Posts":       posts,
@@ -533,16 +539,10 @@ func (h *PublicHandlers) HandlePostDetail(w http.ResponseWriter, r *http.Request
 	// Attach reaction summaries for SSR. Counts are visitor-independent (empty
 	// visitor key => reacted=false everywhere), so they don't add a per-visitor
 	// dimension to the rendered HTML; the per-visitor reacted state is layered
-	// on client-side by reactions.js. (The post page itself is still not blindly
-	// CDN-cacheable — remember-token restore can emit Set-Cookie — but the
-	// reaction block does not make that any worse.)
-	var reactions []*domain.PostReactionSummary
+	// on client-side by reactions.js.
 	if h.reactionService != nil {
-		summaries, err := h.reactionService.GetReactionsForPost(post.ID, "")
-		if err != nil {
-			log.Printf("failed to get reactions for post %d: %v", post.ID, err)
-		} else {
-			reactions = summaries
+		if err := h.reactionService.AttachReactions([]*domain.Post{post}); err != nil {
+			log.Printf("failed to attach reactions for post %d: %v", post.ID, err)
 		}
 	}
 
@@ -553,7 +553,6 @@ func (h *PublicHandlers) HandlePostDetail(w http.ResponseWriter, r *http.Request
 		"OGP":         h.postOGP(post, r.URL.Path),
 		"Query":       "",
 		"IsAdmin":     h.isAdminRequest(w, r),
-		"Reactions":   reactions,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -656,6 +655,12 @@ func (h *PublicHandlers) HandleTagPosts(w http.ResponseWriter, r *http.Request) 
 	hasNext := len(posts) > perPage
 	if hasNext {
 		posts = posts[:perPage]
+	}
+
+	if h.reactionService != nil {
+		if err := h.reactionService.AttachReactions(posts); err != nil {
+			log.Printf("failed to attach reactions: %v", err)
+		}
 	}
 
 	data := map[string]any{

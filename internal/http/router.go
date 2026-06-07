@@ -102,6 +102,7 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 
 	// 公開リアクション API（認証不要、X-Requested-With + IP レート制限で保護）
 	reactionHandlers := NewReactionHandlers(reactionService, secureCookie, trustedProxies)
+	api.HandleFunc("/reactions", reactionHandlers.HandleBatchGet).Methods("GET")
 	reactions := api.PathPrefix("/posts/{slug}/reactions").Subrouter()
 	reactions.Use(RequireXRequestedWith())
 	reactions.HandleFunc("", reactionHandlers.HandleGet).Methods("GET")

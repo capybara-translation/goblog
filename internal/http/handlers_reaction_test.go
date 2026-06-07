@@ -13,30 +13,50 @@ import (
 )
 
 type mockReactionService struct {
-	getForPost func(postID int64, visitorKey string) ([]*domain.PostReactionSummary, error)
-	get        func(slug, visitorKey string) ([]*domain.PostReactionSummary, error)
-	add        func(slug string, typeID int64, visitorKey string) ([]*domain.PostReactionSummary, error)
-	remove     func(slug string, typeID int64, visitorKey string) ([]*domain.PostReactionSummary, error)
+	getForPost      func(postID int64, visitorKey string) ([]*domain.PostReactionSummary, error)
+	get             func(slug, visitorKey string) ([]*domain.PostReactionSummary, error)
+	add             func(slug string, typeID int64, visitorKey string) ([]*domain.PostReactionSummary, error)
+	remove          func(slug string, typeID int64, visitorKey string) ([]*domain.PostReactionSummary, error)
+	attach          func([]*domain.Post) error
+	getBySlugs      func(slugs []string, visitorKey string) (map[string][]*domain.PostReactionSummary, error)
 }
 
 func (m *mockReactionService) GetReactionsForPost(postID int64, visitorKey string) ([]*domain.PostReactionSummary, error) {
-	return m.getForPost(postID, visitorKey)
+	if m.getForPost != nil {
+		return m.getForPost(postID, visitorKey)
+	}
+	return []*domain.PostReactionSummary{}, nil
 }
 func (m *mockReactionService) GetPostReactions(slug, visitorKey string) ([]*domain.PostReactionSummary, error) {
-	return m.get(slug, visitorKey)
+	if m.get != nil {
+		return m.get(slug, visitorKey)
+	}
+	return []*domain.PostReactionSummary{}, nil
 }
 func (m *mockReactionService) AddReaction(slug string, typeID int64, visitorKey string) ([]*domain.PostReactionSummary, error) {
-	return m.add(slug, typeID, visitorKey)
+	if m.add != nil {
+		return m.add(slug, typeID, visitorKey)
+	}
+	return []*domain.PostReactionSummary{}, nil
 }
 func (m *mockReactionService) RemoveReaction(slug string, typeID int64, visitorKey string) ([]*domain.PostReactionSummary, error) {
-	return m.remove(slug, typeID, visitorKey)
+	if m.remove != nil {
+		return m.remove(slug, typeID, visitorKey)
+	}
+	return []*domain.PostReactionSummary{}, nil
 }
 
 func (m *mockReactionService) AttachReactions(posts []*domain.Post) error {
+	if m.attach != nil {
+		return m.attach(posts)
+	}
 	return nil
 }
 
 func (m *mockReactionService) GetReactionsBySlugs(slugs []string, visitorKey string) (map[string][]*domain.PostReactionSummary, error) {
+	if m.getBySlugs != nil {
+		return m.getBySlugs(slugs, visitorKey)
+	}
 	return make(map[string][]*domain.PostReactionSummary), nil
 }
 
@@ -249,6 +269,66 @@ func TestReactionHandler_Get_SetsCacheControl(t *testing.T) {
 	if got := rec.Header().Get("Cache-Control"); got != "private, no-store" {
 		t.Fatalf("expected Cache-Control: private, no-store, got %q", got)
 	}
+}
+
+func TestReactionHandler_BatchGet(t *testing.T) {
+	t.Run("returns batch reaction map with correct data", func(t *testing.T) {
+		svc := &mockReactionService{
+			getBySlugs: func(slugs []string, visitorKey string) (map[string][]*domain.PostReactionSummary, error) {
+				return map[string][]*domain.PostReactionSummary{
+					"p1": {{ID: 1, Emoji: "👍", Label: "いいね", Count: 3, Reacted: true}},
+				}, nil
+			},
+		}
+		h := NewReactionHandlers(svc, false, nil)
+		r := mux.NewRouter()
+		r.HandleFunc("/api/v1/reactions", h.HandleBatchGet).Methods("GET")
+
+		req := httptest.NewRequest("GET", "/api/v1/reactions?slugs=p1,p2", nil)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d; body: %s", rec.Code, rec.Body.String())
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, `"p1"`) {
+			t.Errorf("expected body to contain \"p1\", got: %s", body)
+		}
+		if !strings.Contains(body, `"reacted":true`) {
+			t.Errorf("expected body to contain \"reacted\":true, got: %s", body)
+		}
+		if got := rec.Header().Get("Cache-Control"); got != "private, no-store" {
+			t.Errorf("expected Cache-Control: private, no-store, got %q", got)
+		}
+	})
+
+	t.Run("rate limited returns 429", func(t *testing.T) {
+		svc := &mockReactionService{
+			getBySlugs: func(slugs []string, visitorKey string) (map[string][]*domain.PostReactionSummary, error) {
+				return map[string][]*domain.PostReactionSummary{}, nil
+			},
+		}
+		h := NewReactionHandlers(svc, false, nil)
+		h.readLimiter = newIPRateLimiter(1, time.Hour)
+		r := mux.NewRouter()
+		r.HandleFunc("/api/v1/reactions", h.HandleBatchGet).Methods("GET")
+
+		doGet := func() int {
+			req := httptest.NewRequest("GET", "/api/v1/reactions?slugs=p1", nil)
+			req.RemoteAddr = "9.9.9.9:1111"
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+			return rec.Code
+		}
+
+		if code := doGet(); code != http.StatusOK {
+			t.Fatalf("first request expected 200, got %d", code)
+		}
+		if code := doGet(); code != http.StatusTooManyRequests {
+			t.Fatalf("second request expected 429, got %d", code)
+		}
+	})
 }
 
 func TestReactionHandler_Remove_RateLimited_429(t *testing.T) {

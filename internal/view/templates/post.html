@@ -26,36 +26,11 @@
         </footer>
     </article>
 
-    {{if .Reactions}}
-    <style>
-      #post-reactions .reaction-active {
-        border-color: #6b7280;
-        background-color: #e5e7eb;
-        color: #1f2937; /* dark text so the count stays legible on the light active background */
-        font-weight: 600;
-      }
-      #post-reactions .reaction-btn[disabled] { opacity: 0.5; cursor: default; }
-    </style>
-    <section id="post-reactions" data-post-slug="{{.Post.Slug}}"
-             aria-labelledby="post-reactions-heading"
-             class="bg-primary-100 rounded-lg shadow-sm p-5">
-        <h3 id="post-reactions-heading" class="text-sm font-sans font-semibold mb-3 text-primary-600">この記事へのリアクション</h3>
-        <div class="flex flex-wrap justify-center gap-2">
-            {{range .Reactions}}
-            <button type="button"
-                    class="reaction-btn inline-flex items-center gap-1 rounded-full border border-primary-200 px-3 py-1 text-sm font-sans text-primary-700 hover:bg-primary-200 transition-colors"
-                    data-reaction-id="{{.ID}}"
-                    aria-pressed="false"
-                    aria-label="{{.Label}}"
-                    aria-describedby="reaction-count-{{.ID}}"
-                    title="{{.Label}}">
-                <span class="reaction-emoji" aria-hidden="true">{{.Emoji}}</span>
-                <span class="reaction-count" id="reaction-count-{{.ID}}" aria-live="polite">{{.Count}}</span>
-            </button>
-            {{end}}
-        </div>
+    {{if .Post.Reactions}}
+    <section class="bg-primary-100 rounded-lg shadow-sm p-5" aria-labelledby="post-reactions-heading">
+        <h3 id="post-reactions-heading" class="text-sm font-sans font-semibold mb-3 text-primary-600 text-center">この記事へのリアクション</h3>
+        {{template "reactionButtons" .Post}}
     </section>
-    <script src="/static/js/reactions.js" defer></script>
     {{end}}
 
     <nav class="flex justify-center">
