@@ -179,22 +179,37 @@ sudo systemctl enable --now goblog-backup.timer
 
 ### 7. 動作確認（ドライラン）
 
+確認コマンドは実行コンテキストが2種類ある点に注意。
+
+**(a) サーバ上で実行**（systemd/ローカル操作。AWS 認証情報は不要 or env ファイル経由）:
+
 ```bash
 sudo systemctl start goblog-backup.service          # 手動実行
 journalctl -u goblog-backup --no-pager -n 30        # ログ確認（"backup uploaded: ..."）
-aws s3 ls s3://my-goblog-backups/goblog/ --recursive # オブジェクトが出るか
 systemctl list-timers goblog-backup.timer           # 次回発火時刻
 
 # 監視の確認: env を読み込んだ上で意図的に失敗させ、メトリクス 0 を送る
 # （数分内にアラーム→メールが届けば dead-man's switch は機能している）
 sudo bash -c 'set -a; . /etc/goblog/backup.env; set +a; DB_PATH=/nonexistent /opt/goblog/bin/backup-db.sh'; echo "exit=$?"
-# CloudWatch 上のメトリクスを確認（成功/失敗の値が記録されているか）
-# 注: `date -u -d '1 day ago'` は GNU date 前提（本番 Ubuntu で実行する想定）。
-#     macOS/BSD で試す場合は `date -u -v-1d +%FT%TZ` に置き換える。
+```
+
+**(b) admin 認証情報で実行**（手順2〜4でバケット/IAM/SNS を作ったのと同じ管理者権限。通常はローカルマシン）:
+
+```bash
+# オブジェクトが出るか。バックアップ用 IAM ユーザーは PutObject のみで
+# ListBucket を持たないため、サーバの認証情報では AccessDenied になる（仕様）。
+aws s3 ls s3://my-goblog-backups/goblog/ --recursive
+
+# メトリクス確認。バックアップユーザーは PutMetricData のみで GetMetricStatistics
+# を持たないため、これも admin 認証情報が必要。
+# 注: `date -u -d '1 day ago'` は GNU date 前提（Linux）。
+#     macOS/BSD では `date -u -v-1d +%FT%TZ` に置き換える。
 aws cloudwatch get-metric-statistics --namespace Goblog/Backup --metric-name BackupSuccess \
   --start-time "$(date -u -d '1 day ago' +%FT%TZ)" --end-time "$(date -u +%FT%TZ)" \
   --period 86400 --statistics Minimum Maximum
 ```
+
+> なぜ分かれるか: 手順3の IAM ユーザーは**最小権限**で `s3:PutObject` + `cloudwatch:PutMetricData` のみ。読み取り系（List/Get）を持たないのは、キーが漏れても既存バックアップを列挙・取得・削除できないようにする設計。よって確認のための読み取りコマンドは admin 権限で別途実行する。
 
 ---
 
