@@ -27,7 +27,7 @@ goblogはGoで書かれたシンプルなブログシステムです。公開ペ
 - 閲覧回数トラッキング（ボットフィルタリング、IP+UA重複排除）
 - Markdownプレビュー（サーバーサイドレンダリング、同期スクロール）
 - Remember me（短命セッション+長命 remember token、SQLite 保存、SHA-256 ハッシュ、selector+raw 分離、記事を表示する公開ページ（トップ / 記事詳細 / タグ別一覧）と `/auth/me` で自動復元）
-- 記事リアクション（匿名読者が複数絵文字でリアクション、1記事・1絵文字につき1回、Cookie 重複防止、件数は SSR + reacted 状態は JS で付与）
+- 記事リアクション（匿名読者が複数絵文字でリアクション、1記事・1絵文字につき1回、Cookie 重複防止、件数は SSR + reacted 状態は JS で付与。記事詳細・トップ・タグ別一覧で表示し、その場でトグル可能。絵文字の解釈は読者に委ねるため label は UI 非表示）
 
 🚧 **計画中:**
 - RSS フィード
@@ -276,6 +276,7 @@ func (m *mockPostRepository) FindAll(status *domain.PostStatus, limit, offset in
 **公開エンドポイント:**
 - `POST /api/v1/auth/login` - ログイン
 - `GET /api/v1/health` - ヘルスチェック
+- `GET /api/v1/reactions?slugs=a,b,c` - 複数記事のリアクションをバッチ取得（一覧ページの N+1 回避用、最大100スラグ。件数 + reacted）
 - `GET /api/v1/posts/{slug}/reactions` - リアクション一覧取得（件数 + reacted）
 - `POST /api/v1/posts/{slug}/reactions/{reactionTypeID}` - リアクション追加（X-Requested-With 必須）
 - `DELETE /api/v1/posts/{slug}/reactions/{reactionTypeID}` - リアクション解除（X-Requested-With 必須）
