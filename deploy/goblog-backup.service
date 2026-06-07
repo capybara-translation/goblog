@@ -1,0 +1,29 @@
+[Unit]
+Description=Backup goblog SQLite DB to S3
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=goblog
+Group=goblog
+WorkingDirectory=/opt/goblog
+
+# Credentials and config (S3_BUCKET, AWS keys, region, ...).
+# chmod 600, owned by goblog. See deploy/backup.env.example.
+EnvironmentFile=/etc/goblog/backup.env
+
+ExecStart=/opt/goblog/bin/backup-db.sh
+
+# Security hardening (mirrors goblog.service). The backup opens the DB
+# read-only and writes the snapshot to PrivateTmp, so no ReadWritePaths is
+# needed — the rest of the filesystem stays read-only.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=goblog-backup
