@@ -66,8 +66,10 @@ func TestReactionRoutes_POST_WithXRequestedWith_NotForbidden(t *testing.T) {
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
-	if rec.Code == http.StatusForbidden {
-		t.Fatalf("expected non-403 with X-Requested-With header, got 403 (body: %s)", rec.Body.String())
+	// Assert 200 (not merely "not 403") so a broken route (e.g. 404 from a
+	// wiring mistake) fails the test instead of silently passing.
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 with X-Requested-With header (request should pass middleware and reach the handler), got %d (body: %s)", rec.Code, rec.Body.String())
 	}
 }
 
