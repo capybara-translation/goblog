@@ -38,8 +38,17 @@ goblog はロールバックジャーナルモード（WAL ではない）で動
 
 ### 1. サーバに `sqlite3` / `aws` CLI を用意
 
+`sqlite3` は apt で入る。AWS CLI は **apt の `awscli` は使わない**（Ubuntu 24.04 では候補がなく `E: Package 'awscli' has no installation candidate` になる、かつ古い v1）。AWS 公式の v2 インストーラを使う（素バイナリなので systemd のサンドボックスとも相性が良い）。
+
 ```bash
-sudo apt update && sudo apt install -y sqlite3 awscli
+sudo apt update && sudo apt install -y sqlite3 unzip
+
+cd /tmp
+ARCH=$(uname -m)   # x86_64 または aarch64
+curl "https://awscli.amazonaws.com/awscli-exe-linux-${ARCH}.zip" -o awscliv2.zip
+unzip -q awscliv2.zip
+sudo ./aws/install            # /usr/local/aws-cli へ。再実行時は --update
+aws --version                # aws-cli/2.x が出れば成功
 ```
 
 ### 2. S3 バケットを作成・堅牢化
