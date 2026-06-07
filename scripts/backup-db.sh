@@ -25,13 +25,14 @@
 
 set -Eeuo pipefail
 
+# Config with safe defaults FIRST (these can never fail), so the EXIT trap
+# installed below can still report via CloudWatch even if a required variable or
+# mktemp later fails. METRIC_* must be set before the trap because emit_metric
+# uses them.
 DB_PATH="${DB_PATH:-/var/lib/goblog/goblog.db}"
-S3_BUCKET="${S3_BUCKET:?S3_BUCKET is required}"
 S3_PREFIX="${S3_PREFIX:-goblog}"
 METRIC_NAMESPACE="${METRIC_NAMESPACE:-Goblog/Backup}"
 METRIC_NAME="${METRIC_NAME:-BackupSuccess}"
-
-work="$(mktemp -d)"
 
 # emit_metric publishes the success/failure heartbeat to CloudWatch. It is
 # best-effort (|| true): a metrics hiccup must never fail the backup itself, and
@@ -48,15 +49,26 @@ emit_metric() {
 # set -e abort, or an unexpected error). On any non-zero exit it emits a 0
 # heartbeat so a failed run ALERTS instead of being mistaken for "no run". This
 # is deliberately an EXIT trap (not ERR) so an explicit `exit 1` in a validation
-# guard still reports failure.
+# guard still reports failure. Installed BEFORE the required-var check and mktemp
+# so those failure paths are covered too; `work` may be unset, hence "${work:-}".
 finish() {
     local rc=$?
-    rm -rf "$work"
+    rm -rf "${work:-}"
     if [ "$rc" -ne 0 ]; then
         emit_metric 0
     fi
 }
 trap finish EXIT
+
+# Things that can fail — now all covered by the trap above. Use an explicit
+# exit (not ${S3_BUCKET:?...}): a parameter-expansion abort during assignment
+# does not reliably propagate a non-zero status to the EXIT trap, so the 0
+# heartbeat would be skipped. An explicit `exit 1` triggers finish() correctly.
+if [ -z "${S3_BUCKET:-}" ]; then
+    echo "S3_BUCKET is required" >&2
+    exit 1
+fi
+work="$(mktemp -d)"
 
 # Guard: the source must exist and be readable. Without this, sqlite3's `.open`
 # silently falls back to an empty in-memory DB ("Notice: using substitute
@@ -73,7 +85,10 @@ snap="$work/goblog-$ts.db"
 # (1) Consistent, read-only online snapshot. `.open --readonly` guarantees we
 #     never open the live DB read-write (also avoids EROFS under the service's
 #     ProtectSystem=strict sandbox). `.timeout` waits out a transient writer
-#     lock. `-bail` makes sqlite3 abort (non-zero) on the first error.
+#     lock. `-bail` aborts on SQL execution errors (e.g. a `.backup` I/O error),
+#     but it does NOT catch `.open` of a missing file: sqlite3 silently falls
+#     back to an empty in-memory DB and exits 0. That case is caught instead by
+#     the existence guard above and the 'posts' table check below — keep both.
 sqlite3 -bail <<SQL
 .open --readonly '$DB_PATH'
 .timeout 60000
@@ -97,7 +112,10 @@ fi
 #     listing and lifecycle rules. S3 PutObject is atomic, so a partial upload
 #     never appears as a usable object.
 gzip -9 "$snap"
-key="$S3_PREFIX/$(date -u +%Y/%m)/goblog-$ts.db.gz"
+# Partition the key by year/month, derived from $ts (a single clock read) so the
+# filename and prefix can never disagree across a month boundary.
+ymd="${ts%%T*}"   # YYYY-MM-DD
+key="$S3_PREFIX/${ymd:0:4}/${ymd:5:2}/goblog-$ts.db.gz"
 aws s3 cp "$snap.gz" "s3://$S3_BUCKET/$key" --only-show-errors
 
 echo "backup uploaded: s3://$S3_BUCKET/$key"

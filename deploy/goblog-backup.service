@@ -13,6 +13,11 @@ WorkingDirectory=/opt/goblog
 # chmod 600, owned by goblog. See deploy/backup.env.example.
 EnvironmentFile=/etc/goblog/backup.env
 
+# ProtectHome=true hides the real home; point HOME at the PrivateTmp dir so the
+# AWS CLI has a writable, private HOME and does not warn about an inaccessible
+# one. Credentials still come from the EnvironmentFile, not ~/.aws.
+Environment=HOME=/tmp
+
 ExecStart=/opt/goblog/bin/backup-db.sh
 
 # Security hardening (mirrors goblog.service). The backup opens the DB

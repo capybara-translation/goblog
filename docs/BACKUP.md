@@ -180,6 +180,8 @@ systemctl list-timers goblog-backup.timer           # 次回発火時刻
 # （数分内にアラーム→メールが届けば dead-man's switch は機能している）
 sudo bash -c 'set -a; . /etc/goblog/backup.env; set +a; DB_PATH=/nonexistent /opt/goblog/bin/backup-db.sh'; echo "exit=$?"
 # CloudWatch 上のメトリクスを確認（成功/失敗の値が記録されているか）
+# 注: `date -u -d '1 day ago'` は GNU date 前提（本番 Ubuntu で実行する想定）。
+#     macOS/BSD で試す場合は `date -u -v-1d +%FT%TZ` に置き換える。
 aws cloudwatch get-metric-statistics --namespace Goblog/Backup --metric-name BackupSuccess \
   --start-time "$(date -u -d '1 day ago' +%FT%TZ)" --end-time "$(date -u +%FT%TZ)" \
   --period 86400 --statistics Minimum Maximum
