@@ -114,6 +114,86 @@ func TestReactionRepository_EmptyVisitorAndNoReactions(t *testing.T) {
 	}
 }
 
+func TestReactionRepository_FindSummariesByPostIDs(t *testing.T) {
+	db := setupReactionTestDB(t)
+	defer db.Close()
+	// Add a second post for the batch test.
+	db.MustExec("INSERT INTO posts (id, title, slug, content, status) VALUES (2, 'P2', 'p2', 'c', 'published')")
+	r := NewReactionRepository(db)
+
+	// Visitor-A reacts 👍 (type 1) on post 1 only.
+	if err := r.Add(1, 1, "visitor-A"); err != nil {
+		t.Fatalf("Add failed: %v", err)
+	}
+
+	t.Run("visitor-A sees reacted=true for post1 thumbsup, false elsewhere", func(t *testing.T) {
+		m, err := r.FindSummariesByPostIDs([]int64{1, 2}, "visitor-A")
+		if err != nil {
+			t.Fatalf("FindSummariesByPostIDs failed: %v", err)
+		}
+		if len(m) != 2 {
+			t.Fatalf("expected entries for 2 posts, got %d", len(m))
+		}
+
+		// Post 1: 4 active types (🤔 is deactivated in setupReactionTestDB)
+		s1 := m[1]
+		if len(s1) != 4 {
+			t.Fatalf("post 1: expected 4 active summaries, got %d", len(s1))
+		}
+		// First active type ordered by sort_order is 👍
+		if s1[0].Emoji != "👍" {
+			t.Errorf("post 1 first type: expected 👍, got %s", s1[0].Emoji)
+		}
+		if s1[0].Count != 1 || !s1[0].Reacted {
+			t.Errorf("post 1 👍: expected count=1 reacted=true, got %+v", s1[0])
+		}
+		for _, s := range s1[1:] {
+			if s.Count != 0 || s.Reacted {
+				t.Errorf("post 1 %s: expected count=0 reacted=false, got %+v", s.Emoji, s)
+			}
+		}
+
+		// Post 2: all types should have count=0 reacted=false
+		s2 := m[2]
+		if len(s2) != 4 {
+			t.Fatalf("post 2: expected 4 active summaries, got %d", len(s2))
+		}
+		for _, s := range s2 {
+			if s.Count != 0 || s.Reacted {
+				t.Errorf("post 2 %s: expected count=0 reacted=false, got %+v", s.Emoji, s)
+			}
+		}
+	})
+
+	t.Run("empty visitorKey yields reacted=false everywhere", func(t *testing.T) {
+		m, err := r.FindSummariesByPostIDs([]int64{1, 2}, "")
+		if err != nil {
+			t.Fatalf("FindSummariesByPostIDs failed: %v", err)
+		}
+		for postID, sums := range m {
+			for _, s := range sums {
+				if s.Reacted {
+					t.Errorf("post %d %s: expected reacted=false for empty visitorKey, got true", postID, s.Emoji)
+				}
+			}
+		}
+		// post 1 should still have count=1 for 👍
+		if m[1][0].Count != 1 {
+			t.Errorf("post 1 👍: expected count=1, got %d", m[1][0].Count)
+		}
+	})
+
+	t.Run("empty input returns empty map", func(t *testing.T) {
+		m, err := r.FindSummariesByPostIDs([]int64{}, "visitor-A")
+		if err != nil {
+			t.Fatalf("FindSummariesByPostIDs failed: %v", err)
+		}
+		if len(m) != 0 {
+			t.Fatalf("expected empty map for empty input, got %d entries", len(m))
+		}
+	})
+}
+
 func TestReactionRepository_IsActiveType(t *testing.T) {
 	db := setupReactionTestDB(t)
 	defer db.Close()

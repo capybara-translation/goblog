@@ -32,6 +32,14 @@ func (m *mockReactionService) RemoveReaction(slug string, typeID int64, visitorK
 	return m.remove(slug, typeID, visitorKey)
 }
 
+func (m *mockReactionService) AttachReactions(posts []*domain.Post) error {
+	return nil
+}
+
+func (m *mockReactionService) GetReactionsBySlugs(slugs []string, visitorKey string) (map[string][]*domain.PostReactionSummary, error) {
+	return make(map[string][]*domain.PostReactionSummary), nil
+}
+
 func reactionTestRouter(svc service.ReactionService) *mux.Router {
 	h := NewReactionHandlers(svc, false, nil)
 	r := mux.NewRouter()

@@ -171,6 +171,10 @@ func (m *mockPostServiceForAPI) SetPinned(id int64, pinned bool) (*domain.Post, 
 	return nil, nil
 }
 
+func (m *mockPostServiceForAPI) GetPublishedPostsBySlugs(slugs []string) ([]*domain.Post, error) {
+	return []*domain.Post{}, nil
+}
+
 var _ service.PostService = (*mockPostServiceForAPI)(nil)
 
 // mockAuthServiceForAPI is a mock implementation of AuthService (for API)

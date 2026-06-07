@@ -162,6 +162,10 @@ func (m *mockPostService) SetPinned(id int64, pinned bool) (*domain.Post, error)
 	return nil, nil
 }
 
+func (m *mockPostService) GetPublishedPostsBySlugs(slugs []string) ([]*domain.Post, error) {
+	return []*domain.Post{}, nil
+}
+
 var _ service.PostService = (*mockPostService)(nil)
 
 // mockAuthServiceForPublic is a minimal AuthService for public-handler tests
