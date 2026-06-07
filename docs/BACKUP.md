@@ -217,15 +217,17 @@ aws cloudwatch get-metric-statistics --namespace Goblog/Backup --metric-name Bac
 
 > **「復元したことのないバックアップ」はバックアップではない。** 導入後に一度、本番とは別のディレクトリで通しで試すこと。
 
+> **認証情報に注意**: 手順1のダウンロード（`aws s3 cp` = `s3:GetObject`）は **admin 認証情報が必要**。バックアップ用 IAM ユーザーは `s3:PutObject` のみで Get/List を持たないため、サーバの認証情報では AccessDenied になる（仕様）。admin 認証情報をローカルに置いている場合は「ローカルで取得 → サーバへ `scp`」、サーバ上で完結させたい場合は一時的に admin 認証情報を使う。手順3（差し替え）はサーバ上で行う。
+
 ```bash
-# 1. 対象を取得
+# 1. 対象を取得（admin 認証情報で。GetObject が必要）
 aws s3 cp s3://my-goblog-backups/goblog/2026/06/goblog-<ts>.db.gz /tmp/
 gunzip /tmp/goblog-<ts>.db.gz
 
 # 2. 健全性を確認（必ず "ok"）
 sqlite3 /tmp/goblog-<ts>.db 'PRAGMA integrity_check;'
 
-# 3. 本番へ反映（停止 → 差し替え → 起動）
+# 3. 本番へ反映（サーバ上で。停止 → 差し替え → 起動）
 sudo systemctl stop goblog
 sudo install -o goblog -g goblog -m 644 /tmp/goblog-<ts>.db /var/lib/goblog/goblog.db
 sudo systemctl start goblog
