@@ -1,0 +1,14 @@
+[Unit]
+Description=Daily goblog DB backup to S3
+
+[Timer]
+# 18:00 UTC daily. Fixed to UTC to avoid DST ambiguity. Adjust to a low-traffic
+# hour for your audience's timezone if you prefer.
+OnCalendar=*-*-* 18:00:00 UTC
+# Run a missed backup on next boot if the machine was off at the scheduled time.
+Persistent=true
+# Spread load / avoid every host firing at the exact same second.
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

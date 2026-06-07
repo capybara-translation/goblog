@@ -28,6 +28,8 @@ go.work.sum
 
 # env file
 .env
+# real backup credentials (the .example template is tracked)
+backup.env
 
 # Editor/IDE
 .idea/
@@ -46,4 +48,4 @@ web-admin/.vite/
 web-admin/.env
 
 tmp/
-/docs/
+/docs/superpowers/

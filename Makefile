@@ -91,6 +91,7 @@ deploy: build
 	sudo mkdir -p /opt/goblog/bin
 	sudo mv bin/goblog bin/adduser bin/seed bin/regenerate-variants /opt/goblog/bin/
 	sudo chown root:root /opt/goblog/bin/goblog /opt/goblog/bin/adduser /opt/goblog/bin/seed /opt/goblog/bin/regenerate-variants
+	sudo install -m 755 -o root -g root scripts/backup-db.sh /opt/goblog/bin/backup-db.sh
 	sudo systemctl daemon-reload
 	sudo systemctl restart goblog
 	@echo "Deploy complete"
