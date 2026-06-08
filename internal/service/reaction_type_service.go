@@ -21,7 +21,7 @@ var (
 )
 
 const (
-	maxReactionEmojiRunes = 8
+	maxReactionEmojiRunes = 16
 	maxReactionLabelRunes = 50
 )
 

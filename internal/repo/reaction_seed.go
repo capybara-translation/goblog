@@ -37,6 +37,13 @@ func SeedReactionTypes(db *sqlx.DB) error {
 
 // IsSeedEmoji reports whether emoji belongs to the built-in set. Such types are
 // protected from emoji edits and physical deletion.
+//
+// Known limitation: comparison is byte-exact (Go string equality). A variation-
+// selector variant — e.g. bare U+2764 "❤" vs the seed "❤️" (U+2764 + U+FE0F) —
+// is treated as a distinct, non-protected emoji. This is an accepted minor
+// limitation (admin-only, non-destructive). A true fix would require
+// variation-selector canonicalization, which would degrade the seed's rendered
+// emoji presentation and is not worth the complexity.
 func IsSeedEmoji(emoji string) bool {
 	for _, rt := range DefaultReactionTypes {
 		if rt.Emoji == emoji {

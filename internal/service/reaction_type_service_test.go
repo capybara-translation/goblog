@@ -182,12 +182,12 @@ func TestReactionTypeService_Create_LengthBoundaries(t *testing.T) {
 	}
 	s := NewReactionTypeService(m)
 
-	// emoji: 8 runes OK, 9 runes invalid.
-	if _, err := s.Create(strings.Repeat("a", 8), "label", 0); err != nil {
-		t.Errorf("emoji of 8 runes should be valid, got %v", err)
+	// emoji: 16 runes OK, 17 runes invalid (cap raised to accommodate long ZWJ/tag sequences).
+	if _, err := s.Create(strings.Repeat("a", 16), "label", 0); err != nil {
+		t.Errorf("emoji of 16 runes should be valid, got %v", err)
 	}
-	if _, err := s.Create(strings.Repeat("a", 9), "label", 0); !errors.Is(err, ErrReactionTypeInvalid) {
-		t.Errorf("emoji of 9 runes should be invalid, got %v", err)
+	if _, err := s.Create(strings.Repeat("a", 17), "label", 0); !errors.Is(err, ErrReactionTypeInvalid) {
+		t.Errorf("emoji of 17 runes should be invalid, got %v", err)
 	}
 	// label: 50 runes OK, 51 runes invalid.
 	if _, err := s.Create("👍", strings.Repeat("x", 50), 0); err != nil {

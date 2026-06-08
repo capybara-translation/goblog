@@ -207,9 +207,10 @@ export function ReactionTypeList() {
                 id="rt-sort"
                 type="number"
                 value={form.sort_order}
-                onChange={(e) =>
-                  setForm({ ...form, sort_order: Number(e.target.value) })
-                }
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  setForm({ ...form, sort_order: Number.isNaN(n) ? 0 : n });
+                }}
                 className="mt-1 block w-full rounded border border-primary-300 px-3 py-2"
               />
             </div>
