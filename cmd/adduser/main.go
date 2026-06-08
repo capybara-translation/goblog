@@ -112,9 +112,8 @@ func main() {
 	}
 	defer database.Close()
 
-	// Run migrations (from embedded files)
-	if err := db.RunMigrations(database, goblog.Migrations, goblog.MigrationFiles...); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: Failed to run migrations: %v\n", err)
+	if err := goblog.InitSchema(database); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: Failed to initialize schema: %v\n", err)
 		os.Exit(1)
 	}
 

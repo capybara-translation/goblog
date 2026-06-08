@@ -23,15 +23,3 @@ CREATE TABLE IF NOT EXISTS post_reactions (
 
 CREATE INDEX IF NOT EXISTS idx_post_reactions_post_type
     ON post_reactions(post_id, reaction_type_id);
-
--- Seed the fixed initial reaction set. INSERT OR IGNORE keeps this idempotent
--- across the startup re-run of migrations and never overwrites later admin
--- edits (is_active / sort_order) on existing rows. NOTE: because this runs on
--- every startup, a future admin-deleted type would be resurrected on restart;
--- prefer is_active=0 over physical deletion once an admin UI exists.
-INSERT OR IGNORE INTO reaction_types (emoji, label, sort_order) VALUES
-    ('👍', 'いいね', 10),
-    ('❤️', '好き', 20),
-    ('🎉', 'おめでとう', 30),
-    ('👀', '見た', 40),
-    ('🤔', 'なるほど', 50);

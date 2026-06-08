@@ -22,9 +22,7 @@ func applyMigrations(t *testing.T, db *sqlx.DB, paths ...string) {
 	}
 }
 
-func TestReactionsMigration_SeedsActiveTypes(t *testing.T) {
-	const wantSeedCount = 5 // matches the INSERT OR IGNORE seed in 008_create_reactions.sql
-
+func TestReactionsMigration_CreatesEmptyTableThenSeed(t *testing.T) {
 	db, err := sqlx.Open("sqlite3", ":memory:?_foreign_keys=on")
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
@@ -36,20 +34,22 @@ func TestReactionsMigration_SeedsActiveTypes(t *testing.T) {
 		"../../migrations/008_create_reactions.sql",
 	)
 
+	// Migration alone no longer seeds rows (seed moved to SeedReactionTypes).
 	var count int
-	if err := db.Get(&count, "SELECT COUNT(*) FROM reaction_types WHERE is_active = 1"); err != nil {
+	if err := db.Get(&count, "SELECT COUNT(*) FROM reaction_types"); err != nil {
 		t.Fatalf("failed to count reaction_types: %v", err)
 	}
-	if count != wantSeedCount {
-		t.Fatalf("expected %d active reaction types, got %d", wantSeedCount, count)
+	if count != 0 {
+		t.Fatalf("expected migration to create an empty table, got %d rows", count)
 	}
 
-	// Re-running the migration must stay idempotent (INSERT OR IGNORE).
-	applyMigrations(t, db, "../../migrations/008_create_reactions.sql")
-	if err := db.Get(&count, "SELECT COUNT(*) FROM reaction_types"); err != nil {
-		t.Fatalf("failed to re-count: %v", err)
+	if err := SeedReactionTypes(db); err != nil {
+		t.Fatalf("seed: %v", err)
 	}
-	if count != wantSeedCount {
-		t.Fatalf("expected migration to be idempotent (%d rows), got %d", wantSeedCount, count)
+	if err := db.Get(&count, "SELECT COUNT(*) FROM reaction_types WHERE is_active = 1"); err != nil {
+		t.Fatalf("failed to count active: %v", err)
+	}
+	if count != len(DefaultReactionTypes) {
+		t.Fatalf("expected %d active rows after seed, got %d", len(DefaultReactionTypes), count)
 	}
 }

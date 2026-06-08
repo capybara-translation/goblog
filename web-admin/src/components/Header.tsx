@@ -42,6 +42,12 @@ export function Header() {
             >
               New Post
             </Link>
+            <Link
+              to="/reactions"
+              className="text-sm font-medium text-primary-700 hover:text-primary-900 transition-colors"
+            >
+              Reactions
+            </Link>
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-4 ml-auto order-2 sm:order-3 shrink-0">

@@ -291,6 +291,42 @@ describe('API Client', () => {
     })
   })
 
+  describe('Reaction types endpoints', () => {
+    describe('getReactionTypes', () => {
+      it('returns rows', async () => {
+        const types = await apiClient.getReactionTypes();
+        expect(types).toBeInstanceOf(Array);
+        expect(types[0]).toHaveProperty('emoji');
+        expect(types[0]).toHaveProperty('is_seed');
+      });
+    });
+
+    describe('createReactionType', () => {
+      it('posts and returns the row', async () => {
+        const created = await apiClient.createReactionType({ emoji: '🚀', label: '発射', sort_order: 99 });
+        expect(created.emoji).toBe('🚀');
+        expect(created.id).toBe(7);
+        expect(created.is_seed).toBe(false);
+      });
+    });
+
+    describe('updateReactionType', () => {
+      it('puts and returns the row', async () => {
+        const updated = await apiClient.updateReactionType(1, {
+          emoji: '👍', label: 'いいね', sort_order: 10, is_active: false,
+        });
+        expect(updated.id).toBe(1);
+        expect(updated.is_active).toBe(false);
+      });
+    });
+
+    describe('deleteReactionType', () => {
+      it('resolves on 204', async () => {
+        await expect(apiClient.deleteReactionType(7)).resolves.toBeUndefined();
+      });
+    });
+  });
+
   // Note: Image upload tests are skipped due to MSW's unstable formData handling
   // Functionality is verified in backend Go tests and MarkdownEditor.test.tsx
   describe.skip('Image upload endpoint', () => {

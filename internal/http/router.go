@@ -34,7 +34,7 @@ func (n noDirListingFS) Open(name string) (http.File, error) {
 }
 
 // NewRouter creates the application router using embedded resources
-func NewRouter(postService service.PostService, postViewService service.PostViewService, authService service.AuthService, ogpService service.OGPService, reactionService service.ReactionService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, uploadDir string, maxUploadSize int64, postsPerPage int, templatesFS, staticFS embed.FS) *mux.Router {
+func NewRouter(postService service.PostService, postViewService service.PostViewService, authService service.AuthService, ogpService service.OGPService, reactionService service.ReactionService, reactionTypeService service.ReactionTypeService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, uploadDir string, maxUploadSize int64, postsPerPage int, templatesFS, staticFS embed.FS) *mux.Router {
 	r := mux.NewRouter()
 
 	// Shared image-dimensions cache. The Markdown renderer asks it for
@@ -129,6 +129,13 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 	protectedAPI.HandleFunc("/posts/{id}/pin", apiHandlers.HandlePinPost).Methods("POST")
 	protectedAPI.HandleFunc("/posts/{id}/unpin", apiHandlers.HandleUnpinPost).Methods("POST")
 	protectedAPI.HandleFunc("/tags", apiHandlers.HandleGetTags).Methods("GET")
+
+	// Reaction type master (admin)
+	reactionAdmin := NewReactionAdminHandlers(reactionTypeService)
+	protectedAPI.HandleFunc("/reaction-types", reactionAdmin.HandleList).Methods("GET")
+	protectedAPI.HandleFunc("/reaction-types", reactionAdmin.HandleCreate).Methods("POST")
+	protectedAPI.HandleFunc("/reaction-types/{id:[0-9]+}", reactionAdmin.HandleUpdate).Methods("PUT")
+	protectedAPI.HandleFunc("/reaction-types/{id:[0-9]+}", reactionAdmin.HandleDelete).Methods("DELETE")
 
 	// Markdown preview (with OGP link card support + width/height + srcset)
 	previewHandler := NewPreviewHandler(ogpService, dimensions, variants)

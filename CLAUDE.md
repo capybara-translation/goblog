@@ -27,7 +27,7 @@ goblogはGoで書かれたシンプルなブログシステムです。公開ペ
 - 閲覧回数トラッキング（ボットフィルタリング、IP+UA重複排除）
 - Markdownプレビュー（サーバーサイドレンダリング、同期スクロール）
 - Remember me（短命セッション+長命 remember token、SQLite 保存、SHA-256 ハッシュ、selector+raw 分離、記事を表示する公開ページ（トップ / 記事詳細 / タグ別一覧）と `/auth/me` で自動復元）
-- 記事リアクション（匿名読者が複数絵文字でリアクション、1記事・1絵文字につき1回、Cookie 重複防止、件数は SSR + reacted 状態は JS で付与。記事詳細・トップ・タグ別一覧で表示し、その場でトグル可能。絵文字の解釈は読者に委ねるため label は UI 非表示）
+- 記事リアクション（匿名読者が複数絵文字でリアクション、1記事・1絵文字につき1回、Cookie 重複防止、件数は SSR + reacted 状態は JS で付与。記事詳細・トップ・タグ別一覧で表示し、その場でトグル可能。絵文字の解釈は読者に委ねるため label は UI 非表示）。管理画面 (`/admin/reactions`) で絵文字マスタを作成・編集・有効/無効・条件付き物理削除(件数0かつ非seedのみ)できる。
 
 🚧 **計画中:**
 - RSS フィード
@@ -74,6 +74,7 @@ Database (SQLite)
     metadata_stripper.go # 画像メタデータ除去
     ogp_meta.go        # OGPメタタグ生成
     handlers_reaction.go  # リアクション公開APIハンドラー
+    handlers_reaction_admin.go # リアクション種別管理APIハンドラー（認証+CSRF）
     reaction_middleware.go # X-Requested-With 検証ミドルウェア
     client_ip.go       # 信頼プロキシ考慮の client IP 抽出（共有）
     ratelimiter.go     # IP 単位レートリミッタ
@@ -83,6 +84,7 @@ Database (SQLite)
     auth_service.go
     ogp_service.go     # OGPリンクカード
     reaction_service.go  # リアクションのビジネスロジック
+    reaction_type_service.go # リアクション種別のビジネスロジック（seed 保護・バリデーション）
   /repo/               # データアクセス
     post_repo.go
     post_view_repo.go      # 閲覧記録
@@ -90,6 +92,8 @@ Database (SQLite)
     ogp_repo.go            # OGPキャッシュ
     remember_token_repo.go # Remember me トークンの SQLite 実装
     reaction_repo.go       # リアクションの集計・記録
+    reaction_type_repo.go  # リアクション種別 CRUD（FindAll/FindByID/Create/Update/DeleteIfUnused）
+    reaction_seed.go       # DefaultReactionTypes / SeedReactionTypes / IsSeedEmoji（単一ソース）
   /domain/             # ドメインモデル
     post.go
     user.go
@@ -114,6 +118,8 @@ Database (SQLite)
       js/
         reactions.js   # リアクションボタンの JS（reacted 状態付与・トグル）
 
+initschema.go          # InitSchema: マイグレーション + reaction seed を一括実行（cmd/* から呼び出し）
+
 /migrations/           # SQLマイグレーションファイル
   001_create_posts.sql
   002_create_users.sql
@@ -125,7 +131,8 @@ Database (SQLite)
 
 /web-admin/            # React SPA 管理画面
   /src/
-    /pages/            # PostList, PostEdit, Login
+    /pages/            # PostList, PostEdit, Login, ReactionTypeList
+      ReactionTypeList.tsx # リアクション種別管理画面（テーブル + モーダル CRUD）
     /components/       # MarkdownEditor, TagInput, StatusBadge, etc.
     /api/client.ts     # APIクライアント（CSRF対応）
 ```
@@ -298,6 +305,10 @@ func (m *mockPostRepository) FindAll(status *domain.PostStatus, limit, offset in
 - `POST /api/v1/posts/{id}/unpin` - 記事ピン留め解除
 - `POST /api/v1/markdown/preview` - Markdownプレビュー
 - `POST /api/v1/images` - 画像アップロード（複数ファイル対応）
+- `GET /api/v1/reaction-types` - リアクション種別一覧（無効含む全件、`is_seed` 付き）
+- `POST /api/v1/reaction-types` - リアクション種別作成
+- `PUT /api/v1/reaction-types/{id}` - リアクション種別更新
+- `DELETE /api/v1/reaction-types/{id}` - リアクション種別削除（件数0かつ非seedのみ）
 
 ## データフロー例
 
@@ -385,7 +396,7 @@ POST /api/v1/auth/login (JSON)
   - `ogp_cache`: OGPメタ情報キャッシュ（url, title, description, image, local_image, expires_at）
   - `post_views`: 閲覧記録（post_id, viewed_at, ip_address, user_agent）※ON DELETE CASCADE
   - `remember_tokens`: Remember me トークン（selector / token_hash / expires_at / user_id ON DELETE CASCADE）
-  - `reaction_types`: リアクション絵文字マスタ（id, emoji, label, sort_order, is_active, created_at）
+  - `reaction_types`: リアクション絵文字マスタ（id, emoji, label, sort_order, is_active, created_at）。seed は `repo.DefaultReactionTypes` (Go) を単一ソースに `goblog.InitSchema` で `INSERT OR IGNORE` 投入する。migration 008 は CREATE のみ（seed 行は持たない）。seed 絵文字（👍❤️🎉👀🤔）は管理画面から emoji 変更・物理削除不可（無効化のみ）。
   - `post_reactions`: リアクション記録（post_id, reaction_type_id, visitor_key, created_at, UNIQUE(post_id, reaction_type_id, visitor_key)）※ON DELETE CASCADE
 
 ## 依存関係
