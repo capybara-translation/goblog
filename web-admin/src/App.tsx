@@ -6,6 +6,7 @@ import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
 import { PostList } from './pages/PostList';
 import { PostEdit } from './pages/PostEdit';
+import { ReactionTypeList } from './pages/ReactionTypeList';
 
 function App() {
   return (
@@ -29,6 +30,7 @@ function App() {
             <Route path="posts" element={<PostList />} />
             <Route path="posts/new" element={<PostEdit />} />
             <Route path="posts/:id/edit" element={<PostEdit />} />
+            <Route path="reactions" element={<ReactionTypeList />} />
           </Route>
 
           {/* 404 */}
