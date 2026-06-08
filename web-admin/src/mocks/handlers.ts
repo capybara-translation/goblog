@@ -429,6 +429,28 @@ export const handlers = [
     );
   }),
 
+  // Reaction types endpoints
+  http.get(`${API_BASE}/reaction-types`, () =>
+    HttpResponse.json([
+      { id: 1, emoji: '👍', label: 'いいね', sort_order: 10, is_active: true, is_seed: true },
+    ]),
+  ),
+
+  http.post(`${API_BASE}/reaction-types`, async ({ request }) => {
+    const body = (await request.json()) as { emoji: string; label: string; sort_order: number };
+    return HttpResponse.json(
+      { id: 7, emoji: body.emoji, label: body.label, sort_order: body.sort_order, is_active: true, is_seed: false },
+      { status: 201 },
+    );
+  }),
+
+  http.put(`${API_BASE}/reaction-types/:id`, async ({ request, params }) => {
+    const body = (await request.json()) as { emoji: string; label: string; sort_order: number; is_active: boolean };
+    return HttpResponse.json({ id: Number(params.id), is_seed: false, ...body });
+  }),
+
+  http.delete(`${API_BASE}/reaction-types/:id`, () => new HttpResponse(null, { status: 204 })),
+
   // Tags endpoint
   http.get(`${API_BASE}/tags`, ({ request }) => {
     const url = new URL(request.url);

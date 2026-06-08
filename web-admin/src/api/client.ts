@@ -60,6 +60,28 @@ export interface ImageUploadResponse {
   filename: string;
 }
 
+export interface ReactionType {
+  id: number;
+  emoji: string;
+  label: string;
+  sort_order: number;
+  is_active: boolean;
+  is_seed: boolean;
+}
+
+export interface ReactionTypeCreateRequest {
+  emoji: string;
+  label: string;
+  sort_order: number;
+}
+
+export interface ReactionTypeUpdateRequest {
+  emoji: string;
+  label: string;
+  sort_order: number;
+  is_active: boolean;
+}
+
 export interface PostsResponse {
   posts: Post[];
   total: number;
@@ -212,6 +234,29 @@ class ApiClient {
     return this.request<Post>(`/posts/${id}/unpin`, {
       method: 'POST',
     });
+  }
+
+  // Reaction type master endpoints
+  async getReactionTypes(): Promise<ReactionType[]> {
+    return this.request<ReactionType[]>('/reaction-types');
+  }
+
+  async createReactionType(req: ReactionTypeCreateRequest): Promise<ReactionType> {
+    return this.request<ReactionType>('/reaction-types', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    });
+  }
+
+  async updateReactionType(id: number, req: ReactionTypeUpdateRequest): Promise<ReactionType> {
+    return this.request<ReactionType>(`/reaction-types/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(req),
+    });
+  }
+
+  async deleteReactionType(id: number): Promise<void> {
+    return this.request<void>(`/reaction-types/${id}`, { method: 'DELETE' });
   }
 
   // Tags endpoint
