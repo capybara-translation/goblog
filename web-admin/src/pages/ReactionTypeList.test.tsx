@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { ReactionTypeList } from './ReactionTypeList';
 import { apiClient } from '../api/client';
@@ -35,6 +35,10 @@ const customRow: ReactionType = {
 describe('ReactionTypeList', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('Loading and data rendering', () => {

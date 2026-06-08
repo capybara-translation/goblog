@@ -445,8 +445,9 @@ export const handlers = [
   }),
 
   http.put(`${API_BASE}/reaction-types/:id`, async ({ request, params }) => {
+    const SEED_EMOJIS = ['👍', '❤️', '🎉', '👀', '🤔'];
     const body = (await request.json()) as { emoji: string; label: string; sort_order: number; is_active: boolean };
-    return HttpResponse.json({ id: Number(params.id), is_seed: false, ...body });
+    return HttpResponse.json({ id: Number(params.id), ...body, is_seed: SEED_EMOJIS.includes(body.emoji) });
   }),
 
   http.delete(`${API_BASE}/reaction-types/:id`, () => new HttpResponse(null, { status: 204 })),
