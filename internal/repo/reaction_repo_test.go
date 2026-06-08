@@ -17,6 +17,9 @@ func setupReactionTestDB(t *testing.T) *sqlx.DB {
 		"../../migrations/001_create_posts.sql",
 		"../../migrations/008_create_reactions.sql",
 	)
+	if err := SeedReactionTypes(db); err != nil {
+		t.Fatalf("seed reaction types: %v", err)
+	}
 	db.MustExec("INSERT INTO posts (id, title, slug, content, status) VALUES (1, 'P1', 'p1', 'c', 'published')")
 	// Deactivate one type to test the active filter (🤔, sort_order 50).
 	db.MustExec("UPDATE reaction_types SET is_active = 0 WHERE emoji = '🤔'")
