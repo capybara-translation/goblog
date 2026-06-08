@@ -45,6 +45,7 @@ func main() {
 	postRepo := repo.NewPostRepository(database)
 	postViewRepo := repo.NewPostViewRepository(database)
 	reactionRepo := repo.NewReactionRepository(database)
+	reactionTypeRepo := repo.NewReactionTypeRepository(database)
 	userRepo := repo.NewUserRepository(database)
 	ogpRepo := repo.NewOGPRepository(database)
 
@@ -60,6 +61,7 @@ func main() {
 	postService := service.NewPostService(postRepo)
 	postViewService := service.NewPostViewService(postViewRepo)
 	reactionService := service.NewReactionService(postService, reactionRepo)
+	reactionTypeService := service.NewReactionTypeService(reactionTypeRepo)
 	authService := service.NewAuthService(userRepo, sessionStore, cfg.PasswordPolicy, cfg.SessionTTL, rememberStore, cfg.RememberTTL)
 
 	// Initialize OGP service for link cards
@@ -72,7 +74,7 @@ func main() {
 	}
 
 	// Initialize router (using embedded resources)
-	r := gobloghttp.NewRouter(postService, postViewService, authService, ogpService, reactionService, cfg.SecureCookie, cfg.TrustedProxies, cfg.BlogTitle, cfg.BaseURL, cfg.UploadDir, cfg.MaxUploadSize, cfg.PostsPerPage, goblog.Templates, goblog.StaticFiles)
+	r := gobloghttp.NewRouter(postService, postViewService, authService, ogpService, reactionService, reactionTypeService, cfg.SecureCookie, cfg.TrustedProxies, cfg.BlogTitle, cfg.BaseURL, cfg.UploadDir, cfg.MaxUploadSize, cfg.PostsPerPage, goblog.Templates, goblog.StaticFiles)
 
 	// Start server
 	port := ":" + cfg.Port
