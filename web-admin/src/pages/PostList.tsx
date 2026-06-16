@@ -4,7 +4,7 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { apiClient, Post } from '../api/client';
 import { StatusBadge } from '../components/StatusBadge';
 import { TagList } from '../components/TagList';
-import { ReactionTotalPopover, ReactionBreakdown, reactionTotal } from '../components/ReactionSummary';
+import { ReactionTotalPopover, ReactionBreakdown } from '../components/ReactionSummary';
 
 const POSTS_PER_PAGE = 20;
 const BLOG_TIMEZONE = import.meta.env.VITE_BLOG_TIMEZONE || 'UTC';
@@ -384,10 +384,7 @@ export function PostList() {
                   >
                     {post.view_count.toLocaleString()}
                   </td>
-                  <td
-                    aria-label={`Reactions: ${reactionTotal(post.reactions).toLocaleString()}`}
-                    className="px-6 py-4 text-sm text-primary-600 text-right max-sm:p-0 max-sm:block max-sm:text-left max-sm:before:content-['Reactions_'] max-sm:before:uppercase max-sm:before:text-xs max-sm:before:text-primary-500 max-sm:before:font-medium max-sm:before:mr-2"
-                  >
+                  <td className="px-6 py-4 text-sm text-primary-600 text-right max-sm:p-0 max-sm:block max-sm:text-left max-sm:before:content-['Reactions_'] max-sm:before:uppercase max-sm:before:text-xs max-sm:before:text-primary-500 max-sm:before:font-medium max-sm:before:mr-2">
                     <span className="max-sm:hidden">
                       <ReactionTotalPopover reactions={post.reactions} />
                     </span>
