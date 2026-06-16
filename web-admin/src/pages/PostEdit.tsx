@@ -5,6 +5,7 @@ import { apiClient, Post } from '../api/client';
 import { StatusBadge } from '../components/StatusBadge';
 import { MarkdownEditor } from '../components/MarkdownEditor';
 import { TagInput } from '../components/TagInput';
+import { ReactionBreakdown, reactionTotal } from '../components/ReactionSummary';
 import { useModal } from '../hooks/useModal';
 
 const BLOG_TIMEZONE = import.meta.env.VITE_BLOG_TIMEZONE || 'UTC';
@@ -71,7 +72,7 @@ export function PostEdit() {
           tags,
           is_pinned: isPinned,
         });
-        setPost(updated);
+        setPost((prev) => ({ ...updated, reactions: prev?.reactions }));
         await showAlert('Post updated');
       } else {
         const created = await apiClient.createPost({
@@ -120,7 +121,7 @@ export function PostEdit() {
     try {
       setError('');
       const updated = await apiClient.publishPost(Number(id));
-      setPost(updated);
+      setPost((prev) => ({ ...updated, reactions: prev?.reactions }));
       await showAlert('Post published');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to publish');
@@ -133,7 +134,7 @@ export function PostEdit() {
     try {
       setError('');
       const updated = await apiClient.unpublishPost(Number(id));
-      setPost(updated);
+      setPost((prev) => ({ ...updated, reactions: prev?.reactions }));
       await showAlert('Post unpublished');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to unpublish');
@@ -253,6 +254,11 @@ export function PostEdit() {
             <div>
               <span className="font-medium">Views:</span>{' '}
               {post.view_count.toLocaleString()}
+            </div>
+            <div>
+              <span className="font-medium">Reactions:</span>{' '}
+              {reactionTotal(post.reactions).toLocaleString()}{' '}
+              <ReactionBreakdown reactions={post.reactions} />
             </div>
           </div>
         </div>
