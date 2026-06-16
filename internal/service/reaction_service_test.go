@@ -30,6 +30,7 @@ type mockReactionRepo struct {
 	isActive       bool
 	summaries      []*domain.PostReactionSummary
 	summariesByIDs map[int64][]*domain.PostReactionSummary
+	totalsByIDs    map[int64][]*domain.AdminReactionCount
 }
 
 func (m *mockReactionRepo) FindSummariesByPostID(postID int64, visitorKey string) ([]*domain.PostReactionSummary, error) {
@@ -40,6 +41,12 @@ func (m *mockReactionRepo) FindSummariesByPostIDs(postIDs []int64, visitorKey st
 		return m.summariesByIDs, nil
 	}
 	return make(map[int64][]*domain.PostReactionSummary), nil
+}
+func (m *mockReactionRepo) FindTotalsByPostIDs(postIDs []int64) (map[int64][]*domain.AdminReactionCount, error) {
+	if m.totalsByIDs != nil {
+		return m.totalsByIDs, nil
+	}
+	return make(map[int64][]*domain.AdminReactionCount), nil
 }
 func (m *mockReactionRepo) Add(postID, reactionTypeID int64, visitorKey string) error {
 	m.addCalled = true
