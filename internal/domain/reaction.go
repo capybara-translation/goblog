@@ -19,3 +19,16 @@ type PostReactionSummary struct {
 	Count   int64  `json:"count"`
 	Reacted bool   `json:"reacted"`
 }
+
+// AdminReactionCount is one row of the admin analytics breakdown for a post: the
+// master emoji/label, the total count on that post, and whether the type is
+// currently active (so inactive types can be visually marked). Distinct from the
+// public PostReactionSummary — keeping is_active out of that type avoids changing
+// the public reaction API contract. Hand-scanned, so no db tags.
+type AdminReactionCount struct {
+	ID       int64  `json:"id"`
+	Emoji    string `json:"emoji"`
+	Label    string `json:"label"`
+	Count    int64  `json:"count"`
+	IsActive bool   `json:"is_active"`
+}
