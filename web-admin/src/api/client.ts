@@ -22,6 +22,9 @@ export interface Post {
   updated_at: string;
   published_at: string | null;
   view_count: number;
+  // Admin analytics: per-type reaction counts (all types incl. inactive).
+  // Present on GET list/detail responses; omitted by mutation responses.
+  reactions?: AdminReactionCount[];
 }
 
 export interface Tag {
@@ -67,6 +70,14 @@ export interface ReactionType {
   sort_order: number;
   is_active: boolean;
   is_seed: boolean;
+}
+
+export interface AdminReactionCount {
+  id: number;
+  emoji: string;
+  label: string;
+  count: number;
+  is_active: boolean;
 }
 
 export interface ReactionTypeCreateRequest {
