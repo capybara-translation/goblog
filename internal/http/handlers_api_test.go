@@ -11,6 +11,7 @@ import (
 
 	"github.com/capybara-translation/goblog/internal/domain"
 	"github.com/capybara-translation/goblog/internal/service"
+	"github.com/gorilla/mux"
 )
 
 const testSessionID = "test-session-id"
@@ -2050,4 +2051,110 @@ func TestHandleUnpinPost(t *testing.T) {
 			t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
 		}
 	})
+}
+
+func TestHandleGetPosts_AttachesReactionTotals(t *testing.T) {
+	posts := []*domain.Post{{ID: 1, Title: "P1", Slug: "p1", Status: domain.PostStatusPublished}}
+	mockPost := &mockPostServiceForAPI{
+		getAllPostsFunc: func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) { return posts, nil },
+		countPostsFunc:  func(status *domain.PostStatus) (int, error) { return len(posts), nil },
+	}
+	mockReaction := &mockReactionService{
+		attachTotals: func(ps []*domain.Post) error {
+			for _, p := range ps {
+				p.ReactionTotals = []*domain.AdminReactionCount{{ID: 1, Emoji: "👍", Label: "いいね", Count: 3, IsActive: true}}
+			}
+			return nil
+		},
+	}
+	h := NewAPIHandlers(mockPost, nil, mockReaction)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/posts", nil)
+	w := httptest.NewRecorder()
+	h.HandleGetPosts(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp struct {
+		Posts []struct {
+			Reactions []domain.AdminReactionCount `json:"reactions"`
+		} `json:"posts"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(resp.Posts) != 1 || len(resp.Posts[0].Reactions) != 1 {
+		t.Fatalf("expected 1 post with 1 reaction, got %+v", resp.Posts)
+	}
+	if resp.Posts[0].Reactions[0].Count != 3 || resp.Posts[0].Reactions[0].Emoji != "👍" {
+		t.Errorf("unexpected reaction: %+v", resp.Posts[0].Reactions[0])
+	}
+}
+
+func TestHandleGetPosts_NilReactionServiceIsSafe(t *testing.T) {
+	posts := []*domain.Post{{ID: 1, Title: "P1", Slug: "p1"}}
+	mockPost := &mockPostServiceForAPI{
+		getAllPostsFunc: func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error) { return posts, nil },
+		countPostsFunc:  func(status *domain.PostStatus) (int, error) { return 1, nil },
+	}
+	h := NewAPIHandlers(mockPost, nil, nil) // nil reactionService must not panic
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/posts", nil)
+	w := httptest.NewRecorder()
+	h.HandleGetPosts(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestHandleGetPost_AttachesReactionTotals(t *testing.T) {
+	mockPost := &mockPostServiceForAPI{
+		getPostByIDFunc: func(id int64) (*domain.Post, error) {
+			return &domain.Post{ID: id, Title: "P1", Slug: "p1", Status: domain.PostStatusPublished}, nil
+		},
+	}
+	mockReaction := &mockReactionService{
+		attachTotals: func(ps []*domain.Post) error {
+			for _, p := range ps {
+				p.ReactionTotals = []*domain.AdminReactionCount{{ID: 5, Emoji: "🤔", Label: "なるほど", Count: 2, IsActive: false}}
+			}
+			return nil
+		},
+	}
+	h := NewAPIHandlers(mockPost, nil, mockReaction)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/posts/1", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "1"})
+	w := httptest.NewRecorder()
+	h.HandleGetPost(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp struct {
+		Reactions []domain.AdminReactionCount `json:"reactions"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(resp.Reactions) != 1 || resp.Reactions[0].IsActive {
+		t.Fatalf("expected 1 inactive reaction, got %+v", resp.Reactions)
+	}
+}
+
+func TestHandleGetPost_NilReactionServiceIsSafe(t *testing.T) {
+	mockPost := &mockPostServiceForAPI{
+		getPostByIDFunc: func(id int64) (*domain.Post, error) {
+			return &domain.Post{ID: id, Title: "P1", Slug: "p1"}, nil
+		},
+	}
+	h := NewAPIHandlers(mockPost, nil, nil) // nil reactionService must not panic
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/posts/1", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "1"})
+	w := httptest.NewRecorder()
+	h.HandleGetPost(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
 }
