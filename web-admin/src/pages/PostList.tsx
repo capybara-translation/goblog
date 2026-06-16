@@ -4,6 +4,7 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { apiClient, Post } from '../api/client';
 import { StatusBadge } from '../components/StatusBadge';
 import { TagList } from '../components/TagList';
+import { ReactionTotalPopover, ReactionBreakdown, reactionTotal } from '../components/ReactionSummary';
 
 const POSTS_PER_PAGE = 20;
 const BLOG_TIMEZONE = import.meta.env.VITE_BLOG_TIMEZONE || 'UTC';
@@ -324,6 +325,9 @@ export function PostList() {
                 <th className="px-6 py-3 text-right text-xs font-medium text-primary-700 uppercase tracking-wider">
                   Views
                 </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-primary-700 uppercase tracking-wider">
+                  Reactions
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white sm:divide-y sm:divide-primary-200 max-sm:block max-sm:bg-transparent max-sm:space-y-3">
@@ -379,6 +383,17 @@ export function PostList() {
                     className="px-6 py-4 text-sm text-primary-600 text-right max-sm:p-0 max-sm:block max-sm:text-left max-sm:before:content-['Views_'] max-sm:before:uppercase max-sm:before:text-xs max-sm:before:text-primary-500 max-sm:before:font-medium max-sm:before:mr-2"
                   >
                     {post.view_count.toLocaleString()}
+                  </td>
+                  <td
+                    aria-label={`Reactions: ${reactionTotal(post.reactions).toLocaleString()}`}
+                    className="px-6 py-4 text-sm text-primary-600 text-right max-sm:p-0 max-sm:block max-sm:text-left max-sm:before:content-['Reactions_'] max-sm:before:uppercase max-sm:before:text-xs max-sm:before:text-primary-500 max-sm:before:font-medium max-sm:before:mr-2"
+                  >
+                    <span className="max-sm:hidden">
+                      <ReactionTotalPopover reactions={post.reactions} />
+                    </span>
+                    <span className="hidden max-sm:inline">
+                      <ReactionBreakdown reactions={post.reactions} />
+                    </span>
                   </td>
                 </tr>
               ))}
