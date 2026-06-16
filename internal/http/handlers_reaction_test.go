@@ -18,6 +18,7 @@ type mockReactionService struct {
 	add             func(slug string, typeID int64, visitorKey string) ([]*domain.PostReactionSummary, error)
 	remove          func(slug string, typeID int64, visitorKey string) ([]*domain.PostReactionSummary, error)
 	attach          func([]*domain.Post) error
+	attachTotals    func([]*domain.Post) error
 	getBySlugs      func(slugs []string, visitorKey string) (map[string][]*domain.PostReactionSummary, error)
 }
 
@@ -49,6 +50,13 @@ func (m *mockReactionService) RemoveReaction(slug string, typeID int64, visitorK
 func (m *mockReactionService) AttachReactions(posts []*domain.Post) error {
 	if m.attach != nil {
 		return m.attach(posts)
+	}
+	return nil
+}
+
+func (m *mockReactionService) AttachReactionTotals(posts []*domain.Post) error {
+	if m.attachTotals != nil {
+		return m.attachTotals(posts)
 	}
 	return nil
 }
