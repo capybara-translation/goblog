@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { ReactionBreakdown, ReactionTotalPopover, reactionTotal } from './ReactionSummary';
+import userEvent from '@testing-library/user-event';
+import { ReactionBreakdown, ReactionTotalPopover, reactionTotal, reactionTotalLabel } from './ReactionSummary';
 import type { AdminReactionCount } from '../api/client';
 
 const data: AdminReactionCount[] = [
@@ -44,5 +45,26 @@ describe('ReactionTotalPopover', () => {
   it('renders zero total when reactions is empty', () => {
     render(<ReactionTotalPopover reactions={[]} />);
     expect(screen.getByRole('button', { name: /Reactions: 0/i })).toBeInTheDocument();
+  });
+  it('shows an em dash (not 0) and no popover when reactions are unavailable', async () => {
+    const user = userEvent.setup();
+    render(<ReactionTotalPopover reactions={undefined} />);
+    const btn = screen.getByRole('button', { name: 'Reactions: unavailable' });
+    expect(btn).toHaveTextContent('—');
+    // Unavailable totals have nothing to expand, so hovering opens no tooltip.
+    await user.hover(btn);
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+  });
+});
+
+describe('reactionTotalLabel', () => {
+  it('shows the numeric total for a loaded array', () => {
+    expect(reactionTotalLabel(data)).toBe('5');
+  });
+  it('shows 0 for a genuinely empty (loaded) array', () => {
+    expect(reactionTotalLabel([])).toBe('0');
+  });
+  it('shows an em dash when reactions were not loaded (undefined)', () => {
+    expect(reactionTotalLabel(undefined)).toBe('—');
   });
 });

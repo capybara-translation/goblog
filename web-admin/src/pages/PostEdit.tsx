@@ -5,7 +5,7 @@ import { apiClient, Post } from '../api/client';
 import { StatusBadge } from '../components/StatusBadge';
 import { MarkdownEditor } from '../components/MarkdownEditor';
 import { TagInput } from '../components/TagInput';
-import { ReactionBreakdown, reactionTotal } from '../components/ReactionSummary';
+import { ReactionBreakdown, reactionTotalLabel } from '../components/ReactionSummary';
 import { useModal } from '../hooks/useModal';
 
 const BLOG_TIMEZONE = import.meta.env.VITE_BLOG_TIMEZONE || 'UTC';
@@ -257,8 +257,10 @@ export function PostEdit() {
             </div>
             <div>
               <span className="font-medium">Reactions:</span>{' '}
-              {reactionTotal(post.reactions).toLocaleString()}{' '}
-              <ReactionBreakdown reactions={post.reactions} />
+              {reactionTotalLabel(post.reactions)}{' '}
+              {post.reactions && post.reactions.length > 0 && (
+                <ReactionBreakdown reactions={post.reactions} />
+              )}
             </div>
           </div>
         </div>

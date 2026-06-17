@@ -7,6 +7,16 @@ export function reactionTotal(reactions?: AdminReactionCount[]): number {
   return (reactions ?? []).reduce((sum, r) => sum + r.count, 0);
 }
 
+/**
+ * Display label for the total. An em dash when reactions were not loaded
+ * (undefined — e.g. the admin API omitted them because aggregation failed),
+ * which distinguishes "unknown" from a genuine zero. A loaded array (even an
+ * empty one) formats as its numeric total.
+ */
+export function reactionTotalLabel(reactions?: AdminReactionCount[]): string {
+  return reactions === undefined ? '—' : reactionTotal(reactions).toLocaleString();
+}
+
 interface BreakdownProps {
   reactions?: AdminReactionCount[];
 }
@@ -83,7 +93,7 @@ export function ReactionTotalPopover({ reactions }: BreakdownProps) {
       <button
         ref={triggerRef}
         type="button"
-        aria-label={`Reactions: ${total}`}
+        aria-label={reactions === undefined ? 'Reactions: unavailable' : `Reactions: ${total}`}
         aria-describedby={open ? tipId : undefined}
         className="tabular-nums cursor-default rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
         onMouseEnter={show}
@@ -94,7 +104,7 @@ export function ReactionTotalPopover({ reactions }: BreakdownProps) {
           if (e.key === 'Escape') setOpen(false);
         }}
       >
-        {total.toLocaleString()}
+        {reactionTotalLabel(reactions)}
       </button>
       {open &&
         createPortal(
