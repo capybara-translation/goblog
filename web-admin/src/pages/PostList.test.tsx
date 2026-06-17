@@ -1301,8 +1301,9 @@ describe('PostList', () => {
 
       await user.hover(trigger)
       const tip = await screen.findByRole('tooltip')
-      // Inactive type is marked inside the popover (full-width parens).
-      expect(within(tip).getByText('（無効）')).toBeInTheDocument()
+      // The inactive type (🤔 / なるほど) is greyed out inside the popover; its
+      // note lives in the title attribute (no visible 無効 marker).
+      expect(within(tip).getByTitle('なるほど（無効）')).toBeInTheDocument()
     })
   })
 })

@@ -828,8 +828,9 @@ describe('PostEdit', () => {
       </ModalProvider>,
     )
 
-    // Inline breakdown is shown (inactive type marked, full-width parens).
-    expect(await screen.findByText('（無効）')).toBeInTheDocument()
+    // Inline breakdown is shown; the inactive type (🤔 / なるほど) is greyed out,
+    // identified via its title (no visible 無効 marker).
+    expect(await screen.findByTitle('なるほど（無効）')).toBeInTheDocument()
 
     // Save; dismiss the "Post updated" alert the same way the other save tests do.
     await user.click(screen.getByRole('button', { name: 'Save' }))
@@ -838,7 +839,7 @@ describe('PostEdit', () => {
     await user.click(screen.getByRole('button', { name: 'OK' }))
 
     // The update response carried no reactions, but the breakdown must persist.
-    expect(screen.getByText('（無効）')).toBeInTheDocument()
+    expect(screen.getByTitle('なるほど（無効）')).toBeInTheDocument()
     // Active reaction count is preserved too (whole array kept, not just the inactive entry).
     expect(screen.getByText('👍 4')).toBeInTheDocument()
   })

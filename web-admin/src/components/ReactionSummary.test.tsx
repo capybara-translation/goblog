@@ -27,9 +27,12 @@ describe('ReactionBreakdown', () => {
     render(<ReactionBreakdown reactions={data} />);
     expect(screen.getByText(/❤️/)).toBeInTheDocument();
   });
-  it('marks inactive types with （無効）', () => {
+  it('greys out inactive types without a visible 無効 marker', () => {
     render(<ReactionBreakdown reactions={data} />);
-    expect(screen.getAllByText('（無効）').length).toBeGreaterThan(0);
+    // The visible "（無効）" text marker was removed; grey-out is the only visual cue.
+    expect(screen.queryByText('（無効）')).not.toBeInTheDocument();
+    // The inactive type (🤔 / なるほど) chip is muted; its note lives in the title.
+    expect(screen.getByTitle('なるほど（無効）')).toHaveClass('opacity-60');
   });
   it('renders an em dash for empty input', () => {
     render(<ReactionBreakdown reactions={[]} />);

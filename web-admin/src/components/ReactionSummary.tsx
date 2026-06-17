@@ -23,8 +23,9 @@ interface BreakdownProps {
 
 /**
  * Inline emoji+count list. Renders every type the backend returns, in order
- * (active types incl. 0-count, plus inactive types). Inactive types are muted
- * and tagged "(無効)" so they are distinguishable without relying on color alone.
+ * (active types incl. 0-count, plus inactive types). Inactive types are greyed
+ * out (their count is still shown; the "（無効）" note lives in the title only).
+ * Chips are inline-block so they sit on the surrounding text baseline.
  */
 export function ReactionBreakdown({ reactions }: BreakdownProps) {
   const entries = reactions ?? [];
@@ -32,19 +33,23 @@ export function ReactionBreakdown({ reactions }: BreakdownProps) {
     return <span className="text-primary-400">—</span>;
   }
   return (
-    <span className="inline-flex flex-wrap gap-x-2 gap-y-0.5 align-middle">
-      {entries.map((r) => (
+    <span>
+      {entries.map((r, i) => (
         <span
           key={r.id}
           title={r.is_active ? r.label : `${r.label}（無効）`}
-          className={
-            r.is_active
-              ? 'whitespace-nowrap'
-              : 'whitespace-nowrap text-primary-400 opacity-60'
-          }
+          className={[
+            'inline-block whitespace-nowrap',
+            // Gap between chips only — never after the last one (no trailing
+            // margin before a closing paren). Done in JS rather than a `last:`
+            // Tailwind variant, which v4 fails to extract next to `${`.
+            i < entries.length - 1 ? 'mr-3' : '',
+            r.is_active ? '' : 'text-primary-400 opacity-60',
+          ]
+            .filter(Boolean)
+            .join(' ')}
         >
           {r.emoji} {r.count.toLocaleString()}
-          {!r.is_active && <span className="ml-0.5 text-[10px]">（無効）</span>}
         </span>
       ))}
     </span>

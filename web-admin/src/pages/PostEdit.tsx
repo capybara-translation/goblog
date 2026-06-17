@@ -257,9 +257,13 @@ export function PostEdit() {
             </div>
             <div>
               <span className="font-medium">Reactions:</span>{' '}
-              {reactionTotalLabel(post.reactions)}{' '}
+              <span className="tabular-nums">{reactionTotalLabel(post.reactions)}</span>
               {post.reactions && post.reactions.length > 0 && (
-                <ReactionBreakdown reactions={post.reactions} />
+                <>
+                  {' ('}
+                  <ReactionBreakdown reactions={post.reactions} />
+                  {')'}
+                </>
               )}
             </div>
           </div>
