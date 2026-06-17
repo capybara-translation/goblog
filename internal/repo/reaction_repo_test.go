@@ -333,3 +333,25 @@ func TestReactionRepository_IsActiveType(t *testing.T) {
 		t.Fatal("nonexistent type should not be active")
 	}
 }
+
+func TestReactionRepository_FindTotalsByPostIDs_DeduplicatesInput(t *testing.T) {
+	db := setupReactionTestDB(t)
+	defer db.Close()
+	r := NewReactionRepository(db)
+	// One real reaction on post 1, 👍.
+	if err := r.Add(1, 1, "v1"); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	// A duplicated post id must not multiply the virtual-posts rows and inflate
+	// COUNT after GROUP BY.
+	m, err := r.FindTotalsByPostIDs([]int64{1, 1})
+	if err != nil {
+		t.Fatalf("FindTotalsByPostIDs: %v", err)
+	}
+	if len(m) != 1 {
+		t.Fatalf("expected 1 post key for duplicated input, got %d", len(m))
+	}
+	if m[1][0].Emoji != "👍" || m[1][0].Count != 1 {
+		t.Errorf("duplicate post id must not inflate count: expected 👍 count=1, got %+v", m[1][0])
+	}
+}

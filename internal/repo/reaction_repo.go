@@ -210,14 +210,26 @@ func (r *reactionRepository) FindTotalsByPostIDs(postIDs []int64) (map[int64][]*
 		return result, nil
 	}
 
+	// Deduplicate post ids: a repeated id would multiply the virtual-posts rows
+	// below, and the LEFT-JOIN'd reaction rows would then be counted once per
+	// duplicate — inflating COUNT after GROUP BY.
+	uniqueIDs := make([]int64, 0, len(postIDs))
+	seen := make(map[int64]bool, len(postIDs))
+	for _, id := range postIDs {
+		if !seen[id] {
+			seen[id] = true
+			uniqueIDs = append(uniqueIDs, id)
+		}
+	}
+
 	// Build a virtual posts table (SELECT ? UNION ALL SELECT ? ...) so every
 	// requested post CROSS JOINs all reaction types and yields one row per type
 	// even when the post has no reactions. No is_active filter: inactive types are
 	// included too (distinguished by the is_active column). WHERE-less GROUP BY
 	// with a LEFT JOIN gives COUNT=0 for types with no reactions on the post.
-	postSelects := make([]string, len(postIDs))
-	args := make([]any, len(postIDs))
-	for i, id := range postIDs {
+	postSelects := make([]string, len(uniqueIDs))
+	args := make([]any, len(uniqueIDs))
+	for i, id := range uniqueIDs {
 		postSelects[i] = "SELECT ? AS post_id"
 		args[i] = id
 	}
