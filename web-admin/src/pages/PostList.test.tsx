@@ -1263,4 +1263,47 @@ describe('PostList', () => {
       expect(screen.getByTestId('nav-type').textContent).toBe('POP')
     })
   })
+
+  describe('Reactions column', () => {
+    it('shows the reaction total and reveals the breakdown on hover', async () => {
+      const user = userEvent.setup()
+      const postWithReactions: Post = {
+        id: 99,
+        title: 'Reacted Post',
+        slug: 'reacted-post',
+        content: 'x',
+        status: 'published',
+        tags: '',
+        is_pinned: false,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+        published_at: '2024-01-01T00:00:00Z',
+        view_count: 0,
+        reactions: [
+          { id: 1, emoji: '👍', label: 'いいね', count: 3, is_active: true },
+          { id: 5, emoji: '🤔', label: 'なるほど', count: 2, is_active: false },
+        ],
+      }
+      vi.mocked(apiClient.getPosts).mockResolvedValue({ posts: [postWithReactions], total: 1 })
+
+      render(
+        <MemoryRouter>
+          <PostList />
+        </MemoryRouter>,
+      )
+
+      // Total (3 + 2) is rendered as a focusable trigger.
+      const trigger = await screen.findByRole('button', { name: 'Reactions: 5' })
+      expect(trigger).toBeInTheDocument()
+
+      // No popover until hover/focus.
+      expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+
+      await user.hover(trigger)
+      const tip = await screen.findByRole('tooltip')
+      // The inactive type (🤔 / なるほど) is greyed out inside the popover; its
+      // note lives in the title attribute (no visible 無効 marker).
+      expect(within(tip).getByTitle('なるほど（無効）')).toBeInTheDocument()
+    })
+  })
 })

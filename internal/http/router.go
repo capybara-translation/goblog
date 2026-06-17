@@ -56,7 +56,7 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 	})
 
 	// Initialize admin API handlers
-	apiHandlers := NewAPIHandlers(postService, postViewService)
+	apiHandlers := NewAPIHandlers(postService, postViewService, reactionService)
 
 	// Initialize auth handlers
 	authHandlers := NewAuthHandlers(authService, secureCookie, trustedProxies)
@@ -164,7 +164,7 @@ func NewRouterWithTemplates(postService service.PostService, postViewService ser
 	})
 
 	// Initialize admin API handlers
-	apiHandlers := NewAPIHandlers(postService, postViewService)
+	apiHandlers := NewAPIHandlers(postService, postViewService, nil)
 
 	// Initialize auth handlers
 	authHandlers := NewAuthHandlers(authService, secureCookie, trustedProxies)

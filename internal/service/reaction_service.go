@@ -47,6 +47,11 @@ type ReactionService interface {
 	// counts (reacted=false) for SSR rendering on listing/detail pages. No-op for empty input.
 	AttachReactions(posts []*domain.Post) error
 
+	// AttachReactionTotals populates each post's ReactionTotals with the admin
+	// analytics breakdown (all types, counts, is_active; reacted unused). No-op for
+	// empty input.
+	AttachReactionTotals(posts []*domain.Post) error
+
 	// GetReactionsBySlugs returns reaction summaries keyed by slug for the given
 	// published posts, with per-visitor reacted state. Unknown/unpublished slugs are absent.
 	GetReactionsBySlugs(slugs []string, visitorKey string) (map[string][]*domain.PostReactionSummary, error)
@@ -143,6 +148,26 @@ func (s *reactionService) AttachReactions(posts []*domain.Post) error {
 	}
 	for _, p := range posts {
 		p.Reactions = m[p.ID]
+	}
+	return nil
+}
+
+// AttachReactionTotals populates each post's ReactionTotals with the admin
+// analytics breakdown via repo.FindTotalsByPostIDs.
+func (s *reactionService) AttachReactionTotals(posts []*domain.Post) error {
+	if len(posts) == 0 {
+		return nil
+	}
+	ids := make([]int64, len(posts))
+	for i, p := range posts {
+		ids[i] = p.ID
+	}
+	m, err := s.repo.FindTotalsByPostIDs(ids)
+	if err != nil {
+		return fmt.Errorf("failed to fetch reaction totals: %w", err)
+	}
+	for _, p := range posts {
+		p.ReactionTotals = m[p.ID]
 	}
 	return nil
 }

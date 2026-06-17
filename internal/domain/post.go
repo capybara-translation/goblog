@@ -39,7 +39,11 @@ type Post struct {
 	UpdatedAt   time.Time  `json:"updated_at" db:"updated_at"`
 	PublishedAt *time.Time `json:"published_at,omitempty" db:"published_at"` // Published date (nil if unpublished)
 	ViewCount   int64      `json:"view_count" db:"-"`                        // Populated from post_views table
-	// Reactions is populated by the service layer for SSR rendering of reaction
-	// buttons; not persisted and excluded from JSON API output.
+	// Reactions is populated by the service layer for public SSR rendering
+	// (active types only, with per-visitor reacted). Not persisted, not in JSON.
 	Reactions []*PostReactionSummary `json:"-" db:"-"`
+	// ReactionTotals is populated by AttachReactionTotals for the admin analytics
+	// view (all types incl. inactive, counts, is_active; no reacted). Serialized as
+	// "reactions" in admin API responses only. Not persisted.
+	ReactionTotals []*AdminReactionCount `json:"reactions,omitempty" db:"-"`
 }

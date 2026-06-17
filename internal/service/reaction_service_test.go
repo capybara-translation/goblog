@@ -30,6 +30,7 @@ type mockReactionRepo struct {
 	isActive       bool
 	summaries      []*domain.PostReactionSummary
 	summariesByIDs map[int64][]*domain.PostReactionSummary
+	totalsByIDs    map[int64][]*domain.AdminReactionCount
 }
 
 func (m *mockReactionRepo) FindSummariesByPostID(postID int64, visitorKey string) ([]*domain.PostReactionSummary, error) {
@@ -40,6 +41,12 @@ func (m *mockReactionRepo) FindSummariesByPostIDs(postIDs []int64, visitorKey st
 		return m.summariesByIDs, nil
 	}
 	return make(map[int64][]*domain.PostReactionSummary), nil
+}
+func (m *mockReactionRepo) FindTotalsByPostIDs(postIDs []int64) (map[int64][]*domain.AdminReactionCount, error) {
+	if m.totalsByIDs != nil {
+		return m.totalsByIDs, nil
+	}
+	return make(map[int64][]*domain.AdminReactionCount), nil
 }
 func (m *mockReactionRepo) Add(postID, reactionTypeID int64, visitorKey string) error {
 	m.addCalled = true
@@ -241,5 +248,39 @@ func TestReactionService_GetReactionsBySlugs_Empty(t *testing.T) {
 	}
 	if len(got) != 0 {
 		t.Fatalf("expected empty map, got %d entries", len(got))
+	}
+}
+
+func TestReactionService_AttachReactionTotals(t *testing.T) {
+	c1 := &domain.AdminReactionCount{ID: 1, Emoji: "👍", Count: 3, IsActive: true}
+	c2 := &domain.AdminReactionCount{ID: 5, Emoji: "🤔", Count: 2, IsActive: false}
+	repo := &mockReactionRepo{
+		totalsByIDs: map[int64][]*domain.AdminReactionCount{
+			1: {c1, c2},
+			2: {},
+		},
+	}
+	svc := NewReactionService(&mockReactionPostLookup{}, repo)
+
+	posts := []*domain.Post{{ID: 1, Slug: "p1"}, {ID: 2, Slug: "p2"}}
+	if err := svc.AttachReactionTotals(posts); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(posts[0].ReactionTotals) != 2 {
+		t.Fatalf("post 1 expected 2 totals, got %d", len(posts[0].ReactionTotals))
+	}
+	if posts[0].ReactionTotals[1].Emoji != "🤔" || posts[0].ReactionTotals[1].IsActive {
+		t.Errorf("post 1 second total expected 🤔 inactive, got %+v", posts[0].ReactionTotals[1])
+	}
+	if len(posts[1].ReactionTotals) != 0 {
+		t.Errorf("post 2 expected 0 totals, got %d", len(posts[1].ReactionTotals))
+	}
+}
+
+func TestReactionService_AttachReactionTotals_Empty(t *testing.T) {
+	repo := &mockReactionRepo{}
+	svc := NewReactionService(&mockReactionPostLookup{}, repo)
+	if err := svc.AttachReactionTotals(nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

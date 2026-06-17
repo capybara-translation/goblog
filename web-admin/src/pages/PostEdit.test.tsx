@@ -795,6 +795,55 @@ describe('PostEdit', () => {
     })
   })
 
+  it('shows the reaction breakdown and keeps it after saving', async () => {
+    const user = userEvent.setup()
+    const postWithReactions: Post = {
+      id: 1,
+      title: 'Reacted',
+      slug: 'reacted',
+      content: 'body',
+      status: 'published',
+      tags: '',
+      is_pinned: false,
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z',
+      published_at: '2024-01-01T00:00:00Z',
+      view_count: 0,
+      reactions: [
+        { id: 1, emoji: '👍', label: 'いいね', count: 4, is_active: true },
+        { id: 5, emoji: '🤔', label: 'なるほど', count: 1, is_active: false },
+      ],
+    }
+    vi.mocked(apiClient.getPost).mockResolvedValue(postWithReactions)
+    // Update response intentionally omits reactions (mutation responses don't carry them).
+    vi.mocked(apiClient.updatePost).mockResolvedValue({ ...postWithReactions, reactions: undefined })
+
+    render(
+      <ModalProvider>
+        <MemoryRouter initialEntries={['/posts/1/edit']}>
+          <Routes>
+            <Route path="/posts/:id/edit" element={<PostEdit />} />
+          </Routes>
+        </MemoryRouter>
+      </ModalProvider>,
+    )
+
+    // Inline breakdown is shown; the inactive type (🤔 / なるほど) is greyed out,
+    // identified via its title (no visible 無効 marker).
+    expect(await screen.findByTitle('なるほど（無効）')).toBeInTheDocument()
+
+    // Save; dismiss the "Post updated" alert the same way the other save tests do.
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(apiClient.updatePost).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getByText('Post updated')).toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: 'OK' }))
+
+    // The update response carried no reactions, but the breakdown must persist.
+    expect(screen.getByTitle('なるほど（無効）')).toBeInTheDocument()
+    // Active reaction count is preserved too (whole array kept, not just the inactive entry).
+    expect(screen.getByText('👍 4')).toBeInTheDocument()
+  })
+
   describe('Error handling', () => {
     it('should clear previous error on new save attempt', async () => {
       const user = userEvent.setup()

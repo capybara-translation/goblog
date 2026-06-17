@@ -20,13 +20,16 @@ import (
 type APIHandlers struct {
 	postService     service.PostService
 	postViewService service.PostViewService
+	reactionService service.ReactionService // optional; may be nil (e.g. test router)
 }
 
-// NewAPIHandlers creates a new APIHandlers
-func NewAPIHandlers(postService service.PostService, postViewService service.PostViewService) *APIHandlers {
+// NewAPIHandlers creates a new APIHandlers. reactionService may be nil, in which
+// case reaction totals are simply not attached.
+func NewAPIHandlers(postService service.PostService, postViewService service.PostViewService, reactionService service.ReactionService) *APIHandlers {
 	return &APIHandlers{
 		postService:     postService,
 		postViewService: postViewService,
+		reactionService: reactionService,
 	}
 }
 
@@ -196,6 +199,13 @@ func (h *APIHandlers) HandleGetPosts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Attach reaction totals (admin analytics: all types incl. inactive)
+	if h.reactionService != nil {
+		if err := h.reactionService.AttachReactionTotals(posts); err != nil {
+			log.Printf("failed to attach reaction totals: %v", err)
+		}
+	}
+
 	writeJSON(w, http.StatusOK, PostsResponse{
 		Posts: posts,
 		Total: total,
@@ -233,6 +243,13 @@ func (h *APIHandlers) HandleGetPost(w http.ResponseWriter, r *http.Request) {
 			log.Printf("failed to get view count: %v", err)
 		} else {
 			post.ViewCount = count
+		}
+	}
+
+	// Attach reaction totals (admin analytics: all types incl. inactive)
+	if h.reactionService != nil {
+		if err := h.reactionService.AttachReactionTotals([]*domain.Post{post}); err != nil {
+			log.Printf("failed to attach reaction totals: %v", err)
 		}
 	}
 

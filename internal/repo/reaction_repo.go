@@ -33,6 +33,13 @@ type ReactionRepository interface {
 	// reacted filled in (zero/false when the post has no such reaction). An empty
 	// visitorKey yields reacted=false everywhere. Returns an empty map for empty input.
 	FindSummariesByPostIDs(postIDs []int64, visitorKey string) (map[int64][]*domain.PostReactionSummary, error)
+
+	// FindTotalsByPostIDs returns, for each requested post id, ALL reaction types
+	// (active AND inactive) with that post's count (0 when none), ordered by
+	// sort_order, id. Used by the admin analytics view. Every requested post id is
+	// a key (types appear as 0-count rows even with no reactions). Empty input ->
+	// empty map.
+	FindTotalsByPostIDs(postIDs []int64) (map[int64][]*domain.AdminReactionCount, error)
 }
 
 type reactionRepository struct {
@@ -193,6 +200,69 @@ func (r *reactionRepository) FindSummariesByPostIDs(postIDs []int64, visitorKey 
 			})
 		}
 		result[postID] = summaries
+	}
+	return result, nil
+}
+
+func (r *reactionRepository) FindTotalsByPostIDs(postIDs []int64) (map[int64][]*domain.AdminReactionCount, error) {
+	result := make(map[int64][]*domain.AdminReactionCount)
+	if len(postIDs) == 0 {
+		return result, nil
+	}
+
+	// Deduplicate post ids: a repeated id would multiply the virtual-posts rows
+	// below, and the LEFT-JOIN'd reaction rows would then be counted once per
+	// duplicate — inflating COUNT after GROUP BY.
+	uniqueIDs := make([]int64, 0, len(postIDs))
+	seen := make(map[int64]bool, len(postIDs))
+	for _, id := range postIDs {
+		if !seen[id] {
+			seen[id] = true
+			uniqueIDs = append(uniqueIDs, id)
+		}
+	}
+
+	// Build a virtual posts table (SELECT ? UNION ALL SELECT ? ...) so every
+	// requested post CROSS JOINs all reaction types and yields one row per type
+	// even when the post has no reactions. No is_active filter: inactive types are
+	// included too (distinguished by the is_active column). WHERE-less GROUP BY
+	// with a LEFT JOIN gives COUNT=0 for types with no reactions on the post.
+	postSelects := make([]string, len(uniqueIDs))
+	args := make([]any, len(uniqueIDs))
+	for i, id := range uniqueIDs {
+		postSelects[i] = "SELECT ? AS post_id"
+		args[i] = id
+	}
+	q := fmt.Sprintf(`
+SELECT p.post_id, rt.id, rt.emoji, rt.label, rt.is_active, COUNT(pr.id) AS count
+FROM ( %s ) p
+CROSS JOIN reaction_types rt
+LEFT JOIN post_reactions pr
+       ON pr.reaction_type_id = rt.id AND pr.post_id = p.post_id
+GROUP BY p.post_id, rt.id
+ORDER BY p.post_id, rt.sort_order ASC, rt.id ASC`,
+		strings.Join(postSelects, " UNION ALL "))
+
+	rows, err := r.db.Queryx(q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query reaction totals: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			postID   int64
+			isActive int
+			c        domain.AdminReactionCount
+		)
+		if err := rows.Scan(&postID, &c.ID, &c.Emoji, &c.Label, &isActive, &c.Count); err != nil {
+			return nil, fmt.Errorf("failed to scan reaction total: %w", err)
+		}
+		c.IsActive = isActive == 1
+		result[postID] = append(result[postID], &c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate reaction totals: %w", err)
 	}
 	return result, nil
 }

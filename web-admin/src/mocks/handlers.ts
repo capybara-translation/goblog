@@ -22,6 +22,7 @@ interface Post {
   updated_at: string;
   published_at: string | null;
   view_count: number;
+  reactions?: { id: number; emoji: string; label: string; count: number; is_active: boolean }[];
 }
 
 interface Tag {
@@ -69,6 +70,11 @@ let mockPosts: Post[] = [
     updated_at: '2024-01-01T00:00:00Z',
     published_at: '2024-01-01T10:00:00Z',
     view_count: 42,
+    reactions: [
+      { id: 1, emoji: '👍', label: 'いいね', count: 5, is_active: true },
+      { id: 2, emoji: '❤️', label: '好き', count: 0, is_active: true },
+      { id: 5, emoji: '🤔', label: 'なるほど', count: 2, is_active: false },
+    ],
   },
   {
     id: 2,
