@@ -63,7 +63,7 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 
 	// Shared helper for resolving the current user (session or remember-me).
 	// Used by AuthMiddleware so protected endpoints honor remember tokens.
-	currentUserHelper := NewCurrentUserHelper(authService, secureCookie)
+	currentUserHelper := NewCurrentUserHelper(authService, secureCookie, trustedProxies)
 
 	// Initialize image upload handlers
 	imageHandlers := NewImageHandlers(uploadDir, maxUploadSize, dimensions)
@@ -177,7 +177,7 @@ func NewRouterWithTemplates(postService service.PostService, postViewService ser
 	authHandlers := NewAuthHandlers(authService, secureCookie, trustedProxies)
 
 	// Shared helper for resolving the current user (session or remember-me).
-	currentUserHelper := NewCurrentUserHelper(authService, secureCookie)
+	currentUserHelper := NewCurrentUserHelper(authService, secureCookie, trustedProxies)
 
 	// Initialize image upload handlers
 	imageHandlers := NewImageHandlers(uploadDir, maxUploadSize, dimensions)

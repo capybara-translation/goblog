@@ -41,7 +41,7 @@ func TestAuthMiddleware_Success(t *testing.T) {
 		w.Write([]byte("OK"))
 	})
 
-	middleware := AuthMiddleware(NewCurrentUserHelper(mockService, false))
+	middleware := AuthMiddleware(NewCurrentUserHelper(mockService, false, nil))
 	protectedHandler := middleware(handler)
 
 	// Request with valid session ID
@@ -80,7 +80,7 @@ func TestAuthMiddleware_NoCookie(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	middleware := AuthMiddleware(NewCurrentUserHelper(mockService, false))
+	middleware := AuthMiddleware(NewCurrentUserHelper(mockService, false, nil))
 	protectedHandler := middleware(handler)
 
 	// Request without cookie
@@ -113,7 +113,7 @@ func TestAuthMiddleware_InvalidSession(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	middleware := AuthMiddleware(NewCurrentUserHelper(mockService, false))
+	middleware := AuthMiddleware(NewCurrentUserHelper(mockService, false, nil))
 	protectedHandler := middleware(handler)
 
 	// Request with invalid session ID (no remember cookie either → 401)
@@ -154,7 +154,7 @@ func TestAuthMiddleware_SessionDBError_NoRememberCookie_401(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	middleware := AuthMiddleware(NewCurrentUserHelper(mockService, false))
+	middleware := AuthMiddleware(NewCurrentUserHelper(mockService, false, nil))
 	protectedHandler := middleware(handler)
 
 	// Create request
@@ -190,7 +190,7 @@ func TestAuthMiddleware_RememberTokenDBError_500(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	middleware := AuthMiddleware(NewCurrentUserHelper(mockService, false))
+	middleware := AuthMiddleware(NewCurrentUserHelper(mockService, false, nil))
 	protectedHandler := middleware(handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
@@ -201,6 +201,28 @@ func TestAuthMiddleware_RememberTokenDBError_500(t *testing.T) {
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
+	}
+}
+
+func TestAuthMiddleware_StoresRestoredSessionID(t *testing.T) {
+	mockService := &mockAuthService{
+		getUserBySessionFunc: func(string) (*domain.User, error) { return nil, nil },
+		restoreFromRememberTokenFunc: func(cookie, ua, ip string) (*domain.User, string, error) {
+			return &domain.User{ID: 7}, "restored-sid", nil
+		},
+		rememberTTL: 30 * 24 * time.Hour,
+	}
+	var gotSID string
+	h := AuthMiddleware(NewCurrentUserHelper(mockService, false, nil))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotSID, _ = GetSessionIDFromContext(r.Context())
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := httptest.NewRequest("GET", "/x", nil)
+	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "sel:raw"})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if gotSID != "restored-sid" {
+		t.Fatalf("expected restored session id in context, got %q", gotSID)
 	}
 }
 
@@ -234,7 +256,7 @@ func TestGetUserIDFromContext_Success(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	middleware := AuthMiddleware(NewCurrentUserHelper(mockService, false))
+	middleware := AuthMiddleware(NewCurrentUserHelper(mockService, false, nil))
 	protectedHandler := middleware(handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/protected", nil)

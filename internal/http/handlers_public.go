@@ -292,7 +292,8 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 
 	var helper *CurrentUserHelper
 	if authService != nil {
-		helper = NewCurrentUserHelper(authService, secureCookie)
+		// public-page restores fall back to RemoteAddr (no trusted-proxy plumbing here)
+		helper = NewCurrentUserHelper(authService, secureCookie, nil)
 	}
 
 	return &PublicHandlers{
@@ -366,7 +367,8 @@ func NewPublicHandlersFromPath(postService service.PostService, postViewService 
 
 	var helper *CurrentUserHelper
 	if authService != nil {
-		helper = NewCurrentUserHelper(authService, secureCookie)
+		// public-page restores fall back to RemoteAddr (no trusted-proxy plumbing here)
+		helper = NewCurrentUserHelper(authService, secureCookie, nil)
 	}
 
 	return &PublicHandlers{

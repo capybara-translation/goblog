@@ -30,7 +30,7 @@ type AuthHandlers struct {
 func NewAuthHandlers(authService service.AuthService, secureCookie bool, trustedProxies []string) *AuthHandlers {
 	return &AuthHandlers{
 		authService:       authService,
-		currentUserHelper: NewCurrentUserHelper(authService, secureCookie),
+		currentUserHelper: NewCurrentUserHelper(authService, secureCookie, trustedProxies),
 		secureCookie:      secureCookie,
 		trustedProxies:    parseTrustedProxies(trustedProxies),
 	}

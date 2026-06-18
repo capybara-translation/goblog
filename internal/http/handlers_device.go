@@ -24,7 +24,9 @@ func NewDeviceHandlers(s service.DeviceService) *DeviceHandlers {
 // currentIdentifiers extracts the raw session id and remember selector from the
 // request cookies, used to mark/protect the current device.
 func currentIdentifiers(r *http.Request) (sessionID, selector string) {
-	if c, err := r.Cookie(sessionCookieName); err == nil {
+	if sid, ok := GetSessionIDFromContext(r.Context()); ok && sid != "" {
+		sessionID = sid
+	} else if c, err := r.Cookie(sessionCookieName); err == nil {
 		sessionID = c.Value
 	}
 	if c, err := r.Cookie(rememberCookieName); err == nil {

@@ -24,7 +24,7 @@ func buildReactionAdminRouter() *mux.Router {
 	api := r.PathPrefix("/api/v1").Subrouter()
 	protected := api.PathPrefix("").Subrouter()
 	// Mirror production order: AuthMiddleware first, then CSRFMiddleware.
-	protected.Use(AuthMiddleware(NewCurrentUserHelper(authMock, false)))
+	protected.Use(AuthMiddleware(NewCurrentUserHelper(authMock, false, nil)))
 	protected.Use(CSRFMiddleware())
 
 	admin := NewReactionAdminHandlers(&mockReactionTypeService{})
@@ -54,7 +54,7 @@ func buildAuthenticatedReactionAdminRouter() *mux.Router {
 	api := r.PathPrefix("/api/v1").Subrouter()
 	protected := api.PathPrefix("").Subrouter()
 	// Mirror production order: AuthMiddleware first, then CSRFMiddleware.
-	protected.Use(AuthMiddleware(NewCurrentUserHelper(authMock, false)))
+	protected.Use(AuthMiddleware(NewCurrentUserHelper(authMock, false, nil)))
 	protected.Use(CSRFMiddleware())
 
 	admin := NewReactionAdminHandlers(&mockReactionTypeService{})

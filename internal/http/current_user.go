@@ -3,6 +3,7 @@ package http
 import (
 	"errors"
 	"log"
+	"net"
 	"net/http"
 	"time"
 
@@ -18,31 +19,42 @@ const rememberCookieName = "remember_token"
 // effect — note that this means GET endpoints calling Optional() emit
 // Set-Cookie headers when a restore happens.
 type CurrentUserHelper struct {
-	authService  service.AuthService
-	secureCookie bool
+	authService    service.AuthService
+	secureCookie   bool
+	trustedProxies []*net.IPNet
 }
 
-func NewCurrentUserHelper(authService service.AuthService, secureCookie bool) *CurrentUserHelper {
+func NewCurrentUserHelper(authService service.AuthService, secureCookie bool, trustedProxies []string) *CurrentUserHelper {
 	return &CurrentUserHelper{
-		authService:  authService,
-		secureCookie: secureCookie,
+		authService:    authService,
+		secureCookie:   secureCookie,
+		trustedProxies: parseTrustedProxies(trustedProxies),
 	}
 }
 
-// Optional returns the current user if one can be resolved, or nil.
+// Optional returns the current user if one can be resolved, or nil. It is a thin
+// wrapper over resolve that discards the effective session id (kept for the many
+// callers that only need the user).
+func (h *CurrentUserHelper) Optional(w http.ResponseWriter, r *http.Request) (*domain.User, error) {
+	user, _, err := h.resolve(w, r)
+	return user, err
+}
+
+// resolve returns the current user AND the effective session id (the session id
+// in force after any remember-me restore), or nil/"".
 //
 // Session-lookup errors are logged but NOT returned: they are swallowed so a
 // transient session-store hiccup still falls through to the remember-token
 // path. Only an error from RestoreFromRememberToken is surfaced to the caller
-// (and also logged). So a non-nil error from Optional always originates from
+// (and also logged). So a non-nil error from resolve always originates from
 // the remember-token path, never from the session lookup.
-func (h *CurrentUserHelper) Optional(w http.ResponseWriter, r *http.Request) (*domain.User, error) {
+func (h *CurrentUserHelper) resolve(w http.ResponseWriter, r *http.Request) (*domain.User, string, error) {
 	// 1. Try the session cookie first.
 	if c, err := r.Cookie(sessionCookieName); err == nil {
 		user, lookupErr := h.authService.GetUserBySession(c.Value)
 		if lookupErr == nil && user != nil {
 			h.authService.TouchSession(c.Value, time.Now())
-			return user, nil
+			return user, c.Value, nil
 		}
 		// Distinguish expected stale-session conditions from real DB errors:
 		// "session not found" returns (nil, nil); a deleted user returns
@@ -57,19 +69,19 @@ func (h *CurrentUserHelper) Optional(w http.ResponseWriter, r *http.Request) (*d
 	// 2. Fall back to the remember token.
 	rememberCookie, err := r.Cookie(rememberCookieName)
 	if err != nil {
-		return nil, nil // no remember cookie either
+		return nil, "", nil // no remember cookie either
 	}
 
-	user, sessionID, restoreErr := h.authService.RestoreFromRememberToken(rememberCookie.Value, r.UserAgent(), extractIP(r.RemoteAddr))
+	user, sessionID, restoreErr := h.authService.RestoreFromRememberToken(rememberCookie.Value, r.UserAgent(), clientIP(r, h.trustedProxies))
 	if restoreErr != nil {
 		log.Printf("CurrentUserHelper: RestoreFromRememberToken failed: %v", restoreErr)
-		return nil, restoreErr
+		return nil, "", restoreErr
 	}
 	if user == nil {
 		// Remember cookie was present but invalid. Clear it so the browser
 		// stops re-sending the bad value on every request.
 		h.clearCookie(w, rememberCookieName)
-		return nil, nil
+		return nil, "", nil
 	}
 
 	// 3. Restoration succeeded: emit fresh session + CSRF cookies. Generate
@@ -83,7 +95,7 @@ func (h *CurrentUserHelper) Optional(w http.ResponseWriter, r *http.Request) (*d
 	csrfToken, err := generateCSRFToken()
 	if err != nil {
 		log.Printf("CurrentUserHelper: generateCSRFToken failed during restore: %v", err)
-		return nil, err
+		return nil, "", err
 	}
 	// The session + CSRF cookies use the session TTL.
 	sessionMaxAge := int(h.authService.SessionTTL() / time.Second)
@@ -100,7 +112,7 @@ func (h *CurrentUserHelper) Optional(w http.ResponseWriter, r *http.Request) (*d
 	rememberMaxAge := int(h.authService.RememberTTL() / time.Second)
 	h.setCookie(w, rememberCookieName, rememberCookie.Value, rememberMaxAge, true)
 
-	return user, nil
+	return user, sessionID, nil
 }
 
 func (h *CurrentUserHelper) setCookie(w http.ResponseWriter, name, value string, maxAge int, httpOnly bool) {
