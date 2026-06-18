@@ -199,3 +199,29 @@ func TestLogoutOtherDevices_KeepsCurrent(t *testing.T) {
 		t.Fatalf("other session must be deleted")
 	}
 }
+
+// When the current device is an ephemeral session (no remember token, so
+// currentSelector == ""), "log out other devices" must revoke ALL remember
+// tokens for the user (the current ephemeral session owns none to keep) while
+// preserving the current session itself. This locks in the empty-selector
+// semantics of DeleteByUserExceptSelector(userID, "").
+func TestLogoutOtherDevices_EphemeralCurrentRevokesAllRememberTokens(t *testing.T) {
+	sessions := auth.NewInMemorySessionStore()
+	remember := newFakeRememberStore()
+	svc := NewDeviceService(sessions, remember)
+
+	remember.Create(&domain.RememberToken{UserID: 1, Selector: "a", TokenHash: "h", ExpiresAt: time.Now().Add(time.Hour)})
+	remember.Create(&domain.RememberToken{UserID: 1, Selector: "b", TokenHash: "h", ExpiresAt: time.Now().Add(time.Hour)})
+	// Current device is an ephemeral session: it has no linked selector.
+	curEphemeral, _ := sessions.Create(1, time.Hour, auth.SessionMeta{})
+
+	if err := svc.LogoutOtherDevices(1, curEphemeral, ""); err != nil {
+		t.Fatalf("LogoutOtherDevices: %v", err)
+	}
+	if toks, _ := remember.FindByUserID(1); len(toks) != 0 {
+		t.Fatalf("all remember tokens should be revoked, got %d", len(toks))
+	}
+	if s, _ := sessions.Get(curEphemeral); s == nil {
+		t.Fatalf("current ephemeral session must survive")
+	}
+}

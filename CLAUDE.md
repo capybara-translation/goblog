@@ -260,6 +260,7 @@ func (m *mockPostRepository) FindAll(status *domain.PostStatus, limit, offset in
 - 検証は `crypto/subtle.ConstantTimeCompare` で timing 攻撃を防止
 - ログアウト時に DB レコードと cookie の両方を失効
 - バックグラウンドで 1 時間ごとに期限切れトークンを sweep
+- ログイン中の端末管理のため、トークン発行時の `user_agent` / `ip_address` を `remember_tokens` に平文保存する（運用者自身の端末情報のため読者データのようなセンシティビティは低い）。保持期間はトークン寿命と同じで、期限切れ sweep・ログアウト失効・ユーザー削除（ON DELETE CASCADE）で削除される。別途のデータ保持ポリシーは設けていない
 - CDN 導入時の注意: 公開ページの GET で Set-Cookie 副作用が発生する。CDN が Set-Cookie を含むレスポンスをキャッシュ対象外にする設定であれば実害なし。盲目的にキャッシュする CDN を使う場合は `Cache-Control: private, no-store` を当該レスポンスに付ける設計が必要
 
 ### 7. 記事リアクション
