@@ -28,6 +28,7 @@ goblogはGoで書かれたシンプルなブログシステムです。公開ペ
 - Markdownプレビュー（サーバーサイドレンダリング、同期スクロール）
 - Remember me（短命セッション+長命 remember token、SQLite 保存、SHA-256 ハッシュ、selector+raw 分離、記事を表示する公開ページ（トップ / 記事詳細 / タグ別一覧）と `/auth/me` で自動復元）
 - 記事リアクション（匿名読者が複数絵文字でリアクション、1記事・1絵文字につき1回、Cookie 重複防止、件数は SSR + reacted 状態は JS で付与。記事詳細・トップ・タグ別一覧で表示し、その場でトグル可能。絵文字の解釈は読者に委ねるため label は UI 非表示）。管理画面 (`/admin/reactions`) で絵文字マスタを作成・編集・有効/無効・条件付き物理削除(件数0かつ非seedのみ)できる。
+- ログイン中の端末管理（管理画面 `/admin/devices` で remember_token ベースの永続端末一覧＋保持OFFの一時セッションを併記。`mileusna/useragent` で UA から端末/ブラウザを導出、IP 表示。現在の端末に「この端末」バッジを付け個別失効は不可、非現端末の個別失効と「他の端末をすべてログアウト」に対応。remember 端末失効時は紐付くアクティブセッションも巻き添えで失効させ確実にログアウト）
 
 🚧 **計画中:**
 - RSS フィード
@@ -75,6 +76,7 @@ Database (SQLite)
     ogp_meta.go        # OGPメタタグ生成
     handlers_reaction.go  # リアクション公開APIハンドラー
     handlers_reaction_admin.go # リアクション種別管理APIハンドラー（認証+CSRF）
+    handlers_device.go    # ログイン中の端末一覧・失効ハンドラー（認証+CSRF）
     reaction_middleware.go # X-Requested-With 検証ミドルウェア
     client_ip.go       # 信頼プロキシ考慮の client IP 抽出（共有）
     ratelimiter.go     # IP 単位レートリミッタ
@@ -85,6 +87,7 @@ Database (SQLite)
     ogp_service.go     # OGPリンクカード
     reaction_service.go  # リアクションのビジネスロジック
     reaction_type_service.go # リアクション種別のビジネスロジック（seed 保護・バリデーション）
+    device_service.go    # ログイン中の端末のビジネスロジック（一覧マージ・失効・UAパース）
   /repo/               # データアクセス
     post_repo.go
     post_view_repo.go      # 閲覧記録
@@ -309,6 +312,9 @@ func (m *mockPostRepository) FindAll(status *domain.PostStatus, limit, offset in
 - `POST /api/v1/reaction-types` - リアクション種別作成
 - `PUT /api/v1/reaction-types/{id}` - リアクション種別更新
 - `DELETE /api/v1/reaction-types/{id}` - リアクション種別削除（件数0かつ非seedのみ）
+- `GET /api/v1/devices` - ログイン中の端末一覧（remember 端末＋一時セッション、`is_current`/`is_ephemeral` 付き、最終利用の降順）
+- `DELETE /api/v1/devices/{kind}/{id}` - 端末の個別失効（kind: `remember`|`session`。現在の端末は 403、他ユーザー/不明な id は 404、不正な kind は 400）
+- `POST /api/v1/devices/logout-others` - 現在の端末以外を一括失効
 
 ## データフロー例
 
@@ -395,7 +401,7 @@ POST /api/v1/auth/login (JSON)
   - `users`: ユーザーデータ（id, username, password_hash, created_at, updated_at）
   - `ogp_cache`: OGPメタ情報キャッシュ（url, title, description, image, local_image, expires_at）
   - `post_views`: 閲覧記録（post_id, viewed_at, ip_address, user_agent）※ON DELETE CASCADE
-  - `remember_tokens`: Remember me トークン（selector / token_hash / expires_at / user_id ON DELETE CASCADE）
+  - `remember_tokens`: Remember me トークン（selector / token_hash / expires_at / user_id ON DELETE CASCADE / user_agent / ip_address）。`user_agent` と `ip_address`（migration 009）はトークン発行時の端末情報で、ログイン中の端末一覧に使用。migration 009 以前の既存行は空文字となり「不明な端末」と表示される
   - `reaction_types`: リアクション絵文字マスタ（id, emoji, label, sort_order, is_active, created_at）。seed は `repo.DefaultReactionTypes` (Go) を単一ソースに `goblog.InitSchema` で `INSERT OR IGNORE` 投入する。migration 008 は CREATE のみ（seed 行は持たない）。seed 絵文字（👍❤️🎉👀🤔）は管理画面から emoji 変更・物理削除不可（無効化のみ）。
   - `post_reactions`: リアクション記録（post_id, reaction_type_id, visitor_key, created_at, UNIQUE(post_id, reaction_type_id, visitor_key)）※ON DELETE CASCADE
 
