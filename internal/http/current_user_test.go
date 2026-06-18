@@ -56,7 +56,7 @@ func TestCurrentUserHelper_Optional_RestoresFromRememberToken(t *testing.T) {
 		getUserBySessionFunc: func(string) (*domain.User, error) {
 			return nil, nil
 		},
-		restoreFromRememberTokenFunc: func(cookie string) (*domain.User, string, error) {
+		restoreFromRememberTokenFunc: func(cookie, _, _ string) (*domain.User, string, error) {
 			if cookie == "rem-cookie" {
 				return &domain.User{ID: 7, Username: "admin"}, "fresh-session", nil
 			}
@@ -112,7 +112,7 @@ func TestCurrentUserHelper_Optional_InvalidRememberCookieIsCleared(t *testing.T)
 		getUserBySessionFunc: func(string) (*domain.User, error) {
 			return nil, nil
 		},
-		restoreFromRememberTokenFunc: func(string) (*domain.User, string, error) {
+		restoreFromRememberTokenFunc: func(string, string, string) (*domain.User, string, error) {
 			return nil, "", nil
 		},
 	}, false)
@@ -140,7 +140,7 @@ func TestCurrentUserHelper_Optional_InvalidRememberCookieIsCleared(t *testing.T)
 func TestCurrentUserHelper_Optional_SetsCacheControlPrivateOnRestore(t *testing.T) {
 	helper := NewCurrentUserHelper(&mockAuthService{
 		getUserBySessionFunc: func(string) (*domain.User, error) { return nil, nil },
-		restoreFromRememberTokenFunc: func(string) (*domain.User, string, error) {
+		restoreFromRememberTokenFunc: func(string, string, string) (*domain.User, string, error) {
 			return &domain.User{ID: 1, Username: "u"}, "new-sid", nil
 		},
 		rememberTTL: 30 * 24 * time.Hour,
@@ -166,7 +166,7 @@ func TestCurrentUserHelper_Optional_SetsCacheControlPrivateOnRestore(t *testing.
 func TestCurrentUserHelper_Optional_OverridesCacheableHeaderOnRestore(t *testing.T) {
 	helper := NewCurrentUserHelper(&mockAuthService{
 		getUserBySessionFunc: func(string) (*domain.User, error) { return nil, nil },
-		restoreFromRememberTokenFunc: func(string) (*domain.User, string, error) {
+		restoreFromRememberTokenFunc: func(string, string, string) (*domain.User, string, error) {
 			return &domain.User{ID: 1, Username: "u"}, "new-sid", nil
 		},
 		rememberTTL: 30 * 24 * time.Hour,

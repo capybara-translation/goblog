@@ -29,9 +29,10 @@ var (
 
 // AuthService is an interface that provides business logic for authentication
 type AuthService interface {
-	// Login authenticates with username and password, and returns a session ID
-	// ipAddress is used for brute force protection
-	Login(username, password, ipAddress string) (string, error)
+	// Login authenticates with username and password, and returns a session ID.
+	// ipAddress is used for brute force protection; userAgent/ipAddress are also
+	// recorded on the session for the device-management feature.
+	Login(username, password, ipAddress, userAgent string) (string, error)
 
 	// Logout deletes a session
 	Logout(sessionID string) error
@@ -47,15 +48,16 @@ type AuthService interface {
 	// server-side session expire together.
 	SessionTTL() time.Duration
 
-	// IssueRememberToken creates a long-lived remember-me token for the user
-	// and returns the cookie value to set.
-	IssueRememberToken(userID int64) (cookieValue string, err error)
+	// IssueRememberToken creates a long-lived remember-me token for the user,
+	// recording the device's user agent and IP, and returns the cookie value.
+	IssueRememberToken(userID int64, userAgent, ipAddress string) (cookieValue string, err error)
 
 	// RestoreFromRememberToken validates a remember-me cookie and, on success,
-	// issues a new session. Returns (nil, "", nil) for any non-fatal failure
+	// issues a new session carrying the given userAgent/ipAddress and linked to
+	// the token's selector. Returns (nil, "", nil) for any non-fatal failure
 	// (missing, expired, hash mismatch, malformed) so callers can treat it as
 	// "no user" without flooding logs.
-	RestoreFromRememberToken(cookieValue string) (*domain.User, string, error)
+	RestoreFromRememberToken(cookieValue, userAgent, ipAddress string) (*domain.User, string, error)
 
 	// RevokeRememberToken deletes the remember-token row identified by the
 	// cookie's selector. Malformed cookies are silently ignored.
@@ -63,6 +65,13 @@ type AuthService interface {
 
 	// RememberTTL reports the TTL applied to newly issued remember tokens.
 	RememberTTL() time.Duration
+
+	// AttachRememberSelector links an already-created session to a remember
+	// token's selector (used right after a remember-me login).
+	AttachRememberSelector(sessionID, selector string)
+
+	// TouchSession bumps the session's last-used timestamp.
+	TouchSession(sessionID string, t time.Time)
 }
 
 // loginAttempt holds information about failed login attempts
@@ -127,13 +136,24 @@ func (s *authService) RememberTTL() time.Duration {
 	return s.rememberTTL
 }
 
+// AttachRememberSelector links an already-created session to a remember
+// token's selector (used right after a remember-me login).
+func (s *authService) AttachRememberSelector(sessionID, selector string) {
+	s.sessionStore.SetRememberSelector(sessionID, selector)
+}
+
+// TouchSession bumps the session's last-used timestamp.
+func (s *authService) TouchSession(sessionID string, t time.Time) {
+	s.sessionStore.Touch(sessionID, t)
+}
+
 // IssueRememberToken creates a long-lived remember-me token for the user and
 // returns the cookie value (selector:rawToken) that the caller should set on
 // the client. Only the SHA-256 hash of the raw token is persisted.
 //
 // Returns an error if remember-me is not configured (rememberStore == nil) so
 // the caller can degrade gracefully rather than panicking.
-func (s *authService) IssueRememberToken(userID int64) (string, error) {
+func (s *authService) IssueRememberToken(userID int64, userAgent, ipAddress string) (string, error) {
 	if s.rememberStore == nil {
 		return "", errors.New("remember-me is not configured")
 	}
@@ -144,6 +164,8 @@ func (s *authService) IssueRememberToken(userID int64) (string, error) {
 		Selector:  selector,
 		TokenHash: auth.HashToken(rawToken),
 		ExpiresAt: time.Now().Add(s.rememberTTL),
+		UserAgent: userAgent,
+		IPAddress: ipAddress,
 	}
 	if err := s.rememberStore.Create(token); err != nil {
 		return "", fmt.Errorf("create remember token: %w", err)
@@ -157,7 +179,7 @@ func (s *authService) IssueRememberToken(userID int64) (string, error) {
 // mismatch, deleted user) returns (nil, "", nil) so the caller can treat it
 // as "no logged-in user" without leaking signal about which failure happened.
 // Only genuine infrastructure errors (DB / session store) are surfaced.
-func (s *authService) RestoreFromRememberToken(cookieValue string) (*domain.User, string, error) {
+func (s *authService) RestoreFromRememberToken(cookieValue, userAgent, ipAddress string) (*domain.User, string, error) {
 	if s.rememberStore == nil {
 		// Remember-me disabled: treat any presented token as a miss.
 		return nil, "", nil
@@ -201,7 +223,11 @@ func (s *authService) RestoreFromRememberToken(cookieValue string) (*domain.User
 		return nil, "", nil
 	}
 
-	sessionID, err := s.sessionStore.Create(user.ID, s.sessionTTL, auth.SessionMeta{RememberSelector: selector})
+	sessionID, err := s.sessionStore.Create(user.ID, s.sessionTTL, auth.SessionMeta{
+		UserAgent:        userAgent,
+		IP:               ipAddress,
+		RememberSelector: selector,
+	})
 	if err != nil {
 		return nil, "", fmt.Errorf("create session: %w", err)
 	}
@@ -233,7 +259,7 @@ func (s *authService) RevokeRememberToken(cookieValue string) error {
 }
 
 // Login authenticates with username and password, and returns a session ID
-func (s *authService) Login(username, password, ipAddress string) (string, error) {
+func (s *authService) Login(username, password, ipAddress, userAgent string) (string, error) {
 	// Brute force protection: delay based on failure count
 	s.applyLoginDelay(ipAddress)
 
@@ -257,7 +283,10 @@ func (s *authService) Login(username, password, ipAddress string) (string, error
 	s.resetLoginAttempts(ipAddress)
 
 	// Create session
-	sessionID, err := s.sessionStore.Create(user.ID, s.sessionTTL, auth.SessionMeta{})
+	sessionID, err := s.sessionStore.Create(user.ID, s.sessionTTL, auth.SessionMeta{
+		UserAgent: userAgent,
+		IP:        ipAddress,
+	})
 	if err != nil {
 		return "", fmt.Errorf("failed to create session: %w", err)
 	}

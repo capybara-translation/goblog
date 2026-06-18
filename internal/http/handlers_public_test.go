@@ -18,28 +18,28 @@ import (
 
 const (
 	testTemplatePattern = "../view/templates/*.html"
-	testUploadDir       = ""                        // Upload directory is not used in tests
-	testMaxUploadSize   = 5 * 1024 * 1024           // 5MB
-	testSecureCookie    = false                     // Secure Cookie is disabled in tests
-	testBlogTitle       = "goblog"                  // Blog title for testing
-	testBaseURL         = "http://localhost:8080"   // Base URL for testing
-	testPostsPerPage    = 20                        // Posts per page for testing
+	testUploadDir       = ""                      // Upload directory is not used in tests
+	testMaxUploadSize   = 5 * 1024 * 1024         // 5MB
+	testSecureCookie    = false                   // Secure Cookie is disabled in tests
+	testBlogTitle       = "goblog"                // Blog title for testing
+	testBaseURL         = "http://localhost:8080" // Base URL for testing
+	testPostsPerPage    = 20                      // Posts per page for testing
 )
 
 // mockPostService is a mock implementation of PostService
 type mockPostService struct {
-	getPublishedPostsFunc        func(limit, offset int) ([]*domain.Post, error)
-	getPublishedPostsByTagFunc   func(tag string, limit, offset int) ([]*domain.Post, error)
-	getPublishedTagsFunc         func() (map[string]int, error)
-	getPostBySlugFunc            func(slug string) (*domain.Post, error)
-	getAllPostsFunc              func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
-	countPostsFunc               func(status *domain.PostStatus) (int, error)
-	countPostsByTagFunc          func(tag string, status *domain.PostStatus) (int, error)
-	searchPostsFunc              func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
-	countSearchPostsFunc         func(query string, status *domain.PostStatus) (int, error)
-	searchPublishedPostsFunc     func(query string, limit, offset int) ([]*domain.Post, error)
-	countSearchPublishedFunc     func(query string) (int, error)
-	getPinnedPostsFunc           func() ([]*domain.Post, error)
+	getPublishedPostsFunc      func(limit, offset int) ([]*domain.Post, error)
+	getPublishedPostsByTagFunc func(tag string, limit, offset int) ([]*domain.Post, error)
+	getPublishedTagsFunc       func() (map[string]int, error)
+	getPostBySlugFunc          func(slug string) (*domain.Post, error)
+	getAllPostsFunc            func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	countPostsFunc             func(status *domain.PostStatus) (int, error)
+	countPostsByTagFunc        func(tag string, status *domain.PostStatus) (int, error)
+	searchPostsFunc            func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	countSearchPostsFunc       func(query string, status *domain.PostStatus) (int, error)
+	searchPublishedPostsFunc   func(query string, limit, offset int) ([]*domain.Post, error)
+	countSearchPublishedFunc   func(query string) (int, error)
+	getPinnedPostsFunc         func() ([]*domain.Post, error)
 }
 
 func (m *mockPostService) GetPublishedPosts(limit, offset int) ([]*domain.Post, error) {
@@ -172,13 +172,13 @@ var _ service.PostService = (*mockPostService)(nil)
 // that need to exercise admin-only UI surfaced behind a session cookie.
 type mockAuthServiceForPublic struct {
 	getUserBySessionFunc         func(sessionID string) (*domain.User, error)
-	issueRememberTokenFunc       func(int64) (string, error)
-	restoreFromRememberTokenFunc func(string) (*domain.User, string, error)
+	issueRememberTokenFunc       func(int64, string, string) (string, error)
+	restoreFromRememberTokenFunc func(string, string, string) (*domain.User, string, error)
 	revokeRememberTokenFunc      func(string) error
 	rememberTTL                  time.Duration
 }
 
-func (m *mockAuthServiceForPublic) Login(username, password, ipAddress string) (string, error) {
+func (m *mockAuthServiceForPublic) Login(username, password, ipAddress, userAgent string) (string, error) {
 	return "", nil
 }
 
@@ -201,19 +201,23 @@ func (m *mockAuthServiceForPublic) SessionTTL() time.Duration {
 	return 24 * time.Hour
 }
 
-func (m *mockAuthServiceForPublic) IssueRememberToken(uid int64) (string, error) {
+func (m *mockAuthServiceForPublic) IssueRememberToken(uid int64, userAgent, ipAddress string) (string, error) {
 	if m.issueRememberTokenFunc != nil {
-		return m.issueRememberTokenFunc(uid)
+		return m.issueRememberTokenFunc(uid, userAgent, ipAddress)
 	}
 	return "", nil
 }
 
-func (m *mockAuthServiceForPublic) RestoreFromRememberToken(c string) (*domain.User, string, error) {
+func (m *mockAuthServiceForPublic) RestoreFromRememberToken(c, userAgent, ipAddress string) (*domain.User, string, error) {
 	if m.restoreFromRememberTokenFunc != nil {
-		return m.restoreFromRememberTokenFunc(c)
+		return m.restoreFromRememberTokenFunc(c, userAgent, ipAddress)
 	}
 	return nil, "", nil
 }
+
+func (m *mockAuthServiceForPublic) AttachRememberSelector(sessionID, selector string) {}
+
+func (m *mockAuthServiceForPublic) TouchSession(sessionID string, t time.Time) {}
 
 func (m *mockAuthServiceForPublic) RevokeRememberToken(c string) error {
 	if m.revokeRememberTokenFunc != nil {
@@ -923,7 +927,6 @@ func TestHandlePostDetail_BlogTitle(t *testing.T) {
 	}
 }
 
-
 func TestTruncateRunes(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -1422,7 +1425,7 @@ func TestHandleHome_Search(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			containsText: []string{
 				"Search results for \"<span class=\"font-medium\">Go</span>\"",
-				"<mark>Go</mark>入門",           // Highlighted title
+				"<mark>Go</mark>入門",      // Highlighted title
 				"<mark>Go</mark>応用テクニック", // Highlighted title
 				"/posts/go-introduction",
 				"/posts/go-advanced",
@@ -1791,11 +1794,11 @@ func TestHighlightQuery(t *testing.T) {
 
 func TestHandleHome_SearchHighlight(t *testing.T) {
 	tests := []struct {
-		name           string
-		url            string
-		mockSearch     func(query string, limit, offset int) ([]*domain.Post, error)
-		containsText   []string
-		notContains    []string
+		name         string
+		url          string
+		mockSearch   func(query string, limit, offset int) ([]*domain.Post, error)
+		containsText []string
+		notContains  []string
 	}{
 		{
 			name: "Highlight is applied to title and body",
@@ -1814,7 +1817,7 @@ func TestHandleHome_SearchHighlight(t *testing.T) {
 				}, nil
 			},
 			containsText: []string{
-				"<mark>Go</mark>言語入門",            // Highlight in title
+				"<mark>Go</mark>言語入門",           // Highlight in title
 				"<mark>Go</mark>の基本的な使い方を解説します", // Highlight in body too
 			},
 		},
@@ -1835,7 +1838,7 @@ func TestHandleHome_SearchHighlight(t *testing.T) {
 				}, nil
 			},
 			containsText: []string{
-				"<mark>プログラミング</mark>入門",   // Highlight in title
+				"<mark>プログラミング</mark>入門",    // Highlight in title
 				"<mark>プログラミング</mark>を始めよう", // Highlight in body too
 			},
 		},
@@ -1881,7 +1884,7 @@ func TestHandleHome_SearchHighlight(t *testing.T) {
 				}, nil
 			},
 			containsText: []string{
-				"<mark>Go</mark>言語の紹介",        // Highlight in title
+				"<mark>Go</mark>言語の紹介",            // Highlight in title
 				"<mark>Go</mark>は効率的なプログラミング言語です", // Highlight in body too
 			},
 		},
@@ -2050,10 +2053,10 @@ func TestPinnedPostsInHeader(t *testing.T) {
 	now := time.Now()
 
 	tests := []struct {
-		name           string
-		pinnedPosts    []*domain.Post
-		containsText   []string
-		notContains    []string
+		name         string
+		pinnedPosts  []*domain.Post
+		containsText []string
+		notContains  []string
 	}{
 		{
 			name: "Pinned posts are displayed in header",
@@ -2625,7 +2628,7 @@ func TestHandleHome_AdminEditLink_VisibleViaRememberToken(t *testing.T) {
 		getUserBySessionFunc: func(string) (*domain.User, error) {
 			return nil, nil // session invalid
 		},
-		restoreFromRememberTokenFunc: func(cookie string) (*domain.User, string, error) {
+		restoreFromRememberTokenFunc: func(cookie, _, _ string) (*domain.User, string, error) {
 			if cookie == "rem-cookie" {
 				return &domain.User{ID: 1, Username: "admin"}, "new-sid", nil
 			}

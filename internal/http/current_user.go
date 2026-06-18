@@ -41,6 +41,7 @@ func (h *CurrentUserHelper) Optional(w http.ResponseWriter, r *http.Request) (*d
 	if c, err := r.Cookie(sessionCookieName); err == nil {
 		user, lookupErr := h.authService.GetUserBySession(c.Value)
 		if lookupErr == nil && user != nil {
+			h.authService.TouchSession(c.Value, time.Now())
 			return user, nil
 		}
 		// Distinguish expected stale-session conditions from real DB errors:
@@ -59,7 +60,7 @@ func (h *CurrentUserHelper) Optional(w http.ResponseWriter, r *http.Request) (*d
 		return nil, nil // no remember cookie either
 	}
 
-	user, sessionID, restoreErr := h.authService.RestoreFromRememberToken(rememberCookie.Value)
+	user, sessionID, restoreErr := h.authService.RestoreFromRememberToken(rememberCookie.Value, r.UserAgent(), extractIP(r.RemoteAddr))
 	if restoreErr != nil {
 		log.Printf("CurrentUserHelper: RestoreFromRememberToken failed: %v", restoreErr)
 		return nil, restoreErr

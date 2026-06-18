@@ -18,23 +18,23 @@ const testSessionID = "test-session-id"
 
 // mockPostServiceForAPI is a mock implementation of PostService (for API)
 type mockPostServiceForAPI struct {
-	getAllPostsFunc             func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
-	getAllPostsByTagFunc        func(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
-	getAllTagsFunc              func(status *domain.PostStatus) (map[string]int, error)
-	getPostByIDFunc             func(id int64) (*domain.Post, error)
-	createPostFunc              func(title, slug, content, tags string, isPinned bool) (*domain.Post, error)
-	updatePostFunc              func(id int64, title, slug, content, tags string, isPinned bool) (*domain.Post, error)
-	deletePostFunc              func(id int64) error
-	publishPostFunc             func(id int64) (*domain.Post, error)
-	unpublishPostFunc           func(id int64) (*domain.Post, error)
-	countPostsFunc              func(status *domain.PostStatus) (int, error)
-	countPostsByTagFunc         func(tag string, status *domain.PostStatus) (int, error)
-	searchPostsFunc             func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
-	countSearchPostsFunc        func(query string, status *domain.PostStatus) (int, error)
-	searchPublishedPostsFunc    func(query string, limit, offset int) ([]*domain.Post, error)
-	countSearchPublishedFunc    func(query string) (int, error)
-	getPinnedPostsFunc          func() ([]*domain.Post, error)
-	setPinnedFunc               func(id int64, pinned bool) (*domain.Post, error)
+	getAllPostsFunc          func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	getAllPostsByTagFunc     func(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	getAllTagsFunc           func(status *domain.PostStatus) (map[string]int, error)
+	getPostByIDFunc          func(id int64) (*domain.Post, error)
+	createPostFunc           func(title, slug, content, tags string, isPinned bool) (*domain.Post, error)
+	updatePostFunc           func(id int64, title, slug, content, tags string, isPinned bool) (*domain.Post, error)
+	deletePostFunc           func(id int64) error
+	publishPostFunc          func(id int64) (*domain.Post, error)
+	unpublishPostFunc        func(id int64) (*domain.Post, error)
+	countPostsFunc           func(status *domain.PostStatus) (int, error)
+	countPostsByTagFunc      func(tag string, status *domain.PostStatus) (int, error)
+	searchPostsFunc          func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	countSearchPostsFunc     func(query string, status *domain.PostStatus) (int, error)
+	searchPublishedPostsFunc func(query string, limit, offset int) ([]*domain.Post, error)
+	countSearchPublishedFunc func(query string) (int, error)
+	getPinnedPostsFunc       func() ([]*domain.Post, error)
+	setPinnedFunc            func(id int64, pinned bool) (*domain.Post, error)
 }
 
 func (m *mockPostServiceForAPI) GetPublishedPosts(limit, offset int) ([]*domain.Post, error) {
@@ -180,19 +180,19 @@ var _ service.PostService = (*mockPostServiceForAPI)(nil)
 
 // mockAuthServiceForAPI is a mock implementation of AuthService (for API)
 type mockAuthServiceForAPI struct {
-	loginFunc                    func(username, password, ipAddress string) (string, error)
+	loginFunc                    func(username, password, ipAddress, userAgent string) (string, error)
 	logoutFunc                   func(sessionID string) error
 	getUserBySessionFunc         func(sessionID string) (*domain.User, error)
 	createUserFunc               func(username, password string) (*domain.User, error)
-	issueRememberTokenFunc       func(int64) (string, error)
-	restoreFromRememberTokenFunc func(string) (*domain.User, string, error)
+	issueRememberTokenFunc       func(int64, string, string) (string, error)
+	restoreFromRememberTokenFunc func(string, string, string) (*domain.User, string, error)
 	revokeRememberTokenFunc      func(string) error
 	rememberTTL                  time.Duration
 }
 
-func (m *mockAuthServiceForAPI) Login(username, password, ipAddress string) (string, error) {
+func (m *mockAuthServiceForAPI) Login(username, password, ipAddress, userAgent string) (string, error) {
 	if m.loginFunc != nil {
-		return m.loginFunc(username, password, ipAddress)
+		return m.loginFunc(username, password, ipAddress, userAgent)
 	}
 	return "", nil
 }
@@ -222,19 +222,23 @@ func (m *mockAuthServiceForAPI) SessionTTL() time.Duration {
 	return 24 * time.Hour
 }
 
-func (m *mockAuthServiceForAPI) IssueRememberToken(uid int64) (string, error) {
+func (m *mockAuthServiceForAPI) IssueRememberToken(uid int64, userAgent, ipAddress string) (string, error) {
 	if m.issueRememberTokenFunc != nil {
-		return m.issueRememberTokenFunc(uid)
+		return m.issueRememberTokenFunc(uid, userAgent, ipAddress)
 	}
 	return "", nil
 }
 
-func (m *mockAuthServiceForAPI) RestoreFromRememberToken(c string) (*domain.User, string, error) {
+func (m *mockAuthServiceForAPI) RestoreFromRememberToken(c, userAgent, ipAddress string) (*domain.User, string, error) {
 	if m.restoreFromRememberTokenFunc != nil {
-		return m.restoreFromRememberTokenFunc(c)
+		return m.restoreFromRememberTokenFunc(c, userAgent, ipAddress)
 	}
 	return nil, "", nil
 }
+
+func (m *mockAuthServiceForAPI) AttachRememberSelector(sessionID, selector string) {}
+
+func (m *mockAuthServiceForAPI) TouchSession(sessionID string, t time.Time) {}
 
 func (m *mockAuthServiceForAPI) RevokeRememberToken(c string) error {
 	if m.revokeRememberTokenFunc != nil {

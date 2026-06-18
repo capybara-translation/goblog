@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/capybara-translation/goblog/internal/auth"
 	"github.com/capybara-translation/goblog/internal/service"
 )
 
@@ -64,7 +65,6 @@ func parseTrustedProxies(proxies []string) []*net.IPNet {
 	return nets
 }
 
-
 // LoginRequest is the request body for login
 type LoginRequest struct {
 	Username   string `json:"username"`
@@ -88,9 +88,10 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Get client IP address (for brute force protection)
 	ipAddress := h.getClientIP(r)
+	userAgent := r.UserAgent()
 
 	// Authentication
-	sessionID, err := h.authService.Login(req.Username, req.Password, ipAddress)
+	sessionID, err := h.authService.Login(req.Username, req.Password, ipAddress, userAgent)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) {
 			respondJSON(w, http.StatusUnauthorized, ErrorResponse{Error: "Invalid username or password"})
@@ -171,7 +172,7 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		rememberValue, err := h.authService.IssueRememberToken(user.ID)
+		rememberValue, err := h.authService.IssueRememberToken(user.ID, userAgent, ipAddress)
 		if err != nil {
 			log.Printf("HandleLogin: IssueRememberToken failed: %v", err)
 			// We may have already revoked the previously-presented token's DB
@@ -180,6 +181,12 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 			// restore would otherwise lazily clear it.
 			h.clearRememberCookie(w)
 		} else {
+			// Link the freshly created session to this remember token so the
+			// device list can show it as one device and so revoking the device
+			// also kills the live session.
+			if selector, _, ok := auth.DecodeRememberCookie(rememberValue); ok {
+				h.authService.AttachRememberSelector(sessionID, selector)
+			}
 			// Remember cookie has its own (longer) MaxAge — derived from the
 			// service's remember TTL, not the session TTL.
 			http.SetCookie(w, &http.Cookie{

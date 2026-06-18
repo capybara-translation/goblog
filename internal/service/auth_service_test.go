@@ -213,7 +213,7 @@ func TestAuthService_Login(t *testing.T) {
 	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone, 24*time.Hour, nil, 24*time.Hour)
 
 	// Login with correct password
-	sessionID, err := authService.Login("testuser", "password123", "127.0.0.1")
+	sessionID, err := authService.Login("testuser", "password123", "127.0.0.1", "")
 	if err != nil {
 		t.Fatalf("failed to login: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestAuthService_Login_InvalidUsername(t *testing.T) {
 	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone, 24*time.Hour, nil, 24*time.Hour)
 
 	// Login with non-existent username
-	sessionID, err := authService.Login("nonexistent", "password123", "127.0.0.1")
+	sessionID, err := authService.Login("nonexistent", "password123", "127.0.0.1", "")
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Errorf("expected ErrInvalidCredentials, got %v", err)
 	}
@@ -278,7 +278,7 @@ func TestAuthService_Login_InvalidPassword(t *testing.T) {
 	authService := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone, 24*time.Hour, nil, 24*time.Hour)
 
 	// Login with wrong password
-	sessionID, err := authService.Login("testuser", "wrongpassword", "127.0.0.1")
+	sessionID, err := authService.Login("testuser", "wrongpassword", "127.0.0.1", "")
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Errorf("expected ErrInvalidCredentials, got %v", err)
 	}
@@ -693,7 +693,7 @@ func TestAuthService_BruteForce_MultipleFailures(t *testing.T) {
 	// First 3 failures have no delay
 	start := time.Now()
 	for i := 0; i < 3; i++ {
-		_, err := authService.Login("testuser", "wrongpassword", ipAddress)
+		_, err := authService.Login("testuser", "wrongpassword", ipAddress, "")
 		if !errors.Is(err, ErrInvalidCredentials) {
 			t.Errorf("attempt %d: expected ErrInvalidCredentials, got %v", i+1, err)
 		}
@@ -707,7 +707,7 @@ func TestAuthService_BruteForce_MultipleFailures(t *testing.T) {
 
 	// 4th failure onwards has delay (2 seconds)
 	start = time.Now()
-	_, err = authService.Login("testuser", "wrongpassword", ipAddress)
+	_, err = authService.Login("testuser", "wrongpassword", ipAddress, "")
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Errorf("expected ErrInvalidCredentials, got %v", err)
 	}
@@ -754,14 +754,14 @@ func TestAuthService_BruteForce_SuccessResetsCounter(t *testing.T) {
 
 	// Fail 2 times
 	for i := 0; i < 2; i++ {
-		_, err := authService.Login("testuser", "wrongpassword", ipAddress)
+		_, err := authService.Login("testuser", "wrongpassword", ipAddress, "")
 		if !errors.Is(err, ErrInvalidCredentials) {
 			t.Errorf("attempt %d: expected ErrInvalidCredentials, got %v", i+1, err)
 		}
 	}
 
 	// Success
-	_, err = authService.Login("testuser", "password123", ipAddress)
+	_, err = authService.Login("testuser", "password123", ipAddress, "")
 	if err != nil {
 		t.Fatalf("expected successful login, got %v", err)
 	}
@@ -769,7 +769,7 @@ func TestAuthService_BruteForce_SuccessResetsCounter(t *testing.T) {
 	// Counter should be reset
 	// Subsequent failure should complete immediately (no delay)
 	start := time.Now()
-	_, err = authService.Login("testuser", "wrongpassword", ipAddress)
+	_, err = authService.Login("testuser", "wrongpassword", ipAddress, "")
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Errorf("expected ErrInvalidCredentials, got %v", err)
 	}
@@ -812,7 +812,7 @@ func TestAuthService_BruteForce_DifferentIPsIndependent(t *testing.T) {
 	// Fail 3 times from IP1 (triggers delay state)
 	ip1 := "192.168.1.100"
 	for i := 0; i < 3; i++ {
-		_, err := authService.Login("testuser", "wrongpassword", ip1)
+		_, err := authService.Login("testuser", "wrongpassword", ip1, "")
 		if !errors.Is(err, ErrInvalidCredentials) {
 			t.Errorf("IP1 attempt %d: expected ErrInvalidCredentials, got %v", i+1, err)
 		}
@@ -821,7 +821,7 @@ func TestAuthService_BruteForce_DifferentIPsIndependent(t *testing.T) {
 	// First failure from IP2 has no delay (independent counter)
 	ip2 := "192.168.1.200"
 	start := time.Now()
-	_, err = authService.Login("testuser", "wrongpassword", ip2)
+	_, err = authService.Login("testuser", "wrongpassword", ip2, "")
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Errorf("expected ErrInvalidCredentials, got %v", err)
 	}
@@ -865,7 +865,7 @@ func TestAuthService_BruteForce_EmptyIPAddress(t *testing.T) {
 	// No delay no matter how many failures
 	start := time.Now()
 	for i := 0; i < 5; i++ {
-		_, err := authService.Login("testuser", "wrongpassword", "")
+		_, err := authService.Login("testuser", "wrongpassword", "", "")
 		if !errors.Is(err, ErrInvalidCredentials) {
 			t.Errorf("attempt %d: expected ErrInvalidCredentials, got %v", i+1, err)
 		}
@@ -920,7 +920,7 @@ func TestAuthService_Login_PassesSessionTTLToStore(t *testing.T) {
 	}
 
 	svc := NewAuthService(mockUserRepo, mockSessionStore, config.PasswordPolicyNone, wantTTL, nil, 24*time.Hour)
-	if _, err := svc.Login("user", "password123", "1.2.3.4"); err != nil {
+	if _, err := svc.Login("user", "password123", "1.2.3.4", ""); err != nil {
 		t.Fatalf("Login: %v", err)
 	}
 
@@ -939,7 +939,7 @@ func TestAuthService_IssueRememberToken_PersistsAndReturnsCookie(t *testing.T) {
 	}
 	svc := newAuthServiceForTest(&mockUserRepository{}, &mockSessionStore{}, store, 30*24*time.Hour)
 
-	cookie, err := svc.IssueRememberToken(42)
+	cookie, err := svc.IssueRememberToken(42, "", "")
 	if err != nil {
 		t.Fatalf("IssueRememberToken: %v", err)
 	}
@@ -996,7 +996,7 @@ func TestAuthService_RestoreFromRememberToken_Success(t *testing.T) {
 	}
 	svc := newAuthServiceForTest(userRepo, sessions, store, time.Hour)
 
-	user, newSession, err := svc.RestoreFromRememberToken(auth.EncodeRememberCookie(selector, raw))
+	user, newSession, err := svc.RestoreFromRememberToken(auth.EncodeRememberCookie(selector, raw), "", "")
 	if err != nil {
 		t.Fatalf("Restore: %v", err)
 	}
@@ -1059,7 +1059,7 @@ func TestAuthService_RestoreFromRememberToken_FailurePaths(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := newAuthServiceForTest(&mockUserRepository{}, &mockSessionStore{}, tt.store, time.Hour)
-			user, session, err := svc.RestoreFromRememberToken(tt.cookie)
+			user, session, err := svc.RestoreFromRememberToken(tt.cookie, "", "")
 			if err != nil {
 				t.Fatalf("expected nil error, got %v", err)
 			}
@@ -1092,7 +1092,7 @@ func TestAuthService_RestoreFromRememberToken_HashMismatch_RevokesAllUserTokens(
 	}
 	svc := newAuthServiceForTest(&mockUserRepository{}, &mockSessionStore{}, store, time.Hour)
 
-	user, session, err := svc.RestoreFromRememberToken(auth.EncodeRememberCookie("sel", "WRONG-raw-token"))
+	user, session, err := svc.RestoreFromRememberToken(auth.EncodeRememberCookie("sel", "WRONG-raw-token"), "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1136,7 +1136,7 @@ func TestAuthService_RestoreFromRememberToken_RefreshesOnUse(t *testing.T) {
 	svc := newAuthServiceForTest(userRepo, &mockSessionStore{}, store, rememberTTL)
 
 	before := time.Now()
-	_, _, err := svc.RestoreFromRememberToken(auth.EncodeRememberCookie("sel", raw))
+	_, _, err := svc.RestoreFromRememberToken(auth.EncodeRememberCookie("sel", raw), "", "")
 	if err != nil {
 		t.Fatalf("Restore: %v", err)
 	}
@@ -1196,11 +1196,11 @@ func TestAuthService_RememberMethods_NilStoreDoNotPanic(t *testing.T) {
 	// of dereferencing a nil store and panicking.
 	svc := NewAuthService(&mockUserRepository{}, &mockSessionStore{}, config.PasswordPolicyNone, 24*time.Hour, nil, 24*time.Hour)
 
-	if _, err := svc.IssueRememberToken(1); err == nil {
+	if _, err := svc.IssueRememberToken(1, "", ""); err == nil {
 		t.Error("IssueRememberToken with nil store should return an error")
 	}
 
-	user, session, err := svc.RestoreFromRememberToken(auth.EncodeRememberCookie("sel", "raw"))
+	user, session, err := svc.RestoreFromRememberToken(auth.EncodeRememberCookie("sel", "raw"), "", "")
 	if err != nil || user != nil || session != "" {
 		t.Errorf("RestoreFromRememberToken with nil store should be a no-op miss, got user=%+v session=%q err=%v", user, session, err)
 	}
@@ -1214,5 +1214,25 @@ func TestAuthService_RememberTTL_PropagatesConstructorArg(t *testing.T) {
 	svc := newAuthServiceForTest(&mockUserRepository{}, &mockSessionStore{}, &mockRememberTokenStore{}, 14*24*time.Hour)
 	if got := svc.RememberTTL(); got != 14*24*time.Hour {
 		t.Errorf("RememberTTL() = %v, want 14d", got)
+	}
+}
+
+func TestLogin_RecordsUserAgent(t *testing.T) {
+	hashed, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
+	userRepo := &mockUserRepository{
+		findByUsernameFunc: func(string) (*domain.User, error) {
+			return &domain.User{ID: 1, Username: "admin", PasswordHash: string(hashed)}, nil
+		},
+	}
+	sessions := auth.NewInMemorySessionStore()
+	svc := newAuthServiceForTest(userRepo, sessions, &mockRememberTokenStore{}, 24*time.Hour)
+
+	sid, err := svc.Login("admin", "password123", "203.0.113.9", "UA-iPhone")
+	if err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	s, _ := sessions.Get(sid)
+	if s == nil || s.UserAgent != "UA-iPhone" || s.IP != "203.0.113.9" {
+		t.Fatalf("login session missing UA/IP: %+v", s)
 	}
 }

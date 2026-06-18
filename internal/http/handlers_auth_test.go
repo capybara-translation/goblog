@@ -15,20 +15,22 @@ import (
 
 // mockAuthService is a mock implementation of AuthService
 type mockAuthService struct {
-	loginFunc                    func(username, password, ipAddress string) (string, error)
+	loginFunc                    func(username, password, ipAddress, userAgent string) (string, error)
 	logoutFunc                   func(sessionID string) error
 	getUserBySessionFunc         func(sessionID string) (*domain.User, error)
 	createUserFunc               func(username, password string) (*domain.User, error)
-	issueRememberTokenFunc       func(int64) (string, error)
-	restoreFromRememberTokenFunc func(string) (*domain.User, string, error)
+	issueRememberTokenFunc       func(int64, string, string) (string, error)
+	restoreFromRememberTokenFunc func(string, string, string) (*domain.User, string, error)
 	revokeRememberTokenFunc      func(string) error
+	attachRememberSelectorFunc   func(sessionID, selector string)
+	touchSessionFunc             func(sessionID string, t time.Time)
 	sessionTTL                   time.Duration
 	rememberTTL                  time.Duration
 }
 
-func (m *mockAuthService) Login(username, password, ipAddress string) (string, error) {
+func (m *mockAuthService) Login(username, password, ipAddress, userAgent string) (string, error) {
 	if m.loginFunc != nil {
-		return m.loginFunc(username, password, ipAddress)
+		return m.loginFunc(username, password, ipAddress, userAgent)
 	}
 	return "", nil
 }
@@ -61,18 +63,30 @@ func (m *mockAuthService) SessionTTL() time.Duration {
 	return 24 * time.Hour
 }
 
-func (m *mockAuthService) IssueRememberToken(uid int64) (string, error) {
+func (m *mockAuthService) IssueRememberToken(uid int64, userAgent, ipAddress string) (string, error) {
 	if m.issueRememberTokenFunc != nil {
-		return m.issueRememberTokenFunc(uid)
+		return m.issueRememberTokenFunc(uid, userAgent, ipAddress)
 	}
 	return "", nil
 }
 
-func (m *mockAuthService) RestoreFromRememberToken(c string) (*domain.User, string, error) {
+func (m *mockAuthService) RestoreFromRememberToken(c, userAgent, ipAddress string) (*domain.User, string, error) {
 	if m.restoreFromRememberTokenFunc != nil {
-		return m.restoreFromRememberTokenFunc(c)
+		return m.restoreFromRememberTokenFunc(c, userAgent, ipAddress)
 	}
 	return nil, "", nil
+}
+
+func (m *mockAuthService) AttachRememberSelector(sessionID, selector string) {
+	if m.attachRememberSelectorFunc != nil {
+		m.attachRememberSelectorFunc(sessionID, selector)
+	}
+}
+
+func (m *mockAuthService) TouchSession(sessionID string, t time.Time) {
+	if m.touchSessionFunc != nil {
+		m.touchSessionFunc(sessionID, t)
+	}
 }
 
 func (m *mockAuthService) RevokeRememberToken(c string) error {
@@ -94,7 +108,7 @@ var _ service.AuthService = (*mockAuthService)(nil)
 func TestHandleLogin_Success(t *testing.T) {
 	now := time.Now()
 	mockService := &mockAuthService{
-		loginFunc: func(username, password, ipAddress string) (string, error) {
+		loginFunc: func(username, password, ipAddress, userAgent string) (string, error) {
 			if username == "testuser" && password == "password123" {
 				return "test-session-id", nil
 			}
@@ -183,13 +197,13 @@ func TestHandleLogin_WithRememberMe_SetsRememberCookie(t *testing.T) {
 	now := time.Now()
 	var issuedFor int64
 	mockService := &mockAuthService{
-		loginFunc: func(u, p, ip string) (string, error) {
+		loginFunc: func(u, p, ip, ua string) (string, error) {
 			return "sid", nil
 		},
 		getUserBySessionFunc: func(id string) (*domain.User, error) {
 			return &domain.User{ID: 9, Username: "u", CreatedAt: now, UpdatedAt: now}, nil
 		},
-		issueRememberTokenFunc: func(uid int64) (string, error) {
+		issueRememberTokenFunc: func(uid int64, _, _ string) (string, error) {
 			issuedFor = uid
 			return "sel:raw", nil
 		},
@@ -230,7 +244,7 @@ func TestHandleLogin_WithRememberMe_SetsRememberCookie(t *testing.T) {
 func TestHandleLogin_WithRememberMe_RevokesPreviousRememberCookieOnReissue(t *testing.T) {
 	var revokedValue string
 	mockService := &mockAuthService{
-		loginFunc: func(string, string, string) (string, error) { return "sid", nil },
+		loginFunc: func(string, string, string, string) (string, error) { return "sid", nil },
 		getUserBySessionFunc: func(string) (*domain.User, error) {
 			return &domain.User{ID: 9, Username: "u"}, nil
 		},
@@ -238,7 +252,7 @@ func TestHandleLogin_WithRememberMe_RevokesPreviousRememberCookieOnReissue(t *te
 			revokedValue = c
 			return nil
 		},
-		issueRememberTokenFunc: func(int64) (string, error) {
+		issueRememberTokenFunc: func(int64, string, string) (string, error) {
 			return "new-sel:new-raw", nil
 		},
 	}
@@ -274,12 +288,12 @@ func TestHandleLogin_WithRememberMe_IssueFailureClearsStaleCookie(t *testing.T) 
 	// revoked, the old cookie value is now invalid. The handler must clear it
 	// so the browser stops sending a known-bad token.
 	mockService := &mockAuthService{
-		loginFunc: func(string, string, string) (string, error) { return "sid", nil },
+		loginFunc: func(string, string, string, string) (string, error) { return "sid", nil },
 		getUserBySessionFunc: func(string) (*domain.User, error) {
 			return &domain.User{ID: 9, Username: "u"}, nil
 		},
 		revokeRememberTokenFunc: func(string) error { return nil },
-		issueRememberTokenFunc: func(int64) (string, error) {
+		issueRememberTokenFunc: func(int64, string, string) (string, error) {
 			return "", errors.New("transient DB error")
 		},
 	}
@@ -311,11 +325,11 @@ func TestHandleLogin_WithRememberMe_IssueFailureClearsStaleCookie(t *testing.T) 
 func TestHandleLogin_WithoutRememberMe_DoesNotIssueRememberToken(t *testing.T) {
 	called := false
 	mockService := &mockAuthService{
-		loginFunc: func(string, string, string) (string, error) { return "sid", nil },
+		loginFunc: func(string, string, string, string) (string, error) { return "sid", nil },
 		getUserBySessionFunc: func(string) (*domain.User, error) {
 			return &domain.User{ID: 1, Username: "u"}, nil
 		},
-		issueRememberTokenFunc: func(int64) (string, error) {
+		issueRememberTokenFunc: func(int64, string, string) (string, error) {
 			called = true
 			return "should-not-be-set", nil
 		},
@@ -342,7 +356,7 @@ func TestHandleLogin_WithoutRememberMe_DoesNotIssueRememberToken(t *testing.T) {
 func TestHandleLogin_WithoutRememberMe_OptsOutOfExistingRememberToken(t *testing.T) {
 	var revokedValue string
 	mockService := &mockAuthService{
-		loginFunc: func(string, string, string) (string, error) { return "sid", nil },
+		loginFunc: func(string, string, string, string) (string, error) { return "sid", nil },
 		getUserBySessionFunc: func(string) (*domain.User, error) {
 			return &domain.User{ID: 1, Username: "u"}, nil
 		},
@@ -350,7 +364,7 @@ func TestHandleLogin_WithoutRememberMe_OptsOutOfExistingRememberToken(t *testing
 			revokedValue = c
 			return nil
 		},
-		issueRememberTokenFunc: func(int64) (string, error) {
+		issueRememberTokenFunc: func(int64, string, string) (string, error) {
 			t.Error("IssueRememberToken must not be called when RememberMe is false")
 			return "", nil
 		},
@@ -394,7 +408,7 @@ func TestHandleLogin_CookieMaxAgeMatchesSessionTTL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockService := &mockAuthService{
-				loginFunc: func(username, password, ipAddress string) (string, error) {
+				loginFunc: func(username, password, ipAddress, userAgent string) (string, error) {
 					return "test-session-id", nil
 				},
 				getUserBySessionFunc: func(sessionID string) (*domain.User, error) {
@@ -441,7 +455,7 @@ func TestHandleLogin_CookieMaxAgeMatchesSessionTTL(t *testing.T) {
 
 func TestHandleLogin_InvalidUsername(t *testing.T) {
 	mockService := &mockAuthService{
-		loginFunc: func(username, password, ipAddress string) (string, error) {
+		loginFunc: func(username, password, ipAddress, userAgent string) (string, error) {
 			return "", service.ErrInvalidCredentials
 		},
 	}
@@ -479,7 +493,7 @@ func TestHandleLogin_InvalidUsername(t *testing.T) {
 
 func TestHandleLogin_InvalidPassword(t *testing.T) {
 	mockService := &mockAuthService{
-		loginFunc: func(username, password, ipAddress string) (string, error) {
+		loginFunc: func(username, password, ipAddress, userAgent string) (string, error) {
 			return "", service.ErrInvalidCredentials
 		},
 	}
@@ -507,7 +521,7 @@ func TestHandleLogin_InvalidPassword(t *testing.T) {
 
 func TestHandleLogin_MissingCredentials(t *testing.T) {
 	mockService := &mockAuthService{
-		loginFunc: func(username, password, ipAddress string) (string, error) {
+		loginFunc: func(username, password, ipAddress, userAgent string) (string, error) {
 			t.Error("Login should not be called for missing credentials")
 			return "", nil
 		},
@@ -559,7 +573,7 @@ func TestHandleLogin_MissingCredentials(t *testing.T) {
 
 func TestHandleLogin_InvalidJSON(t *testing.T) {
 	mockService := &mockAuthService{
-		loginFunc: func(username, password, ipAddress string) (string, error) {
+		loginFunc: func(username, password, ipAddress, userAgent string) (string, error) {
 			t.Error("Login should not be called for invalid JSON")
 			return "", nil
 		},
@@ -1003,7 +1017,7 @@ func TestHandleMe_RestoresFromRememberToken(t *testing.T) {
 		getUserBySessionFunc: func(string) (*domain.User, error) {
 			return nil, nil
 		},
-		restoreFromRememberTokenFunc: func(cookie string) (*domain.User, string, error) {
+		restoreFromRememberTokenFunc: func(cookie, _, _ string) (*domain.User, string, error) {
 			return &domain.User{ID: 1, Username: "admin"}, "new-sid", nil
 		},
 	}

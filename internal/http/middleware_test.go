@@ -180,7 +180,7 @@ func TestAuthMiddleware_RememberTokenDBError_500(t *testing.T) {
 		getUserBySessionFunc: func(string) (*domain.User, error) {
 			return nil, nil
 		},
-		restoreFromRememberTokenFunc: func(string) (*domain.User, string, error) {
+		restoreFromRememberTokenFunc: func(string, string, string) (*domain.User, string, error) {
 			return nil, "", errors.New("database connection error")
 		},
 	}
