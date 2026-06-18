@@ -12,7 +12,7 @@ func TestSessionStore_Create(t *testing.T) {
 	userID := int64(123)
 	ttl := 1 * time.Hour
 
-	sessionID, err := store.Create(userID, ttl)
+	sessionID, err := store.Create(userID, ttl, SessionMeta{})
 	if err != nil {
 		t.Fatalf("failed to create session: %v", err)
 	}
@@ -47,7 +47,7 @@ func TestSessionStore_Get(t *testing.T) {
 	userID := int64(456)
 	ttl := 1 * time.Hour
 
-	sessionID, err := store.Create(userID, ttl)
+	sessionID, err := store.Create(userID, ttl, SessionMeta{})
 	if err != nil {
 		t.Fatalf("failed to create session: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestSessionStore_Get_Expired(t *testing.T) {
 	userID := int64(789)
 	ttl := 100 * time.Millisecond // Expires in 100 milliseconds
 
-	sessionID, err := store.Create(userID, ttl)
+	sessionID, err := store.Create(userID, ttl, SessionMeta{})
 	if err != nil {
 		t.Fatalf("failed to create session: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestSessionStore_Delete(t *testing.T) {
 	userID := int64(111)
 	ttl := 1 * time.Hour
 
-	sessionID, err := store.Create(userID, ttl)
+	sessionID, err := store.Create(userID, ttl, SessionMeta{})
 	if err != nil {
 		t.Fatalf("failed to create session: %v", err)
 	}
@@ -176,13 +176,13 @@ func TestSessionStore_CleanupExpired(t *testing.T) {
 
 	// Create 3 sessions
 	// Session 1: Expires immediately
-	sessionID1, _ := store.Create(1, 50*time.Millisecond)
+	sessionID1, _ := store.Create(1, 50*time.Millisecond, SessionMeta{})
 
 	// Session 2: Valid
-	sessionID2, _ := store.Create(2, 10*time.Hour)
+	sessionID2, _ := store.Create(2, 10*time.Hour, SessionMeta{})
 
 	// Session 3: Expires immediately
-	sessionID3, _ := store.Create(3, 50*time.Millisecond)
+	sessionID3, _ := store.Create(3, 50*time.Millisecond, SessionMeta{})
 
 	// Wait for expiration
 	time.Sleep(100 * time.Millisecond)
@@ -224,7 +224,7 @@ func TestSessionStore_ConcurrentAccess(t *testing.T) {
 	for i := 0; i < numGoroutines; i++ {
 		go func(index int) {
 			defer wg.Done()
-			sessionID, err := store.Create(int64(index), 1*time.Hour)
+			sessionID, err := store.Create(int64(index), 1*time.Hour, SessionMeta{})
 			if err != nil {
 				t.Errorf("goroutine %d: failed to create session: %v", index, err)
 				return
@@ -254,7 +254,7 @@ func TestSessionStore_ConcurrentReadWrite(t *testing.T) {
 	store := NewInMemorySessionStore()
 
 	// Create an initial session
-	sessionID, _ := store.Create(999, 1*time.Hour)
+	sessionID, _ := store.Create(999, 1*time.Hour, SessionMeta{})
 
 	var wg sync.WaitGroup
 	const numReaders = 50
@@ -277,7 +277,7 @@ func TestSessionStore_ConcurrentReadWrite(t *testing.T) {
 		go func(index int) {
 			defer wg.Done()
 			for j := 0; j < 10; j++ {
-				_, _ = store.Create(int64(index*100+j), 1*time.Hour)
+				_, _ = store.Create(int64(index*100+j), 1*time.Hour, SessionMeta{})
 			}
 		}(i)
 	}
@@ -309,5 +309,73 @@ func TestGenerateSessionID(t *testing.T) {
 
 	if len(ids) != numIDs {
 		t.Errorf("expected %d unique IDs, got %d", numIDs, len(ids))
+	}
+}
+
+func TestSessionStore_ListTouchAndDelete(t *testing.T) {
+	store := NewInMemorySessionStore()
+
+	idA, err := store.Create(1, time.Hour, SessionMeta{UserAgent: "UA-A", IP: "10.0.0.1"})
+	if err != nil {
+		t.Fatalf("Create A: %v", err)
+	}
+	idB, err := store.Create(1, time.Hour, SessionMeta{UserAgent: "UA-B", IP: "10.0.0.2", RememberSelector: "sel-b"})
+	if err != nil {
+		t.Fatalf("Create B: %v", err)
+	}
+	if _, err := store.Create(2, time.Hour, SessionMeta{}); err != nil {
+		t.Fatalf("Create other: %v", err)
+	}
+
+	infos := store.ListByUser(1)
+	if len(infos) != 2 {
+		t.Fatalf("expected 2 sessions for user 1, got %d", len(infos))
+	}
+	for _, in := range infos {
+		if in.Handle == "" || in.Handle == idA || in.Handle == idB {
+			t.Fatalf("bad handle %q", in.Handle)
+		}
+	}
+
+	later := time.Now().Add(time.Minute)
+	store.Touch(idA, later)
+	for _, in := range store.ListByUser(1) {
+		if in.Handle == HashSessionID(idA) && !in.LastUsedAt.Equal(later) {
+			t.Fatalf("Touch did not update LastUsedAt: %v", in.LastUsedAt)
+		}
+	}
+
+	store.SetRememberSelector(idA, "sel-a")
+	if s, _ := store.Get(idA); s == nil || s.RememberSelector != "sel-a" {
+		t.Fatalf("SetRememberSelector failed: %+v", s)
+	}
+
+	if _, ok, _ := store.DeleteByHandleForUser(2, HashSessionID(idA)); ok {
+		t.Fatalf("must not delete another user's session")
+	}
+	if sel, ok, _ := store.DeleteByHandleForUser(1, HashSessionID(idA)); !ok || sel != "sel-a" {
+		t.Fatalf("expected to delete session A for user 1 and return selector sel-a, got sel=%q ok=%v", sel, ok)
+	}
+	if s, _ := store.Get(idA); s != nil {
+		t.Fatalf("session A should be gone")
+	}
+
+	store.DeleteBySelector("sel-b")
+	if s, _ := store.Get(idB); s != nil {
+		t.Fatalf("session B should be gone after DeleteBySelector")
+	}
+}
+
+func TestSessionStore_DeleteByUserExcept(t *testing.T) {
+	store := NewInMemorySessionStore()
+	keep, _ := store.Create(1, time.Hour, SessionMeta{})
+	drop, _ := store.Create(1, time.Hour, SessionMeta{})
+
+	store.DeleteByUserExcept(1, keep)
+	if s, _ := store.Get(keep); s == nil {
+		t.Fatalf("kept session must survive")
+	}
+	if s, _ := store.Get(drop); s != nil {
+		t.Fatalf("other session must be deleted")
 	}
 }

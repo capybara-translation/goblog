@@ -10,8 +10,32 @@ import (
 	"github.com/capybara-translation/goblog/internal/domain"
 )
 
+func TestCurrentUserHelper_RestoreUsesTrustedProxyIP(t *testing.T) {
+	var gotIP string
+	helper := NewCurrentUserHelper(&mockAuthService{
+		getUserBySessionFunc: func(string) (*domain.User, error) { return nil, nil },
+		restoreFromRememberTokenFunc: func(cookie, ua, ip string) (*domain.User, string, error) {
+			gotIP = ip
+			return &domain.User{ID: 1}, "new-sid", nil
+		},
+		rememberTTL: 30 * 24 * time.Hour,
+	}, false, []string{"127.0.0.1"})
+
+	req := httptest.NewRequest("GET", "/x", nil)
+	req.RemoteAddr = "127.0.0.1:5555"
+	req.Header.Set("X-Forwarded-For", "203.0.113.7")
+	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "sel:raw"})
+	rec := httptest.NewRecorder()
+	if _, err := helper.Optional(rec, req); err != nil {
+		t.Fatalf("Optional: %v", err)
+	}
+	if gotIP != "203.0.113.7" {
+		t.Fatalf("expected XFF IP 203.0.113.7 via trusted proxy, got %q", gotIP)
+	}
+}
+
 func TestCurrentUserHelper_Optional_NoCookies(t *testing.T) {
-	helper := NewCurrentUserHelper(&mockAuthService{}, false)
+	helper := NewCurrentUserHelper(&mockAuthService{}, false, nil)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 
@@ -32,7 +56,7 @@ func TestCurrentUserHelper_Optional_ValidSession(t *testing.T) {
 			}
 			return nil, nil
 		},
-	}, false)
+	}, false, nil)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "good"})
 	rec := httptest.NewRecorder()
@@ -56,14 +80,14 @@ func TestCurrentUserHelper_Optional_RestoresFromRememberToken(t *testing.T) {
 		getUserBySessionFunc: func(string) (*domain.User, error) {
 			return nil, nil
 		},
-		restoreFromRememberTokenFunc: func(cookie string) (*domain.User, string, error) {
+		restoreFromRememberTokenFunc: func(cookie, _, _ string) (*domain.User, string, error) {
 			if cookie == "rem-cookie" {
 				return &domain.User{ID: 7, Username: "admin"}, "fresh-session", nil
 			}
 			return nil, "", nil
 		},
 		rememberTTL: 30 * 24 * time.Hour,
-	}, false)
+	}, false, nil)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "rem-cookie"})
 	rec := httptest.NewRecorder()
@@ -112,10 +136,10 @@ func TestCurrentUserHelper_Optional_InvalidRememberCookieIsCleared(t *testing.T)
 		getUserBySessionFunc: func(string) (*domain.User, error) {
 			return nil, nil
 		},
-		restoreFromRememberTokenFunc: func(string) (*domain.User, string, error) {
+		restoreFromRememberTokenFunc: func(string, string, string) (*domain.User, string, error) {
 			return nil, "", nil
 		},
-	}, false)
+	}, false, nil)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "garbage"})
 	rec := httptest.NewRecorder()
@@ -140,11 +164,11 @@ func TestCurrentUserHelper_Optional_InvalidRememberCookieIsCleared(t *testing.T)
 func TestCurrentUserHelper_Optional_SetsCacheControlPrivateOnRestore(t *testing.T) {
 	helper := NewCurrentUserHelper(&mockAuthService{
 		getUserBySessionFunc: func(string) (*domain.User, error) { return nil, nil },
-		restoreFromRememberTokenFunc: func(string) (*domain.User, string, error) {
+		restoreFromRememberTokenFunc: func(string, string, string) (*domain.User, string, error) {
 			return &domain.User{ID: 1, Username: "u"}, "new-sid", nil
 		},
 		rememberTTL: 30 * 24 * time.Hour,
-	}, false)
+	}, false, nil)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "rem"})
 	rec := httptest.NewRecorder()
@@ -166,11 +190,11 @@ func TestCurrentUserHelper_Optional_SetsCacheControlPrivateOnRestore(t *testing.
 func TestCurrentUserHelper_Optional_OverridesCacheableHeaderOnRestore(t *testing.T) {
 	helper := NewCurrentUserHelper(&mockAuthService{
 		getUserBySessionFunc: func(string) (*domain.User, error) { return nil, nil },
-		restoreFromRememberTokenFunc: func(string) (*domain.User, string, error) {
+		restoreFromRememberTokenFunc: func(string, string, string) (*domain.User, string, error) {
 			return &domain.User{ID: 1, Username: "u"}, "new-sid", nil
 		},
 		rememberTTL: 30 * 24 * time.Hour,
-	}, false)
+	}, false, nil)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.AddCookie(&http.Cookie{Name: rememberCookieName, Value: "rem"})
 	rec := httptest.NewRecorder()
@@ -195,7 +219,7 @@ func TestCurrentUserHelper_Optional_NoCacheControlWhenSessionIsValid(t *testing.
 		getUserBySessionFunc: func(string) (*domain.User, error) {
 			return &domain.User{ID: 1, Username: "u"}, nil
 		},
-	}, false)
+	}, false, nil)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "good"})
 	rec := httptest.NewRecorder()

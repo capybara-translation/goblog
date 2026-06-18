@@ -27,6 +27,8 @@ func setupTestDBWithRememberTokens(t *testing.T) *sqlx.DB {
 	migrations := []string{
 		"../../migrations/002_create_users.sql",
 		"../../migrations/007_create_remember_tokens.sql",
+		"../../migrations/009_add_remember_token_device.sql",
+		"../../migrations/010_add_remember_token_ip.sql",
 	}
 	for _, path := range migrations {
 		schema, err := os.ReadFile(path)
@@ -162,5 +164,115 @@ func TestSQLiteRememberTokenStore_CleanupExpired(t *testing.T) {
 	}
 	if got, _ := store.FindBySelector("dead"); got != nil {
 		t.Error("expired token should be deleted")
+	}
+}
+
+func TestSQLiteRememberTokenStore_FindByUserIDAndDeleteExcept(t *testing.T) {
+	db := setupTestDBWithRememberTokens(t)
+	store := NewSQLiteRememberTokenStore(db)
+
+	mk := func(sel string) *domain.RememberToken {
+		return &domain.RememberToken{
+			UserID:    1,
+			Selector:  sel,
+			TokenHash: "hash-" + sel,
+			ExpiresAt: time.Now().Add(time.Hour),
+			UserAgent: "UA-" + sel,
+			IPAddress: "10.0.0.1",
+		}
+	}
+	for _, sel := range []string{"sel-a", "sel-b", "sel-c"} {
+		if err := store.Create(mk(sel)); err != nil {
+			t.Fatalf("Create %s: %v", sel, err)
+		}
+	}
+
+	tokens, err := store.FindByUserID(1)
+	if err != nil {
+		t.Fatalf("FindByUserID: %v", err)
+	}
+	if len(tokens) != 3 {
+		t.Fatalf("expected 3 tokens, got %d", len(tokens))
+	}
+	if tokens[0].UserAgent == "" || tokens[0].IPAddress != "10.0.0.1" {
+		t.Fatalf("UA/IP not persisted: %+v", tokens[0])
+	}
+
+	if err := store.DeleteByUserExceptSelector(1, "sel-b"); err != nil {
+		t.Fatalf("DeleteByUserExceptSelector: %v", err)
+	}
+	remaining, err := store.FindByUserID(1)
+	if err != nil {
+		t.Fatalf("FindByUserID after delete: %v", err)
+	}
+	if len(remaining) != 1 || remaining[0].Selector != "sel-b" {
+		t.Fatalf("expected only sel-b to remain, got %+v", remaining)
+	}
+}
+
+func TestRememberTokenMigrations_IdempotentAndRecoverable(t *testing.T) {
+	db, err := sqlx.Open("sqlite3", ":memory:?_foreign_keys=on")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	exec := func(path string) error {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		_, err = db.Exec(string(b))
+		return err
+	}
+
+	// Base table (migration 007).
+	if err := exec("../../migrations/002_create_users.sql"); err != nil {
+		t.Fatalf("002: %v", err)
+	}
+	if err := exec("../../migrations/007_create_remember_tokens.sql"); err != nil {
+		t.Fatalf("007: %v", err)
+	}
+	// Simulate a PARTIAL prior application: only user_agent (009) got added.
+	if err := exec("../../migrations/009_add_remember_token_device.sql"); err != nil {
+		t.Fatalf("009: %v", err)
+	}
+	// Re-running 009 now errors with duplicate column — that's expected and the
+	// real runner skips it. The point: 010 is a SEPARATE file, so ip_address can
+	// still be applied to recover.
+	if err := exec("../../migrations/010_add_remember_token_ip.sql"); err != nil {
+		t.Fatalf("010 must apply even though 009's column already exists: %v", err)
+	}
+	// Both columns now exist: an insert with UA+IP must succeed.
+	if _, err := db.Exec(`INSERT INTO users (id, username, password_hash) VALUES (1,'a','x')`); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	_, err = db.Exec(`INSERT INTO remember_tokens (user_id, selector, token_hash, expires_at, user_agent, ip_address) VALUES (1,'s','h',datetime('now','+1 hour'),'UA','1.2.3.4')`)
+	if err != nil {
+		t.Fatalf("insert with UA/IP must succeed after recovery: %v", err)
+	}
+}
+
+func TestSQLiteRememberTokenStore_UpdateDeviceInfo(t *testing.T) {
+	db := setupTestDBWithRememberTokens(t)
+	store := NewSQLiteRememberTokenStore(db)
+
+	// Simulate a legacy token with empty device metadata.
+	if err := store.Create(&domain.RememberToken{
+		UserID: 1, Selector: "sel-legacy", TokenHash: "h",
+		ExpiresAt: time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	if err := store.UpdateDeviceInfo("sel-legacy", "Mozilla/Mac", "203.0.113.7"); err != nil {
+		t.Fatalf("UpdateDeviceInfo: %v", err)
+	}
+	tok, err := store.FindBySelector("sel-legacy")
+	if err != nil || tok == nil {
+		t.Fatalf("FindBySelector: %v / %v", tok, err)
+	}
+	if tok.UserAgent != "Mozilla/Mac" || tok.IPAddress != "203.0.113.7" {
+		t.Fatalf("device info not updated: %+v", tok)
 	}
 }

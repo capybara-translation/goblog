@@ -15,6 +15,10 @@ const (
 	// contextKeyUserID is the key for storing user ID in context
 	contextKeyUserID contextKey = "user_id"
 
+	// contextKeySessionID is the key for the effective session id (the one in
+	// force after any remember-me restore), used by the device-management API.
+	contextKeySessionID contextKey = "session_id"
+
 	// csrfCookieName is the name of the cookie that stores the CSRF token
 	csrfCookieName = "csrf_token"
 
@@ -33,7 +37,7 @@ const (
 func AuthMiddleware(helper *CurrentUserHelper) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			user, err := helper.Optional(w, r)
+			user, sessionID, err := helper.resolve(w, r)
 			if err != nil {
 				respondJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "Internal server error"})
 				return
@@ -43,6 +47,7 @@ func AuthMiddleware(helper *CurrentUserHelper) func(http.Handler) http.Handler {
 				return
 			}
 			ctx := context.WithValue(r.Context(), contextKeyUserID, user.ID)
+			ctx = context.WithValue(ctx, contextKeySessionID, sessionID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -52,6 +57,12 @@ func AuthMiddleware(helper *CurrentUserHelper) func(http.Handler) http.Handler {
 func GetUserIDFromContext(ctx context.Context) (int64, bool) {
 	userID, ok := ctx.Value(contextKeyUserID).(int64)
 	return userID, ok
+}
+
+// GetSessionIDFromContext retrieves the effective session id from context.
+func GetSessionIDFromContext(ctx context.Context) (string, bool) {
+	sid, ok := ctx.Value(contextKeySessionID).(string)
+	return sid, ok
 }
 
 // generateCSRFToken generates a random CSRF token

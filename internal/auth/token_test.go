@@ -43,3 +43,21 @@ func TestConstantTimeEqual(t *testing.T) {
 		t.Error("different-length strings should compare unequal")
 	}
 }
+
+func TestHashSessionID(t *testing.T) {
+	const id = "raw-session-id-value"
+	h1 := HashSessionID(id)
+	h2 := HashSessionID(id)
+	if h1 != h2 {
+		t.Fatalf("HashSessionID not deterministic: %q vs %q", h1, h2)
+	}
+	if h1 == "" {
+		t.Fatalf("HashSessionID returned empty string")
+	}
+	if h1 == id {
+		t.Fatalf("HashSessionID must not return the raw id")
+	}
+	if HashSessionID("other") == h1 {
+		t.Fatalf("different inputs must hash differently")
+	}
+}

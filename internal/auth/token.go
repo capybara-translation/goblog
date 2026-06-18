@@ -51,3 +51,12 @@ func HashToken(raw string) string {
 func ConstantTimeEqual(a, b string) bool {
 	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
+
+// HashSessionID derives a safe, public handle for an in-memory session id.
+// The raw session id is a bearer secret and must never be exposed to the
+// admin UI; its SHA-256 hash (base64url) is a stable, non-reversible identifier
+// the device-management API can list and accept for targeted revocation.
+func HashSessionID(sessionID string) string {
+	sum := sha256.Sum256([]byte(sessionID))
+	return base64.URLEncoding.EncodeToString(sum[:])
+}

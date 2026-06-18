@@ -89,7 +89,7 @@ describe('Header', () => {
       expect(newPostLink).toHaveAttribute('href', '/posts/new')
     })
 
-    it('should have keyboard tab order matching desktop visual order (Brand -> Posts -> New Post -> Reactions -> Logout)', async () => {
+    it('should have keyboard tab order matching desktop visual order (Brand -> Posts -> New Post -> Reactions -> Devices -> Logout)', async () => {
       const user = userEvent.setup()
       renderHeader()
 
@@ -99,6 +99,7 @@ describe('Header', () => {
       const postsLink = screen.getByText('Posts').closest('a')
       const newPostLink = screen.getByText('New Post').closest('a')
       const reactionsLink = screen.getByRole('link', { name: 'Reactions' })
+      const devicesLink = screen.getByRole('link', { name: 'Devices' })
       const logoutButton = screen.getByRole('button', { name: 'Logout' })
 
       await user.tab()
@@ -112,6 +113,9 @@ describe('Header', () => {
 
       await user.tab()
       expect(reactionsLink).toHaveFocus()
+
+      await user.tab()
+      expect(devicesLink).toHaveFocus()
 
       await user.tab()
       expect(logoutButton).toHaveFocus()

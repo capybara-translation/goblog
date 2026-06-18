@@ -12,4 +12,6 @@ type RememberToken struct {
 	ExpiresAt  time.Time  `db:"expires_at"`
 	CreatedAt  time.Time  `db:"created_at"`
 	LastUsedAt *time.Time `db:"last_used_at"`
+	UserAgent  string     `db:"user_agent"`
+	IPAddress  string     `db:"ip_address"`
 }

@@ -28,9 +28,9 @@ func NewSQLiteRememberTokenStore(db *sqlx.DB) auth.RememberTokenStore {
 
 func (s *sqliteRememberTokenStore) Create(token *domain.RememberToken) error {
 	_, err := s.db.Exec(`
-		INSERT INTO remember_tokens (user_id, selector, token_hash, expires_at)
-		VALUES (?, ?, ?, ?)
-	`, token.UserID, token.Selector, token.TokenHash, token.ExpiresAt)
+		INSERT INTO remember_tokens (user_id, selector, token_hash, expires_at, user_agent, ip_address)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, token.UserID, token.Selector, token.TokenHash, token.ExpiresAt, token.UserAgent, token.IPAddress)
 	if err != nil {
 		return fmt.Errorf("failed to create remember token: %w", err)
 	}
@@ -70,6 +70,35 @@ func (s *sqliteRememberTokenStore) RefreshOnUse(selector string, lastUsed time.T
 	)
 	if err != nil {
 		return fmt.Errorf("failed to refresh remember token: %w", err)
+	}
+	return nil
+}
+
+func (s *sqliteRememberTokenStore) UpdateDeviceInfo(selector, userAgent, ipAddress string) error {
+	if _, err := s.db.Exec(
+		`UPDATE remember_tokens SET user_agent = ?, ip_address = ? WHERE selector = ?`,
+		userAgent, ipAddress, selector,
+	); err != nil {
+		return fmt.Errorf("failed to update remember token device info: %w", err)
+	}
+	return nil
+}
+
+func (s *sqliteRememberTokenStore) FindByUserID(userID int64) ([]*domain.RememberToken, error) {
+	var tokens []*domain.RememberToken
+	err := s.db.Select(&tokens, `SELECT * FROM remember_tokens WHERE user_id = ? ORDER BY created_at DESC`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find remember tokens by user id: %w", err)
+	}
+	return tokens, nil
+}
+
+func (s *sqliteRememberTokenStore) DeleteByUserExceptSelector(userID int64, keepSelector string) error {
+	if _, err := s.db.Exec(
+		`DELETE FROM remember_tokens WHERE user_id = ? AND selector != ?`,
+		userID, keepSelector,
+	); err != nil {
+		return fmt.Errorf("failed to delete remember tokens except selector: %w", err)
 	}
 	return nil
 }

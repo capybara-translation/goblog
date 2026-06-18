@@ -22,6 +22,17 @@ type RememberTokenStore interface {
 	// listing "sliding expiration" semantics (an active user is not forced
 	// to re-authenticate every TTL window).
 	RefreshOnUse(selector string, lastUsed time.Time, newExpiresAt time.Time) error
+	// UpdateDeviceInfo overwrites the stored user_agent / ip_address for a
+	// selector. Used to self-heal tokens issued before device metadata was
+	// captured (their columns default to ''): on restore the service backfills
+	// them from the current request when the stored value is empty.
+	UpdateDeviceInfo(selector, userAgent, ipAddress string) error
+	// FindByUserID returns all (non-deleted) remember tokens owned by the user.
+	// Used by the device-listing feature.
+	FindByUserID(userID int64) ([]*domain.RememberToken, error)
+	// DeleteByUserExceptSelector deletes every remember token owned by the user
+	// EXCEPT the one matching keepSelector. Used by "log out all other devices".
+	DeleteByUserExceptSelector(userID int64, keepSelector string) error
 	CleanupExpired() error
 }
 
