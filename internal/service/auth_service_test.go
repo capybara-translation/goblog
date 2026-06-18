@@ -58,15 +58,17 @@ func (m *mockUserRepository) Delete(id int64) error {
 
 // mockSessionStore is a mock implementation of SessionStore
 type mockSessionStore struct {
-	createFunc         func(userID int64, ttl time.Duration) (string, error)
+	createFunc         func(userID int64, ttl time.Duration, meta auth.SessionMeta) (string, error)
 	getFunc            func(sessionID string) (*auth.Session, error)
 	deleteFunc         func(sessionID string) error
 	cleanupExpiredFunc func()
 }
 
-func (m *mockSessionStore) Create(userID int64, ttl time.Duration) (string, error) {
+var _ auth.SessionStore = (*mockSessionStore)(nil)
+
+func (m *mockSessionStore) Create(userID int64, ttl time.Duration, meta auth.SessionMeta) (string, error) {
 	if m.createFunc != nil {
-		return m.createFunc(userID, ttl)
+		return m.createFunc(userID, ttl, meta)
 	}
 	return "mock-session-id", nil
 }
@@ -90,6 +92,15 @@ func (m *mockSessionStore) CleanupExpired() {
 		m.cleanupExpiredFunc()
 	}
 }
+
+func (m *mockSessionStore) Touch(sessionID string, t time.Time)            {}
+func (m *mockSessionStore) SetRememberSelector(sessionID, selector string) {}
+func (m *mockSessionStore) ListByUser(userID int64) []auth.SessionInfo     { return nil }
+func (m *mockSessionStore) DeleteByHandleForUser(userID int64, handle string) (bool, error) {
+	return false, nil
+}
+func (m *mockSessionStore) DeleteBySelector(selector string)                 {}
+func (m *mockSessionStore) DeleteByUserExcept(userID int64, exceptID string) {}
 
 // mockRememberTokenStore is a mock implementation of auth.RememberTokenStore.
 type mockRememberTokenStore struct {
@@ -188,7 +199,7 @@ func TestAuthService_Login(t *testing.T) {
 	}
 
 	mockSessionStore := &mockSessionStore{
-		createFunc: func(userID int64, ttl time.Duration) (string, error) {
+		createFunc: func(userID int64, ttl time.Duration, meta auth.SessionMeta) (string, error) {
 			if userID != 1 {
 				t.Errorf("expected userID 1, got %d", userID)
 			}
@@ -221,7 +232,7 @@ func TestAuthService_Login_InvalidUsername(t *testing.T) {
 	}
 
 	mockSessionStore := &mockSessionStore{
-		createFunc: func(userID int64, ttl time.Duration) (string, error) {
+		createFunc: func(userID int64, ttl time.Duration, meta auth.SessionMeta) (string, error) {
 			t.Error("Create should not be called for invalid username")
 			return "", nil
 		},
@@ -258,7 +269,7 @@ func TestAuthService_Login_InvalidPassword(t *testing.T) {
 	}
 
 	mockSessionStore := &mockSessionStore{
-		createFunc: func(userID int64, ttl time.Duration) (string, error) {
+		createFunc: func(userID int64, ttl time.Duration, meta auth.SessionMeta) (string, error) {
 			t.Error("Create should not be called for invalid password")
 			return "", nil
 		},
@@ -670,7 +681,7 @@ func TestAuthService_BruteForce_MultipleFailures(t *testing.T) {
 	}
 
 	mockSessionStore := &mockSessionStore{
-		createFunc: func(userID int64, ttl time.Duration) (string, error) {
+		createFunc: func(userID int64, ttl time.Duration, meta auth.SessionMeta) (string, error) {
 			return "test-session-id", nil
 		},
 	}
@@ -732,7 +743,7 @@ func TestAuthService_BruteForce_SuccessResetsCounter(t *testing.T) {
 	}
 
 	mockSessionStore := &mockSessionStore{
-		createFunc: func(userID int64, ttl time.Duration) (string, error) {
+		createFunc: func(userID int64, ttl time.Duration, meta auth.SessionMeta) (string, error) {
 			return "test-session-id", nil
 		},
 	}
@@ -791,7 +802,7 @@ func TestAuthService_BruteForce_DifferentIPsIndependent(t *testing.T) {
 	}
 
 	mockSessionStore := &mockSessionStore{
-		createFunc: func(userID int64, ttl time.Duration) (string, error) {
+		createFunc: func(userID int64, ttl time.Duration, meta auth.SessionMeta) (string, error) {
 			return "test-session-id", nil
 		},
 	}
@@ -843,7 +854,7 @@ func TestAuthService_BruteForce_EmptyIPAddress(t *testing.T) {
 	}
 
 	mockSessionStore := &mockSessionStore{
-		createFunc: func(userID int64, ttl time.Duration) (string, error) {
+		createFunc: func(userID int64, ttl time.Duration, meta auth.SessionMeta) (string, error) {
 			return "test-session-id", nil
 		},
 	}
@@ -902,7 +913,7 @@ func TestAuthService_Login_PassesSessionTTLToStore(t *testing.T) {
 	}
 	var capturedTTL time.Duration
 	mockSessionStore := &mockSessionStore{
-		createFunc: func(userID int64, ttl time.Duration) (string, error) {
+		createFunc: func(userID int64, ttl time.Duration, meta auth.SessionMeta) (string, error) {
 			capturedTTL = ttl
 			return "session-id", nil
 		},
@@ -979,7 +990,7 @@ func TestAuthService_RestoreFromRememberToken_Success(t *testing.T) {
 		},
 	}
 	sessions := &mockSessionStore{
-		createFunc: func(uid int64, ttl time.Duration) (string, error) {
+		createFunc: func(uid int64, ttl time.Duration, meta auth.SessionMeta) (string, error) {
 			return "new-session", nil
 		},
 	}

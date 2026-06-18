@@ -201,7 +201,7 @@ func (s *authService) RestoreFromRememberToken(cookieValue string) (*domain.User
 		return nil, "", nil
 	}
 
-	sessionID, err := s.sessionStore.Create(user.ID, s.sessionTTL)
+	sessionID, err := s.sessionStore.Create(user.ID, s.sessionTTL, auth.SessionMeta{RememberSelector: selector})
 	if err != nil {
 		return nil, "", fmt.Errorf("create session: %w", err)
 	}
@@ -257,7 +257,7 @@ func (s *authService) Login(username, password, ipAddress string) (string, error
 	s.resetLoginAttempts(ipAddress)
 
 	// Create session
-	sessionID, err := s.sessionStore.Create(user.ID, s.sessionTTL)
+	sessionID, err := s.sessionStore.Create(user.ID, s.sessionTTL, auth.SessionMeta{})
 	if err != nil {
 		return "", fmt.Errorf("failed to create session: %w", err)
 	}
