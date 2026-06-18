@@ -16,7 +16,10 @@ type fakeRememberStore struct {
 func newFakeRememberStore() *fakeRememberStore {
 	return &fakeRememberStore{tokens: map[string]*domain.RememberToken{}}
 }
-func (f *fakeRememberStore) Create(t *domain.RememberToken) error { f.tokens[t.Selector] = t; return nil }
+func (f *fakeRememberStore) Create(t *domain.RememberToken) error {
+	f.tokens[t.Selector] = t
+	return nil
+}
 func (f *fakeRememberStore) FindBySelector(sel string) (*domain.RememberToken, error) {
 	return f.tokens[sel], nil
 }
@@ -30,7 +33,7 @@ func (f *fakeRememberStore) DeleteByUserID(userID int64) error {
 	return nil
 }
 func (f *fakeRememberStore) RefreshOnUse(sel string, lu time.Time, exp time.Time) error { return nil }
-func (f *fakeRememberStore) CleanupExpired() error                                       { return nil }
+func (f *fakeRememberStore) CleanupExpired() error                                      { return nil }
 func (f *fakeRememberStore) FindByUserID(userID int64) ([]*domain.RememberToken, error) {
 	var out []*domain.RememberToken
 	for _, t := range f.tokens {
@@ -135,6 +138,38 @@ func TestRevokeDevice_OtherUserNotFound(t *testing.T) {
 	err := svc.RevokeDevice(1, "remember", "sel-foreign", "cur", "")
 	if err != ErrDeviceNotFound {
 		t.Fatalf("expected ErrDeviceNotFound for another user's token, got %v", err)
+	}
+}
+
+func TestListDevices_SortedByLastUsedDesc(t *testing.T) {
+	sessions := auth.NewInMemorySessionStore()
+	remember := newFakeRememberStore()
+	svc := NewDeviceService(sessions, remember)
+
+	now := time.Now()
+	older := now.Add(-2 * time.Hour)
+	newer := now.Add(-1 * time.Hour)
+
+	remember.Create(&domain.RememberToken{
+		UserID: 1, Selector: "sel-old", TokenHash: "h",
+		ExpiresAt: now.Add(time.Hour), CreatedAt: older, LastUsedAt: &older,
+		UserAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/603.3.8 (KHTML, like Gecko) Version/10.1.2 Safari/603.3.8",
+	})
+	remember.Create(&domain.RememberToken{
+		UserID: 1, Selector: "sel-new", TokenHash: "h",
+		ExpiresAt: now.Add(time.Hour), CreatedAt: newer, LastUsedAt: &newer,
+		UserAgent: "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36",
+	})
+
+	devices, err := svc.ListDevices(1, "", "")
+	if err != nil {
+		t.Fatalf("ListDevices: %v", err)
+	}
+	if len(devices) != 2 {
+		t.Fatalf("expected 2 devices, got %d", len(devices))
+	}
+	if devices[0].ID != "sel-new" || devices[1].ID != "sel-old" {
+		t.Fatalf("expected most-recently-used first, got %s then %s", devices[0].ID, devices[1].ID)
 	}
 }
 

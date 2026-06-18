@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"sort"
 	"time"
 
 	"github.com/capybara-translation/goblog/internal/auth"
@@ -115,6 +116,13 @@ func (s *deviceService) ListDevices(userID int64, currentSessionID, currentSelec
 			IsEphemeral: true,
 		})
 	}
+
+	sort.SliceStable(devices, func(i, j int) bool {
+		if !devices[i].LastUsedAt.Equal(devices[j].LastUsedAt) {
+			return devices[i].LastUsedAt.After(devices[j].LastUsedAt)
+		}
+		return devices[i].ID < devices[j].ID
+	})
 
 	return devices, nil
 }
