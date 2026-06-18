@@ -34,7 +34,7 @@ func (n noDirListingFS) Open(name string) (http.File, error) {
 }
 
 // NewRouter creates the application router using embedded resources
-func NewRouter(postService service.PostService, postViewService service.PostViewService, authService service.AuthService, ogpService service.OGPService, reactionService service.ReactionService, reactionTypeService service.ReactionTypeService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, uploadDir string, maxUploadSize int64, postsPerPage int, templatesFS, staticFS embed.FS) *mux.Router {
+func NewRouter(postService service.PostService, postViewService service.PostViewService, authService service.AuthService, ogpService service.OGPService, reactionService service.ReactionService, reactionTypeService service.ReactionTypeService, deviceService service.DeviceService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, uploadDir string, maxUploadSize int64, postsPerPage int, templatesFS, staticFS embed.FS) *mux.Router {
 	r := mux.NewRouter()
 
 	// Shared image-dimensions cache. The Markdown renderer asks it for
@@ -136,6 +136,13 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 	protectedAPI.HandleFunc("/reaction-types", reactionAdmin.HandleCreate).Methods("POST")
 	protectedAPI.HandleFunc("/reaction-types/{id:[0-9]+}", reactionAdmin.HandleUpdate).Methods("PUT")
 	protectedAPI.HandleFunc("/reaction-types/{id:[0-9]+}", reactionAdmin.HandleDelete).Methods("DELETE")
+
+	// Device management (logged-in devices). logout-others is registered before
+	// the /{kind}/{id} pattern for clarity (they differ in segment count anyway).
+	deviceHandlers := NewDeviceHandlers(deviceService)
+	protectedAPI.HandleFunc("/devices", deviceHandlers.HandleList).Methods("GET")
+	protectedAPI.HandleFunc("/devices/logout-others", deviceHandlers.HandleLogoutOthers).Methods("POST")
+	protectedAPI.HandleFunc("/devices/{kind}/{id}", deviceHandlers.HandleRevoke).Methods("DELETE")
 
 	// Markdown preview (with OGP link card support + width/height + srcset)
 	previewHandler := NewPreviewHandler(ogpService, dimensions, variants)
