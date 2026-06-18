@@ -260,7 +260,7 @@ func (m *mockPostRepository) FindAll(status *domain.PostStatus, limit, offset in
 - 検証は `crypto/subtle.ConstantTimeCompare` で timing 攻撃を防止
 - ログアウト時に DB レコードと cookie の両方を失効
 - バックグラウンドで 1 時間ごとに期限切れトークンを sweep
-- ログイン中の端末管理のため、トークン発行時の `user_agent` / `ip_address` を `remember_tokens` に平文保存する（運用者自身の端末情報のため読者データのようなセンシティビティは低い）。保持期間はトークン寿命と同じで、期限切れ sweep・ログアウト失効・ユーザー削除（ON DELETE CASCADE）で削除される。別途のデータ保持ポリシーは設けていない
+- ログイン中の端末管理のため、端末の last-seen `user_agent` / `ip_address` を `remember_tokens` に平文保存する（発行時＋復元時に更新。`TRUSTED_PROXIES` を考慮して IP を解決。運用者自身の端末情報のため読者データのようなセンシティビティは低い）。保持期間はトークン寿命と同じで、期限切れ sweep・ログアウト失効・ユーザー削除（ON DELETE CASCADE）で削除される。別途のデータ保持ポリシーは設けていない
 - CDN 導入時の注意: 公開ページの GET で Set-Cookie 副作用が発生する。CDN が Set-Cookie を含むレスポンスをキャッシュ対象外にする設定であれば実害なし。盲目的にキャッシュする CDN を使う場合は `Cache-Control: private, no-store` を当該レスポンスに付ける設計が必要
 
 ### 7. 記事リアクション
@@ -402,7 +402,7 @@ POST /api/v1/auth/login (JSON)
   - `users`: ユーザーデータ（id, username, password_hash, created_at, updated_at）
   - `ogp_cache`: OGPメタ情報キャッシュ（url, title, description, image, local_image, expires_at）
   - `post_views`: 閲覧記録（post_id, viewed_at, ip_address, user_agent）※ON DELETE CASCADE
-  - `remember_tokens`: Remember me トークン（selector / token_hash / expires_at / user_id ON DELETE CASCADE / user_agent / ip_address）。`user_agent`（migration 009）と `ip_address`（migration 010）はトークン発行時の端末情報で、ログイン中の端末一覧に使用。これらのカラム追加より前に発行された既存行は空文字（一覧では一時的に「不明な端末」表示）だが、次回の remember 復元時に現リクエストの UA/IP で自動的に書き戻される（`RestoreFromRememberToken` のセルフヒール。空のときのみ更新し発行時情報は上書きしない）
+  - `remember_tokens`: Remember me トークン（selector / token_hash / expires_at / user_id ON DELETE CASCADE / user_agent / ip_address）。`user_agent`（migration 009）と `ip_address`（migration 010）は端末の **last-seen** 情報で、ログイン中の端末一覧に使用。remember 復元時（`RestoreFromRememberToken`）に現リクエストの UA/IP と差があれば書き戻す（差分が無ければ書き込みなし、UA が空のリクエストでは上書きしない）。これにより、カラム追加前に発行された空文字の既存行（一時的に「不明な端末」表示）も、信頼プロキシ未解決で記録されてしまった IP（nginx 背後の `127.0.0.1` 等）も、次回復元時に自動修復される。IP は公開ページ／管理 API いずれの復元パスでも `TRUSTED_PROXIES` を考慮して解決する
   - `reaction_types`: リアクション絵文字マスタ（id, emoji, label, sort_order, is_active, created_at）。seed は `repo.DefaultReactionTypes` (Go) を単一ソースに `goblog.InitSchema` で `INSERT OR IGNORE` 投入する。migration 008 は CREATE のみ（seed 行は持たない）。seed 絵文字（👍❤️🎉👀🤔）は管理画面から emoji 変更・物理削除不可（無効化のみ）。
   - `post_reactions`: リアクション記録（post_id, reaction_type_id, visitor_key, created_at, UNIQUE(post_id, reaction_type_id, visitor_key)）※ON DELETE CASCADE
 

@@ -2407,7 +2407,7 @@ func TestHandlePostDetail_RendersReactionCounts(t *testing.T) {
 		},
 	}
 
-	h := NewPublicHandlersFromPath(postSvc, nil, reactionSvc, nil, testSecureCookie, testBlogTitle, testBaseURL, testTemplatePattern, testPostsPerPage, nil, nil)
+	h := NewPublicHandlersFromPath(postSvc, nil, reactionSvc, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testPostsPerPage, nil, nil)
 
 	r := mux.NewRouter()
 	r.HandleFunc("/posts/{slug}", h.HandlePostDetail).Methods("GET")
@@ -2461,7 +2461,7 @@ func TestHandlePostDetail_NoReactionBlock_WhenServiceNil(t *testing.T) {
 	}
 
 	// nil reactionService — the reactions block must be absent.
-	h := NewPublicHandlersFromPath(postSvc, nil, nil, nil, testSecureCookie, testBlogTitle, testBaseURL, testTemplatePattern, testPostsPerPage, nil, nil)
+	h := NewPublicHandlersFromPath(postSvc, nil, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testPostsPerPage, nil, nil)
 
 	r := mux.NewRouter()
 	r.HandleFunc("/posts/{slug}", h.HandlePostDetail).Methods("GET")
@@ -2511,7 +2511,7 @@ func TestHandleHome_RendersReactionButtons(t *testing.T) {
 		},
 	}
 
-	h := NewPublicHandlersFromPath(postSvc, nil, reactionSvc, nil, testSecureCookie, testBlogTitle, testBaseURL, testTemplatePattern, testPostsPerPage, nil, nil)
+	h := NewPublicHandlersFromPath(postSvc, nil, reactionSvc, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testPostsPerPage, nil, nil)
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", h.HandleHome).Methods("GET")

@@ -48,7 +48,7 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 	variants := service.NewDiskVariantsService(uploadDir)
 
 	// Initialize public page handlers (using embedded templates)
-	publicHandlers := NewPublicHandlers(postService, postViewService, ogpService, reactionService, authService, secureCookie, blogTitle, baseURL, postsPerPage, templatesFS, dimensions, variants)
+	publicHandlers := NewPublicHandlers(postService, postViewService, ogpService, reactionService, authService, secureCookie, trustedProxies, blogTitle, baseURL, postsPerPage, templatesFS, dimensions, variants)
 
 	// Display custom 404 page for non-existent routes
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -163,7 +163,7 @@ func NewRouterWithTemplates(postService service.PostService, postViewService ser
 	variants := service.NewDiskVariantsService(uploadDir)
 
 	// Initialize public page handlers (loading templates from filesystem)
-	publicHandlers := NewPublicHandlersFromPath(postService, postViewService, nil, authService, secureCookie, blogTitle, baseURL, templatePattern, postsPerPage, dimensions, variants)
+	publicHandlers := NewPublicHandlersFromPath(postService, postViewService, nil, authService, secureCookie, trustedProxies, blogTitle, baseURL, templatePattern, postsPerPage, dimensions, variants)
 
 	// Display custom 404 page for non-existent routes
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
