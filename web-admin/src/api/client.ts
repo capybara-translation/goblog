@@ -72,6 +72,19 @@ export interface ReactionType {
   is_seed: boolean;
 }
 
+export interface Device {
+  kind: 'remember' | 'session';
+  id: string;
+  device: string;
+  browser: string;
+  os: string;
+  ip: string;
+  last_used_at: string;
+  created_at: string;
+  is_current: boolean;
+  is_ephemeral: boolean;
+}
+
 export interface AdminReactionCount {
   id: number;
   emoji: string;
@@ -268,6 +281,21 @@ class ApiClient {
 
   async deleteReactionType(id: number): Promise<void> {
     return this.request<void>(`/reaction-types/${id}`, { method: 'DELETE' });
+  }
+
+  // Device management endpoints
+  async getDevices(): Promise<Device[]> {
+    return this.request<Device[]>('/devices');
+  }
+
+  async revokeDevice(kind: 'remember' | 'session', id: string): Promise<void> {
+    return this.request<void>(`/devices/${kind}/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async logoutOtherDevices(): Promise<void> {
+    return this.request<void>('/devices/logout-others', { method: 'POST' });
   }
 
   // Tags endpoint
