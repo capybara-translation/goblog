@@ -28,6 +28,7 @@ func setupTestDBWithRememberTokens(t *testing.T) *sqlx.DB {
 		"../../migrations/002_create_users.sql",
 		"../../migrations/007_create_remember_tokens.sql",
 		"../../migrations/009_add_remember_token_device.sql",
+		"../../migrations/010_add_remember_token_ip.sql",
 	}
 	for _, path := range migrations {
 		schema, err := os.ReadFile(path)
@@ -206,5 +207,48 @@ func TestSQLiteRememberTokenStore_FindByUserIDAndDeleteExcept(t *testing.T) {
 	}
 	if len(remaining) != 1 || remaining[0].Selector != "sel-b" {
 		t.Fatalf("expected only sel-b to remain, got %+v", remaining)
+	}
+}
+
+func TestRememberTokenMigrations_IdempotentAndRecoverable(t *testing.T) {
+	db, err := sqlx.Open("sqlite3", ":memory:?_foreign_keys=on")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	exec := func(path string) error {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		_, err = db.Exec(string(b))
+		return err
+	}
+
+	// Base table (migration 007).
+	if err := exec("../../migrations/002_create_users.sql"); err != nil {
+		t.Fatalf("002: %v", err)
+	}
+	if err := exec("../../migrations/007_create_remember_tokens.sql"); err != nil {
+		t.Fatalf("007: %v", err)
+	}
+	// Simulate a PARTIAL prior application: only user_agent (009) got added.
+	if err := exec("../../migrations/009_add_remember_token_device.sql"); err != nil {
+		t.Fatalf("009: %v", err)
+	}
+	// Re-running 009 now errors with duplicate column — that's expected and the
+	// real runner skips it. The point: 010 is a SEPARATE file, so ip_address can
+	// still be applied to recover.
+	if err := exec("../../migrations/010_add_remember_token_ip.sql"); err != nil {
+		t.Fatalf("010 must apply even though 009's column already exists: %v", err)
+	}
+	// Both columns now exist: an insert with UA+IP must succeed.
+	if _, err := db.Exec(`INSERT INTO users (id, username, password_hash) VALUES (1,'a','x')`); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	_, err = db.Exec(`INSERT INTO remember_tokens (user_id, selector, token_hash, expires_at, user_agent, ip_address) VALUES (1,'s','h',datetime('now','+1 hour'),'UA','1.2.3.4')`)
+	if err != nil {
+		t.Fatalf("insert with UA/IP must succeed after recovery: %v", err)
 	}
 }

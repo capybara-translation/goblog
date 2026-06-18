@@ -1,6 +1,6 @@
--- Device metadata for the "logged-in devices" admin feature.
--- Stored at remember-token issue time. Existing rows (issued before this
--- migration) default to '' and are shown as "不明な端末" in the UI.
+-- Device metadata (1/2) for the "logged-in devices" admin feature, stored at
+-- remember-token issue time. One ALTER per file so each is independently
+-- idempotent under the runner's duplicate-column skip (see internal/db/db.go);
+-- a two-statement file could leave the second column permanently unapplied.
 -- SQLite requires a DEFAULT when adding a NOT NULL column to an existing table.
 ALTER TABLE remember_tokens ADD COLUMN user_agent TEXT NOT NULL DEFAULT '';
-ALTER TABLE remember_tokens ADD COLUMN ip_address TEXT NOT NULL DEFAULT '';

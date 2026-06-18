@@ -13,4 +13,5 @@ var MigrationFiles = []string{
 	"migrations/007_create_remember_tokens.sql",
 	"migrations/008_create_reactions.sql",
 	"migrations/009_add_remember_token_device.sql",
+	"migrations/010_add_remember_token_ip.sql",
 }
