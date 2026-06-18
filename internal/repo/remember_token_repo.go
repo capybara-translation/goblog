@@ -74,6 +74,16 @@ func (s *sqliteRememberTokenStore) RefreshOnUse(selector string, lastUsed time.T
 	return nil
 }
 
+func (s *sqliteRememberTokenStore) UpdateDeviceInfo(selector, userAgent, ipAddress string) error {
+	if _, err := s.db.Exec(
+		`UPDATE remember_tokens SET user_agent = ?, ip_address = ? WHERE selector = ?`,
+		userAgent, ipAddress, selector,
+	); err != nil {
+		return fmt.Errorf("failed to update remember token device info: %w", err)
+	}
+	return nil
+}
+
 func (s *sqliteRememberTokenStore) FindByUserID(userID int64) ([]*domain.RememberToken, error) {
 	var tokens []*domain.RememberToken
 	err := s.db.Select(&tokens, `SELECT * FROM remember_tokens WHERE user_id = ? ORDER BY created_at DESC`, userID)

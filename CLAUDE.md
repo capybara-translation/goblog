@@ -402,7 +402,7 @@ POST /api/v1/auth/login (JSON)
   - `users`: ユーザーデータ（id, username, password_hash, created_at, updated_at）
   - `ogp_cache`: OGPメタ情報キャッシュ（url, title, description, image, local_image, expires_at）
   - `post_views`: 閲覧記録（post_id, viewed_at, ip_address, user_agent）※ON DELETE CASCADE
-  - `remember_tokens`: Remember me トークン（selector / token_hash / expires_at / user_id ON DELETE CASCADE / user_agent / ip_address）。`user_agent` と `ip_address`（migration 009）はトークン発行時の端末情報で、ログイン中の端末一覧に使用。migration 009 以前の既存行は空文字となり「不明な端末」と表示される
+  - `remember_tokens`: Remember me トークン（selector / token_hash / expires_at / user_id ON DELETE CASCADE / user_agent / ip_address）。`user_agent`（migration 009）と `ip_address`（migration 010）はトークン発行時の端末情報で、ログイン中の端末一覧に使用。これらのカラム追加より前に発行された既存行は空文字（一覧では一時的に「不明な端末」表示）だが、次回の remember 復元時に現リクエストの UA/IP で自動的に書き戻される（`RestoreFromRememberToken` のセルフヒール。空のときのみ更新し発行時情報は上書きしない）
   - `reaction_types`: リアクション絵文字マスタ（id, emoji, label, sort_order, is_active, created_at）。seed は `repo.DefaultReactionTypes` (Go) を単一ソースに `goblog.InitSchema` で `INSERT OR IGNORE` 投入する。migration 008 は CREATE のみ（seed 行は持たない）。seed 絵文字（👍❤️🎉👀🤔）は管理画面から emoji 変更・物理削除不可（無効化のみ）。
   - `post_reactions`: リアクション記録（post_id, reaction_type_id, visitor_key, created_at, UNIQUE(post_id, reaction_type_id, visitor_key)）※ON DELETE CASCADE
 

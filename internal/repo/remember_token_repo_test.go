@@ -252,3 +252,27 @@ func TestRememberTokenMigrations_IdempotentAndRecoverable(t *testing.T) {
 		t.Fatalf("insert with UA/IP must succeed after recovery: %v", err)
 	}
 }
+
+func TestSQLiteRememberTokenStore_UpdateDeviceInfo(t *testing.T) {
+	db := setupTestDBWithRememberTokens(t)
+	store := NewSQLiteRememberTokenStore(db)
+
+	// Simulate a legacy token with empty device metadata.
+	if err := store.Create(&domain.RememberToken{
+		UserID: 1, Selector: "sel-legacy", TokenHash: "h",
+		ExpiresAt: time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	if err := store.UpdateDeviceInfo("sel-legacy", "Mozilla/Mac", "203.0.113.7"); err != nil {
+		t.Fatalf("UpdateDeviceInfo: %v", err)
+	}
+	tok, err := store.FindBySelector("sel-legacy")
+	if err != nil || tok == nil {
+		t.Fatalf("FindBySelector: %v / %v", tok, err)
+	}
+	if tok.UserAgent != "Mozilla/Mac" || tok.IPAddress != "203.0.113.7" {
+		t.Fatalf("device info not updated: %+v", tok)
+	}
+}

@@ -112,6 +112,7 @@ type mockRememberTokenStore struct {
 	cleanupExpiredFunc             func() error
 	findByUserIDFunc               func(int64) ([]*domain.RememberToken, error)
 	deleteByUserExceptSelectorFunc func(int64, string) error
+	updateDeviceInfoFunc           func(string, string, string) error
 }
 
 func (m *mockRememberTokenStore) Create(t *domain.RememberToken) error {
@@ -152,6 +153,13 @@ func (m *mockRememberTokenStore) RefreshOnUse(sel string, lastUsed time.Time, ne
 func (m *mockRememberTokenStore) CleanupExpired() error {
 	if m.cleanupExpiredFunc != nil {
 		return m.cleanupExpiredFunc()
+	}
+	return nil
+}
+
+func (m *mockRememberTokenStore) UpdateDeviceInfo(selector, userAgent, ipAddress string) error {
+	if m.updateDeviceInfoFunc != nil {
+		return m.updateDeviceInfoFunc(selector, userAgent, ipAddress)
 	}
 	return nil
 }
@@ -1006,6 +1014,75 @@ func TestAuthService_RestoreFromRememberToken_Success(t *testing.T) {
 	if newSession != "new-session" {
 		t.Errorf("session = %q", newSession)
 	}
+}
+
+// Self-heal: a token issued before device metadata was captured (empty
+// user_agent) is backfilled from the current request on restore, so it stops
+// showing as "不明な端末" without forcing the user to re-login.
+func TestAuthService_RestoreFromRememberToken_BackfillsEmptyDeviceInfo(t *testing.T) {
+	selector := "sel"
+	raw := "raw"
+	hash := auth.HashToken(raw)
+
+	t.Run("backfills when stored UA is empty", func(t *testing.T) {
+		var gotSel, gotUA, gotIP string
+		called := false
+		store := &mockRememberTokenStore{
+			findBySelectorFunc: func(s string) (*domain.RememberToken, error) {
+				return &domain.RememberToken{
+					UserID: 1, Selector: selector, TokenHash: hash,
+					ExpiresAt: time.Now().Add(time.Hour),
+					UserAgent: "", IPAddress: "",
+				}, nil
+			},
+			updateDeviceInfoFunc: func(sel, ua, ip string) error {
+				called, gotSel, gotUA, gotIP = true, sel, ua, ip
+				return nil
+			},
+		}
+		userRepo := &mockUserRepository{findByIDFunc: func(int64) (*domain.User, error) {
+			return &domain.User{ID: 1, Username: "u"}, nil
+		}}
+		sessions := &mockSessionStore{createFunc: func(int64, time.Duration, auth.SessionMeta) (string, error) {
+			return "s", nil
+		}}
+		svc := newAuthServiceForTest(userRepo, sessions, store, time.Hour)
+
+		if _, _, err := svc.RestoreFromRememberToken(auth.EncodeRememberCookie(selector, raw), "Mozilla/Mac", "203.0.113.5"); err != nil {
+			t.Fatalf("Restore: %v", err)
+		}
+		if !called || gotSel != selector || gotUA != "Mozilla/Mac" || gotIP != "203.0.113.5" {
+			t.Fatalf("expected backfill(sel=%q,ua=Mozilla/Mac,ip=203.0.113.5), got called=%v sel=%q ua=%q ip=%q", selector, called, gotSel, gotUA, gotIP)
+		}
+	})
+
+	t.Run("does not overwrite a token that already has a UA", func(t *testing.T) {
+		called := false
+		store := &mockRememberTokenStore{
+			findBySelectorFunc: func(s string) (*domain.RememberToken, error) {
+				return &domain.RememberToken{
+					UserID: 1, Selector: selector, TokenHash: hash,
+					ExpiresAt: time.Now().Add(time.Hour),
+					UserAgent: "existing-UA",
+				}, nil
+			},
+			updateDeviceInfoFunc: func(string, string, string) error { called = true; return nil },
+		}
+		userRepo := &mockUserRepository{findByIDFunc: func(int64) (*domain.User, error) {
+			return &domain.User{ID: 1}, nil
+		}}
+		sessions := &mockSessionStore{createFunc: func(int64, time.Duration, auth.SessionMeta) (string, error) {
+			return "s", nil
+		}}
+		svc := newAuthServiceForTest(userRepo, sessions, store, time.Hour)
+
+		if _, _, err := svc.RestoreFromRememberToken(auth.EncodeRememberCookie(selector, raw), "Mozilla/Mac", "203.0.113.5"); err != nil {
+			t.Fatalf("Restore: %v", err)
+		}
+		if called {
+			t.Fatalf("must not backfill a token that already has a UA")
+		}
+	})
 }
 
 func TestAuthService_RestoreFromRememberToken_FailurePaths(t *testing.T) {

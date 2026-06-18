@@ -34,6 +34,13 @@ func (f *fakeRememberStore) DeleteByUserID(userID int64) error {
 }
 func (f *fakeRememberStore) RefreshOnUse(sel string, lu time.Time, exp time.Time) error { return nil }
 func (f *fakeRememberStore) CleanupExpired() error                                      { return nil }
+func (f *fakeRememberStore) UpdateDeviceInfo(selector, userAgent, ipAddress string) error {
+	if t, ok := f.tokens[selector]; ok {
+		t.UserAgent = userAgent
+		t.IPAddress = ipAddress
+	}
+	return nil
+}
 func (f *fakeRememberStore) FindByUserID(userID int64) ([]*domain.RememberToken, error) {
 	var out []*domain.RememberToken
 	for _, t := range f.tokens {

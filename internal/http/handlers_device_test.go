@@ -42,6 +42,13 @@ func (f *fakeRememberStoreHTTP) RefreshOnUse(sel string, lu time.Time, exp time.
 	return nil
 }
 func (f *fakeRememberStoreHTTP) CleanupExpired() error { return nil }
+func (f *fakeRememberStoreHTTP) UpdateDeviceInfo(selector, userAgent, ipAddress string) error {
+	if t, ok := f.tokens[selector]; ok {
+		t.UserAgent = userAgent
+		t.IPAddress = ipAddress
+	}
+	return nil
+}
 func (f *fakeRememberStoreHTTP) FindByUserID(userID int64) ([]*domain.RememberToken, error) {
 	var out []*domain.RememberToken
 	for _, t := range f.tokens {
