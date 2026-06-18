@@ -97,6 +97,34 @@ func TestListDevices_MergesRememberAndEphemeral(t *testing.T) {
 	_ = macSession
 }
 
+func TestListDevices_ExpiredTokenHiddenLinkedSessionShown(t *testing.T) {
+	sessions := auth.NewInMemorySessionStore()
+	remember := newFakeRememberStore()
+	svc := NewDeviceService(sessions, remember)
+
+	expired := time.Now().Add(-time.Minute)
+	remember.Create(&domain.RememberToken{
+		UserID: 1, Selector: "sel-exp", TokenHash: "h",
+		ExpiresAt: expired, CreatedAt: time.Now().Add(-time.Hour),
+		UserAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 10_3_2 like Mac OS X) AppleWebKit/603.2.4 (KHTML, like Gecko) Version/10.0 Mobile/14F89 Safari/602.1",
+	})
+	// A live session still linked to that now-expired token's selector.
+	linked, _ := sessions.Create(1, time.Hour, auth.SessionMeta{RememberSelector: "sel-exp", IP: "203.0.113.9"})
+
+	devices, err := svc.ListDevices(1, "", "")
+	if err != nil {
+		t.Fatalf("ListDevices: %v", err)
+	}
+	if len(devices) != 1 {
+		t.Fatalf("expected exactly 1 device (the live session; expired token hidden), got %d: %+v", len(devices), devices)
+	}
+	d := devices[0]
+	if d.Kind != "session" || !d.IsEphemeral || d.IP != "203.0.113.9" {
+		t.Fatalf("expected the orphaned live session row, got %+v", d)
+	}
+	_ = linked
+}
+
 func TestRevokeDevice_RememberAlsoKillsSession(t *testing.T) {
 	sessions := auth.NewInMemorySessionStore()
 	remember := newFakeRememberStore()

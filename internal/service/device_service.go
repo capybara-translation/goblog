@@ -71,10 +71,19 @@ func (s *deviceService) ListDevices(userID int64, currentSessionID, currentSelec
 		return nil, err
 	}
 
+	now := time.Now()
+	liveSelectors := make(map[string]bool)
+
 	devices := make([]Device, 0, len(tokens)+len(sessionInfos))
 
-	// Remember rows (the backbone).
+	// Remember rows (the backbone). Skip expired tokens — an expired remember
+	// token is effectively logged out and must not appear as an active device.
 	for _, tok := range tokens {
+		if now.After(tok.ExpiresAt) {
+			continue
+		}
+		liveSelectors[tok.Selector] = true
+
 		lastUsed := tok.CreatedAt
 		if tok.LastUsedAt != nil && tok.LastUsedAt.After(lastUsed) {
 			lastUsed = *tok.LastUsedAt
@@ -96,10 +105,11 @@ func (s *deviceService) ListDevices(userID int64, currentSessionID, currentSelec
 		})
 	}
 
-	// Ephemeral session rows: only sessions NOT linked to a remember token
-	// (linked ones are already represented by their remember row).
+	// Session rows. A session linked to a LIVE remember token is already
+	// represented by that token's row, so skip it. A session whose selector has
+	// no live token (expired/swept) is still a live login and must be shown.
 	for _, si := range sessionInfos {
-		if si.RememberSelector != "" {
+		if si.RememberSelector != "" && liveSelectors[si.RememberSelector] {
 			continue
 		}
 		dev, browser, os := parseUA(si.UserAgent)
