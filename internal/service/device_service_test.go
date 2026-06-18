@@ -169,6 +169,52 @@ func TestRevokeDevice_OtherUserNotFound(t *testing.T) {
 	}
 }
 
+// W1: revoking a remember-linked session via kind="session" must ALSO revoke
+// the remember token, otherwise the device is silently re-restored from the
+// still-valid token on the next request (revocation would be defeated).
+func TestRevokeDevice_SessionKindAlsoRevokesLinkedRememberToken(t *testing.T) {
+	sessions := auth.NewInMemorySessionStore()
+	remember := newFakeRememberStore()
+	svc := NewDeviceService(sessions, remember)
+
+	remember.Create(&domain.RememberToken{UserID: 1, Selector: "sel-x", TokenHash: "h", ExpiresAt: time.Now().Add(time.Hour)})
+	linked, _ := sessions.Create(1, time.Hour, auth.SessionMeta{RememberSelector: "sel-x"})
+	current, _ := sessions.Create(1, time.Hour, auth.SessionMeta{})
+
+	if err := svc.RevokeDevice(1, "session", auth.HashSessionID(linked), current, ""); err != nil {
+		t.Fatalf("RevokeDevice: %v", err)
+	}
+	if s, _ := sessions.Get(linked); s != nil {
+		t.Fatalf("linked session must be deleted")
+	}
+	if tok, _ := remember.FindBySelector("sel-x"); tok != nil {
+		t.Fatalf("remember token must also be revoked so the device cannot resurrect")
+	}
+}
+
+// W2: revoking an expired remember token must return ErrDeviceNotFound, matching
+// ListDevices which hides expired tokens (no success for an id not in the list).
+func TestRevokeDevice_ExpiredRememberTokenNotFound(t *testing.T) {
+	sessions := auth.NewInMemorySessionStore()
+	remember := newFakeRememberStore()
+	svc := NewDeviceService(sessions, remember)
+	remember.Create(&domain.RememberToken{UserID: 1, Selector: "sel-exp", TokenHash: "h", ExpiresAt: time.Now().Add(-time.Minute)})
+
+	err := svc.RevokeDevice(1, "remember", "sel-exp", "cur", "")
+	if err != ErrDeviceNotFound {
+		t.Fatalf("expected ErrDeviceNotFound for expired token, got %v", err)
+	}
+}
+
+// N4 (unit-level): RevokeDevice still rejects an unknown kind at the service
+// layer (defense in depth behind the router's {kind:remember|session} constraint).
+func TestRevokeDevice_InvalidKind(t *testing.T) {
+	svc := NewDeviceService(auth.NewInMemorySessionStore(), newFakeRememberStore())
+	if err := svc.RevokeDevice(1, "bogus", "x", "cur", ""); err != ErrInvalidDeviceKind {
+		t.Fatalf("expected ErrInvalidDeviceKind, got %v", err)
+	}
+}
+
 func TestListDevices_SortedByLastUsedDesc(t *testing.T) {
 	sessions := auth.NewInMemorySessionStore()
 	remember := newFakeRememberStore()

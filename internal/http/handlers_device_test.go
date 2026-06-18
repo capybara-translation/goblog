@@ -72,7 +72,7 @@ func newDeviceTestRouter(svc service.DeviceService) *mux.Router {
 	})
 	api.HandleFunc("/devices", h.HandleList).Methods("GET")
 	api.HandleFunc("/devices/logout-others", h.HandleLogoutOthers).Methods("POST")
-	api.HandleFunc("/devices/{kind}/{id}", h.HandleRevoke).Methods("DELETE")
+	api.HandleFunc("/devices/{kind:remember|session}/{id}", h.HandleRevoke).Methods("DELETE")
 	return r
 }
 
@@ -99,14 +99,18 @@ func TestHandleList_ReturnsDevices(t *testing.T) {
 	}
 }
 
-func TestHandleRevoke_InvalidKind(t *testing.T) {
+// An unknown kind no longer reaches the handler: the route is constrained to
+// {kind:remember|session}, so an unmatched kind yields 404 at the router. The
+// service-layer ErrInvalidDeviceKind (400) remains as defense-in-depth and is
+// covered by a unit test in the service package.
+func TestHandleRevoke_UnknownKindNotRouted(t *testing.T) {
 	svc := service.NewDeviceService(auth.NewInMemorySessionStore(), newFakeRememberStoreHTTP())
 	r := newDeviceTestRouter(svc)
 	req := httptest.NewRequest("DELETE", "/api/v1/devices/bogus/xyz", nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 for invalid kind, got %d", rec.Code)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for unknown kind (route not matched), got %d", rec.Code)
 	}
 }
 

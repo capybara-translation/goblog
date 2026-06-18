@@ -147,7 +147,10 @@ func (s *deviceService) RevokeDevice(userID int64, kind, id, currentSessionID, c
 		if err != nil {
 			return err
 		}
-		if tok == nil || tok.UserID != userID {
+		// Treat an expired token as not-found so revoke is symmetric with
+		// ListDevices, which hides expired tokens (no success for an id that
+		// isn't in the list).
+		if tok == nil || tok.UserID != userID || time.Now().After(tok.ExpiresAt) {
 			return ErrDeviceNotFound
 		}
 		if err := s.remember.Delete(id); err != nil {
@@ -160,12 +163,22 @@ func (s *deviceService) RevokeDevice(userID int64, kind, id, currentSessionID, c
 		if id == auth.HashSessionID(currentSessionID) {
 			return ErrCannotRevokeCurrent
 		}
-		found, err := s.sessions.DeleteByHandleForUser(userID, id)
+		selector, found, err := s.sessions.DeleteByHandleForUser(userID, id)
 		if err != nil {
 			return err
 		}
 		if !found {
 			return ErrDeviceNotFound
+		}
+		// If this session was linked to a remember token, revoke the token (and
+		// any sibling sessions) too. Otherwise the still-valid token would
+		// silently re-restore a session on the next request, defeating the
+		// revocation — the same guarantee the kind="remember" path provides.
+		if selector != "" {
+			if err := s.remember.Delete(selector); err != nil {
+				return err
+			}
+			s.sessions.DeleteBySelector(selector)
 		}
 		return nil
 	default:
@@ -190,7 +203,7 @@ func parseUA(raw string) (device, browser, os string) {
 	ua := useragent.Parse(raw)
 	device = ua.Device
 	if device == "" {
-		device = ua.OS // e.g. "Mac", "Windows"
+		device = ua.OS // e.g. "macOS", "Windows"
 	}
 	if device == "" {
 		device = "不明な端末"

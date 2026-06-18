@@ -56,8 +56,9 @@ type SessionStore interface {
 	// ListByUser returns public views of all live sessions for the user.
 	ListByUser(userID int64) []SessionInfo
 	// DeleteByHandleForUser deletes the session whose public handle matches,
-	// scoped to userID. Returns whether a matching session was found.
-	DeleteByHandleForUser(userID int64, handle string) (bool, error)
+	// scoped to userID. Returns the deleted session's remember selector (empty
+	// if it was an ephemeral session) and whether a matching session was found.
+	DeleteByHandleForUser(userID int64, handle string) (selector string, found bool, err error)
 	// DeleteBySelector deletes every session linked to the given remember
 	// selector. Used so revoking a remember device also kills its live session.
 	DeleteBySelector(selector string)
@@ -181,16 +182,17 @@ func (s *inMemorySessionStore) ListByUser(userID int64) []SessionInfo {
 	return out
 }
 
-func (s *inMemorySessionStore) DeleteByHandleForUser(userID int64, handle string) (bool, error) {
+func (s *inMemorySessionStore) DeleteByHandleForUser(userID int64, handle string) (string, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for id, session := range s.sessions {
 		if session.UserID == userID && HashSessionID(id) == handle {
+			selector := session.RememberSelector
 			delete(s.sessions, id)
-			return true, nil
+			return selector, true, nil
 		}
 	}
-	return false, nil
+	return "", false, nil
 }
 
 func (s *inMemorySessionStore) DeleteBySelector(selector string) {

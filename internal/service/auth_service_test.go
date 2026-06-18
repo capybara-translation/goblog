@@ -96,8 +96,8 @@ func (m *mockSessionStore) CleanupExpired() {
 func (m *mockSessionStore) Touch(sessionID string, t time.Time)            {}
 func (m *mockSessionStore) SetRememberSelector(sessionID, selector string) {}
 func (m *mockSessionStore) ListByUser(userID int64) []auth.SessionInfo     { return nil }
-func (m *mockSessionStore) DeleteByHandleForUser(userID int64, handle string) (bool, error) {
-	return false, nil
+func (m *mockSessionStore) DeleteByHandleForUser(userID int64, handle string) (string, bool, error) {
+	return "", false, nil
 }
 func (m *mockSessionStore) DeleteBySelector(selector string)                 {}
 func (m *mockSessionStore) DeleteByUserExcept(userID int64, exceptID string) {}

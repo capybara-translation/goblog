@@ -142,7 +142,7 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 	deviceHandlers := NewDeviceHandlers(deviceService)
 	protectedAPI.HandleFunc("/devices", deviceHandlers.HandleList).Methods("GET")
 	protectedAPI.HandleFunc("/devices/logout-others", deviceHandlers.HandleLogoutOthers).Methods("POST")
-	protectedAPI.HandleFunc("/devices/{kind}/{id}", deviceHandlers.HandleRevoke).Methods("DELETE")
+	protectedAPI.HandleFunc("/devices/{kind:remember|session}/{id}", deviceHandlers.HandleRevoke).Methods("DELETE")
 
 	// Markdown preview (with OGP link card support + width/height + srcset)
 	previewHandler := NewPreviewHandler(ogpService, dimensions, variants)

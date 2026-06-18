@@ -350,11 +350,11 @@ func TestSessionStore_ListTouchAndDelete(t *testing.T) {
 		t.Fatalf("SetRememberSelector failed: %+v", s)
 	}
 
-	if ok, _ := store.DeleteByHandleForUser(2, HashSessionID(idA)); ok {
+	if _, ok, _ := store.DeleteByHandleForUser(2, HashSessionID(idA)); ok {
 		t.Fatalf("must not delete another user's session")
 	}
-	if ok, _ := store.DeleteByHandleForUser(1, HashSessionID(idA)); !ok {
-		t.Fatalf("expected to delete session A for user 1")
+	if sel, ok, _ := store.DeleteByHandleForUser(1, HashSessionID(idA)); !ok || sel != "sel-a" {
+		t.Fatalf("expected to delete session A for user 1 and return selector sel-a, got sel=%q ok=%v", sel, ok)
 	}
 	if s, _ := store.Get(idA); s != nil {
 		t.Fatalf("session A should be gone")
