@@ -22,6 +22,12 @@ type RememberTokenStore interface {
 	// listing "sliding expiration" semantics (an active user is not forced
 	// to re-authenticate every TTL window).
 	RefreshOnUse(selector string, lastUsed time.Time, newExpiresAt time.Time) error
+	// FindByUserID returns all (non-deleted) remember tokens owned by the user.
+	// Used by the device-listing feature.
+	FindByUserID(userID int64) ([]*domain.RememberToken, error)
+	// DeleteByUserExceptSelector deletes every remember token owned by the user
+	// EXCEPT the one matching keepSelector. Used by "log out all other devices".
+	DeleteByUserExceptSelector(userID int64, keepSelector string) error
 	CleanupExpired() error
 }
 

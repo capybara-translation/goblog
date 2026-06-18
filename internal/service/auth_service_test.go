@@ -93,12 +93,14 @@ func (m *mockSessionStore) CleanupExpired() {
 
 // mockRememberTokenStore is a mock implementation of auth.RememberTokenStore.
 type mockRememberTokenStore struct {
-	createFunc         func(*domain.RememberToken) error
-	findBySelectorFunc func(string) (*domain.RememberToken, error)
-	deleteFunc         func(string) error
-	deleteByUserIDFunc func(int64) error
-	refreshOnUseFunc func(string, time.Time, time.Time) error
-	cleanupExpiredFunc func() error
+	createFunc                     func(*domain.RememberToken) error
+	findBySelectorFunc             func(string) (*domain.RememberToken, error)
+	deleteFunc                     func(string) error
+	deleteByUserIDFunc             func(int64) error
+	refreshOnUseFunc               func(string, time.Time, time.Time) error
+	cleanupExpiredFunc             func() error
+	findByUserIDFunc               func(int64) ([]*domain.RememberToken, error)
+	deleteByUserExceptSelectorFunc func(int64, string) error
 }
 
 func (m *mockRememberTokenStore) Create(t *domain.RememberToken) error {
@@ -139,6 +141,20 @@ func (m *mockRememberTokenStore) RefreshOnUse(sel string, lastUsed time.Time, ne
 func (m *mockRememberTokenStore) CleanupExpired() error {
 	if m.cleanupExpiredFunc != nil {
 		return m.cleanupExpiredFunc()
+	}
+	return nil
+}
+
+func (m *mockRememberTokenStore) FindByUserID(uid int64) ([]*domain.RememberToken, error) {
+	if m.findByUserIDFunc != nil {
+		return m.findByUserIDFunc(uid)
+	}
+	return nil, nil
+}
+
+func (m *mockRememberTokenStore) DeleteByUserExceptSelector(uid int64, keepSelector string) error {
+	if m.deleteByUserExceptSelectorFunc != nil {
+		return m.deleteByUserExceptSelectorFunc(uid, keepSelector)
 	}
 	return nil
 }
@@ -610,14 +626,14 @@ func TestAuthService_PasswordPolicy_Strong_Invalid(t *testing.T) {
 		name     string
 		password string
 	}{
-		{"Too short", "Pass1!"},        // 6 characters
-		{"No uppercase", "password123!"}, // No uppercase
-		{"No lowercase", "PASSWORD123!"}, // No lowercase
-		{"No numbers", "Password!@#$"},  // No numbers
-		{"No symbols", "Password1234"},  // No symbols
-		{"14 characters", "Passw0rd!1234"}, // 14 characters (less than 15)
-		{"12 characters", "Passw0rd!12"},   // 12 characters (less than 15)
-		{"Multiple requirements missing", "password"},    // No uppercase, numbers, or symbols
+		{"Too short", "Pass1!"},                       // 6 characters
+		{"No uppercase", "password123!"},              // No uppercase
+		{"No lowercase", "PASSWORD123!"},              // No lowercase
+		{"No numbers", "Password!@#$"},                // No numbers
+		{"No symbols", "Password1234"},                // No symbols
+		{"14 characters", "Passw0rd!1234"},            // 14 characters (less than 15)
+		{"12 characters", "Passw0rd!12"},              // 12 characters (less than 15)
+		{"Multiple requirements missing", "password"}, // No uppercase, numbers, or symbols
 	}
 
 	for _, tt := range tests {

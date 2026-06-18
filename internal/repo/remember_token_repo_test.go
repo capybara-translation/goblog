@@ -27,6 +27,7 @@ func setupTestDBWithRememberTokens(t *testing.T) *sqlx.DB {
 	migrations := []string{
 		"../../migrations/002_create_users.sql",
 		"../../migrations/007_create_remember_tokens.sql",
+		"../../migrations/009_add_remember_token_device.sql",
 	}
 	for _, path := range migrations {
 		schema, err := os.ReadFile(path)
@@ -162,5 +163,48 @@ func TestSQLiteRememberTokenStore_CleanupExpired(t *testing.T) {
 	}
 	if got, _ := store.FindBySelector("dead"); got != nil {
 		t.Error("expired token should be deleted")
+	}
+}
+
+func TestSQLiteRememberTokenStore_FindByUserIDAndDeleteExcept(t *testing.T) {
+	db := setupTestDBWithRememberTokens(t)
+	store := NewSQLiteRememberTokenStore(db)
+
+	mk := func(sel string) *domain.RememberToken {
+		return &domain.RememberToken{
+			UserID:    1,
+			Selector:  sel,
+			TokenHash: "hash-" + sel,
+			ExpiresAt: time.Now().Add(time.Hour),
+			UserAgent: "UA-" + sel,
+			IPAddress: "10.0.0.1",
+		}
+	}
+	for _, sel := range []string{"sel-a", "sel-b", "sel-c"} {
+		if err := store.Create(mk(sel)); err != nil {
+			t.Fatalf("Create %s: %v", sel, err)
+		}
+	}
+
+	tokens, err := store.FindByUserID(1)
+	if err != nil {
+		t.Fatalf("FindByUserID: %v", err)
+	}
+	if len(tokens) != 3 {
+		t.Fatalf("expected 3 tokens, got %d", len(tokens))
+	}
+	if tokens[0].UserAgent == "" || tokens[0].IPAddress != "10.0.0.1" {
+		t.Fatalf("UA/IP not persisted: %+v", tokens[0])
+	}
+
+	if err := store.DeleteByUserExceptSelector(1, "sel-b"); err != nil {
+		t.Fatalf("DeleteByUserExceptSelector: %v", err)
+	}
+	remaining, err := store.FindByUserID(1)
+	if err != nil {
+		t.Fatalf("FindByUserID after delete: %v", err)
+	}
+	if len(remaining) != 1 || remaining[0].Selector != "sel-b" {
+		t.Fatalf("expected only sel-b to remain, got %+v", remaining)
 	}
 }
