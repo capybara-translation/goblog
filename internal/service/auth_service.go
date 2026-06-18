@@ -239,12 +239,14 @@ func (s *authService) RestoreFromRememberToken(cookieValue, userAgent, ipAddress
 	now := time.Now()
 	_ = s.rememberStore.RefreshOnUse(selector, now, now.Add(s.rememberTTL))
 
-	// Self-heal device metadata: tokens issued before this feature existed have
-	// empty user_agent/ip_address (migration default ''), which the device list
-	// renders as "不明な端末". Backfill from the current request only when the
-	// stored UA is empty, so we heal legacy rows without overwriting an existing
-	// token's issue-time metadata. Best-effort; failure does not affect restore.
-	if token.UserAgent == "" && userAgent != "" {
+	// Keep the device's last-seen UA/IP fresh on the token. This heals legacy
+	// rows (issued before device capture, so empty → "不明な端末") and also
+	// self-corrects rows whose IP was recorded without trusted-proxy resolution
+	// (e.g. 127.0.0.1 behind nginx). Update only when something actually changed
+	// AND we have a non-empty UA, so a UA-less client never wipes good data and
+	// unchanged restores skip the write. Best-effort; failure does not affect
+	// restore. NOTE: this makes the stored UA/IP "last-seen", not "issued-at".
+	if userAgent != "" && (token.UserAgent != userAgent || token.IPAddress != ipAddress) {
 		_ = s.rememberStore.UpdateDeviceInfo(selector, userAgent, ipAddress)
 	}
 

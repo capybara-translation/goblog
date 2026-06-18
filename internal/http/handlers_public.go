@@ -29,10 +29,10 @@ type PublicHandlers struct {
 	postViewService   service.PostViewService
 	ogpService        service.OGPService
 	reactionService   service.ReactionService // Nil disables the SSR reaction block.
-	currentUserHelper *CurrentUserHelper // Nil disables admin-only UI (edit links, etc.); resolves session-or-remember-token.
-	blogTitle         string // Blog title
-	baseURL           string // Site base URL (for sitemap)
-	postsPerPage      int    // Posts per page on listing views
+	currentUserHelper *CurrentUserHelper      // Nil disables admin-only UI (edit links, etc.); resolves session-or-remember-token.
+	blogTitle         string                  // Blog title
+	baseURL           string                  // Site base URL (for sitemap)
+	postsPerPage      int                     // Posts per page on listing views
 	homeTemplate      *template.Template
 	postTemplate      *template.Template
 	tagsTemplate      *template.Template
@@ -222,7 +222,7 @@ func highlightHTMLContent(htmlContent string, query string) string {
 // dimensions and variants may be nil; when non-nil, the rendered <img>
 // tags carry width/height and srcset/sizes attributes resolved from the
 // upload directory on disk.
-func NewPublicHandlers(postService service.PostService, postViewService service.PostViewService, ogpService service.OGPService, reactionService service.ReactionService, authService service.AuthService, secureCookie bool, blogTitle, baseURL string, postsPerPage int, templatesFS embed.FS, dimensions markdown.DimensionsProvider, variants markdown.VariantsProvider) *PublicHandlers {
+func NewPublicHandlers(postService service.PostService, postViewService service.PostViewService, ogpService service.OGPService, reactionService service.ReactionService, authService service.AuthService, secureCookie bool, trustedProxies []string, blogTitle, baseURL string, postsPerPage int, templatesFS embed.FS, dimensions markdown.DimensionsProvider, variants markdown.VariantsProvider) *PublicHandlers {
 	converter := markdown.NewConverterFor(ogpService, dimensions, variants)
 
 	// Define custom template functions with closure-based markdown functions
@@ -293,7 +293,7 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 	var helper *CurrentUserHelper
 	if authService != nil {
 		// public-page restores fall back to RemoteAddr (no trusted-proxy plumbing here)
-		helper = NewCurrentUserHelper(authService, secureCookie, nil)
+		helper = NewCurrentUserHelper(authService, secureCookie, trustedProxies)
 	}
 
 	return &PublicHandlers{
@@ -315,7 +315,7 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 
 // NewPublicHandlersFromPath creates PublicHandlers by loading templates from the filesystem (for testing).
 // dimensions and variants may be nil.
-func NewPublicHandlersFromPath(postService service.PostService, postViewService service.PostViewService, reactionService service.ReactionService, authService service.AuthService, secureCookie bool, blogTitle, baseURL, templatePattern string, postsPerPage int, dimensions markdown.DimensionsProvider, variants markdown.VariantsProvider) *PublicHandlers {
+func NewPublicHandlersFromPath(postService service.PostService, postViewService service.PostViewService, reactionService service.ReactionService, authService service.AuthService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, templatePattern string, postsPerPage int, dimensions markdown.DimensionsProvider, variants markdown.VariantsProvider) *PublicHandlers {
 	dir := filepath.Dir(templatePattern)
 	layoutPath := filepath.Join(dir, "layout.html")
 
@@ -368,7 +368,7 @@ func NewPublicHandlersFromPath(postService service.PostService, postViewService 
 	var helper *CurrentUserHelper
 	if authService != nil {
 		// public-page restores fall back to RemoteAddr (no trusted-proxy plumbing here)
-		helper = NewCurrentUserHelper(authService, secureCookie, nil)
+		helper = NewCurrentUserHelper(authService, secureCookie, trustedProxies)
 	}
 
 	return &PublicHandlers{
