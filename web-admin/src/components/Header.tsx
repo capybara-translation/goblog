@@ -48,6 +48,12 @@ export function Header() {
             >
               Reactions
             </Link>
+            <Link
+              to="/devices"
+              className="text-sm font-medium text-primary-700 hover:text-primary-900 transition-colors"
+            >
+              Devices
+            </Link>
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-4 ml-auto order-2 sm:order-3 shrink-0">
