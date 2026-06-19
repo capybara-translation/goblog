@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -30,6 +31,7 @@ type PublicHandlers struct {
 	ogpService        service.OGPService
 	reactionService   service.ReactionService // Nil disables the SSR reaction block.
 	currentUserHelper *CurrentUserHelper      // Nil disables admin-only UI (edit links, etc.); resolves session-or-remember-token.
+	trustedProxies    []*net.IPNet            // Trusted proxies for resolving the client IP when recording views.
 	blogTitle         string                  // Blog title
 	baseURL           string                  // Site base URL (for sitemap)
 	postsPerPage      int                     // Posts per page on listing views
@@ -292,7 +294,7 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 
 	var helper *CurrentUserHelper
 	if authService != nil {
-		// public-page restores fall back to RemoteAddr (no trusted-proxy plumbing here)
+		// public-page remember-me restores resolve the client IP via clientIP with trustedProxies (see current_user.go)
 		helper = NewCurrentUserHelper(authService, secureCookie, trustedProxies)
 	}
 
@@ -302,6 +304,7 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 		ogpService:        ogpService,
 		reactionService:   reactionService,
 		currentUserHelper: helper,
+		trustedProxies:    parseTrustedProxies(trustedProxies),
 		blogTitle:         blogTitle,
 		baseURL:           baseURL,
 		postsPerPage:      postsPerPage,
@@ -367,7 +370,7 @@ func NewPublicHandlersFromPath(postService service.PostService, postViewService 
 
 	var helper *CurrentUserHelper
 	if authService != nil {
-		// public-page restores fall back to RemoteAddr (no trusted-proxy plumbing here)
+		// public-page remember-me restores resolve the client IP via clientIP with trustedProxies (see current_user.go)
 		helper = NewCurrentUserHelper(authService, secureCookie, trustedProxies)
 	}
 
@@ -376,6 +379,7 @@ func NewPublicHandlersFromPath(postService service.PostService, postViewService 
 		postViewService:   postViewService,
 		reactionService:   reactionService,
 		currentUserHelper: helper,
+		trustedProxies:    parseTrustedProxies(trustedProxies),
 		blogTitle:         blogTitle,
 		baseURL:           baseURL,
 		postsPerPage:      postsPerPage,
@@ -528,7 +532,7 @@ func (h *PublicHandlers) HandlePostDetail(w http.ResponseWriter, r *http.Request
 
 	// Record view asynchronously
 	if h.postViewService != nil {
-		ip := extractIP(r.RemoteAddr)
+		ip := clientIP(r, h.trustedProxies)
 		ua := r.UserAgent()
 		postID := post.ID
 		go func() {
