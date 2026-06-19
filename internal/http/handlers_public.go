@@ -220,6 +220,17 @@ func highlightHTMLContent(htmlContent string, query string) string {
 	return result.String()
 }
 
+// resolvedTrustedProxies reuses the CurrentUserHelper's already-parsed proxy
+// nets when a helper exists (avoiding a second parse of the same config and the
+// duplicate invalid-value warnings that would produce), and parses the raw list
+// only when there is no helper (authService == nil).
+func resolvedTrustedProxies(helper *CurrentUserHelper, raw []string) []*net.IPNet {
+	if helper != nil {
+		return helper.trustedProxies
+	}
+	return parseTrustedProxies(raw)
+}
+
 // NewPublicHandlers creates PublicHandlers from embedded templates.
 // dimensions and variants may be nil; when non-nil, the rendered <img>
 // tags carry width/height and srcset/sizes attributes resolved from the
@@ -304,7 +315,7 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 		ogpService:        ogpService,
 		reactionService:   reactionService,
 		currentUserHelper: helper,
-		trustedProxies:    parseTrustedProxies(trustedProxies),
+		trustedProxies:    resolvedTrustedProxies(helper, trustedProxies),
 		blogTitle:         blogTitle,
 		baseURL:           baseURL,
 		postsPerPage:      postsPerPage,
@@ -379,7 +390,7 @@ func NewPublicHandlersFromPath(postService service.PostService, postViewService 
 		postViewService:   postViewService,
 		reactionService:   reactionService,
 		currentUserHelper: helper,
-		trustedProxies:    parseTrustedProxies(trustedProxies),
+		trustedProxies:    resolvedTrustedProxies(helper, trustedProxies),
 		blogTitle:         blogTitle,
 		baseURL:           baseURL,
 		postsPerPage:      postsPerPage,

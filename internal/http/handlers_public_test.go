@@ -2834,6 +2834,7 @@ func (m *mockPostViewService) GetViewCounts(postIDs []int64) (map[int64]int64, e
 	return map[int64]int64{}, nil
 }
 func (m *mockPostViewService) AttachViewCounts(posts []*domain.Post) error { return nil }
+func (m *mockPostViewService) ScrubOldDeviceInfo() error                   { return nil }
 
 func TestHandlePostDetail_RecordsResolvedClientIP(t *testing.T) {
 	now := time.Now()

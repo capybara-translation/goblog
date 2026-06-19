@@ -18,6 +18,12 @@ type PostViewRepository interface {
 
 	// CountByPostIDs returns view counts for multiple posts
 	CountByPostIDs(postIDs []int64) (map[int64]int64, error)
+
+	// ScrubDeviceInfoOlderThan blanks ip_address/user_agent on rows older than
+	// cutoff. These fields are only consulted within the dedup window, so beyond
+	// it they are reader PII with no purpose; rows are kept so cumulative view
+	// counts (COUNT(*)) are unaffected. Returns the number of rows updated.
+	ScrubDeviceInfoOlderThan(cutoff time.Time) (int64, error)
 }
 
 // postViewRepository is the SQLite implementation of PostViewRepository
@@ -28,6 +34,18 @@ type postViewRepository struct {
 // NewPostViewRepository creates a new PostViewRepository
 func NewPostViewRepository(db *sqlx.DB) PostViewRepository {
 	return &postViewRepository{db: db}
+}
+
+// ScrubDeviceInfoOlderThan blanks ip_address/user_agent on rows older than cutoff.
+func (r *postViewRepository) ScrubDeviceInfoOlderThan(cutoff time.Time) (int64, error) {
+	res, err := r.db.Exec(
+		`UPDATE post_views SET ip_address = '', user_agent = '' WHERE viewed_at < ? AND (ip_address != '' OR user_agent != '')`,
+		cutoff.UTC(),
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to scrub post_view device info: %w", err)
+	}
+	return res.RowsAffected()
 }
 
 // Record records a page view if no duplicate exists within the given window.

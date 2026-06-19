@@ -10,9 +10,10 @@ import (
 
 // mockPostViewRepository is a mock implementation of PostViewRepository
 type mockPostViewRepository struct {
-	recordFunc         func(postID int64, ipAddress, userAgent string, dedup time.Duration) (bool, error)
-	countByPostIDFunc  func(postID int64) (int64, error)
-	countByPostIDsFunc func(postIDs []int64) (map[int64]int64, error)
+	recordFunc                 func(postID int64, ipAddress, userAgent string, dedup time.Duration) (bool, error)
+	countByPostIDFunc          func(postID int64) (int64, error)
+	countByPostIDsFunc         func(postIDs []int64) (map[int64]int64, error)
+	scrubDeviceInfoOlderThanFn func(cutoff time.Time) (int64, error)
 }
 
 func (m *mockPostViewRepository) Record(postID int64, ipAddress, userAgent string, dedup time.Duration) (bool, error) {
@@ -34,6 +35,32 @@ func (m *mockPostViewRepository) CountByPostIDs(postIDs []int64) (map[int64]int6
 		return m.countByPostIDsFunc(postIDs)
 	}
 	return map[int64]int64{}, nil
+}
+
+func (m *mockPostViewRepository) ScrubDeviceInfoOlderThan(cutoff time.Time) (int64, error) {
+	if m.scrubDeviceInfoOlderThanFn != nil {
+		return m.scrubDeviceInfoOlderThanFn(cutoff)
+	}
+	return 0, nil
+}
+
+func TestScrubOldDeviceInfo_UsesRetentionWindow(t *testing.T) {
+	var gotCutoff time.Time
+	mockRepo := &mockPostViewRepository{
+		scrubDeviceInfoOlderThanFn: func(cutoff time.Time) (int64, error) {
+			gotCutoff = cutoff
+			return 3, nil
+		},
+	}
+	svc := NewPostViewService(mockRepo)
+	if err := svc.ScrubOldDeviceInfo(); err != nil {
+		t.Fatalf("ScrubOldDeviceInfo: %v", err)
+	}
+	// cutoff should be roughly now - IPRetentionWindow.
+	want := time.Now().UTC().Add(-IPRetentionWindow)
+	if diff := want.Sub(gotCutoff); diff < -5*time.Second || diff > 5*time.Second {
+		t.Fatalf("cutoff = %v, want ~%v (now - IPRetentionWindow)", gotCutoff, want)
+	}
 }
 
 func TestRecordView(t *testing.T) {
@@ -317,4 +344,10 @@ func TestAttachViewCounts(t *testing.T) {
 			t.Fatal("expected error, got nil")
 		}
 	})
+}
+
+func TestIPRetentionWindow_NotShorterThanDedupWindow(t *testing.T) {
+	if IPRetentionWindow < DeduplicationWindow {
+		t.Fatalf("IPRetentionWindow (%v) must be >= DeduplicationWindow (%v); scrubbing dedup fields too early breaks dedup", IPRetentionWindow, DeduplicationWindow)
+	}
 }
