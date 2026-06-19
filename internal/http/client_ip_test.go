@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -136,5 +137,99 @@ func TestClientIP_FallsBackToRemoteAddr_WhenNoUsableHeaders(t *testing.T) {
 
 	if got := clientIP(req, trusted); got != "127.0.0.1" {
 		t.Fatalf("expected RemoteAddr fallback, got %q", got)
+	}
+}
+
+func TestClientIP_PortSuffixedEntriesNormalized(t *testing.T) {
+	trusted := parseTrustedProxies([]string{"127.0.0.1", "198.51.100.0/24"})
+
+	t.Run("client entry with port", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/", nil)
+		req.RemoteAddr = "127.0.0.1:1234"
+		req.Header.Set("X-Forwarded-For", "1.1.1.1, 203.0.113.50:50001")
+		if got := clientIP(req, trusted); got != "203.0.113.50" {
+			t.Fatalf("expected port-stripped 203.0.113.50, got %q", got)
+		}
+	})
+
+	t.Run("trusted hop with port is still peeled", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/", nil)
+		req.RemoteAddr = "127.0.0.1:1234"
+		req.Header.Set("X-Forwarded-For", "203.0.113.50, 198.51.100.7:443")
+		if got := clientIP(req, trusted); got != "203.0.113.50" {
+			t.Fatalf("expected real client behind port-suffixed trusted hop, got %q", got)
+		}
+	})
+}
+
+func TestClientIP_IPv6Normalization(t *testing.T) {
+	trusted := parseTrustedProxies([]string{"127.0.0.1"})
+
+	t.Run("canonicalizes mixed-case/zero-run forms to one key", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/", nil)
+		req.RemoteAddr = "127.0.0.1:1234"
+		req.Header.Set("X-Forwarded-For", "2001:DB8::0:1")
+		if got := clientIP(req, trusted); got != "2001:db8::1" {
+			t.Fatalf("expected canonical 2001:db8::1, got %q", got)
+		}
+	})
+
+	t.Run("bracketed IPv6 with port", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/", nil)
+		req.RemoteAddr = "127.0.0.1:1234"
+		req.Header.Set("X-Forwarded-For", "[2001:db8::1]:443")
+		if got := clientIP(req, trusted); got != "2001:db8::1" {
+			t.Fatalf("expected 2001:db8::1, got %q", got)
+		}
+	})
+}
+
+func TestClientIP_MalformedEntriesFailClosed(t *testing.T) {
+	trusted := parseTrustedProxies([]string{"127.0.0.1"})
+
+	for _, xff := range []string{"unknown", "example.com", "1.1.1.1, not-an-ip", "203.0.113.50:99999"} {
+		req := httptest.NewRequest("POST", "/", nil)
+		req.RemoteAddr = "127.0.0.1:1234"
+		req.Header.Set("X-Forwarded-For", xff)
+		if got := clientIP(req, trusted); got != "127.0.0.1" {
+			t.Fatalf("xff %q: expected fail-closed to RemoteAddr 127.0.0.1, got %q", xff, got)
+		}
+	}
+}
+
+func TestClientIP_XRealIPValidated(t *testing.T) {
+	trusted := parseTrustedProxies([]string{"127.0.0.1"})
+
+	t.Run("ignores trusted-proxy X-Real-IP", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/", nil)
+		req.RemoteAddr = "127.0.0.1:1234"
+		req.Header.Set("X-Real-IP", "127.0.0.1")
+		if got := clientIP(req, trusted); got != "127.0.0.1" {
+			t.Fatalf("trusted X-Real-IP must fall back to RemoteAddr, got %q", got)
+		}
+	})
+
+	t.Run("ignores malformed X-Real-IP", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/", nil)
+		req.RemoteAddr = "127.0.0.1:1234"
+		req.Header.Set("X-Real-IP", "garbage")
+		if got := clientIP(req, trusted); got != "127.0.0.1" {
+			t.Fatalf("malformed X-Real-IP must fall back, got %q", got)
+		}
+	})
+}
+
+func TestClientIP_HopCapFallsBack(t *testing.T) {
+	trusted := parseTrustedProxies([]string{"127.0.0.1", "198.51.100.0/24"})
+	// A real client sits beyond the hop cap (only trusted hops within the cap).
+	parts := []string{"203.0.113.50"}
+	for i := 0; i < 60; i++ {
+		parts = append(parts, "198.51.100.7")
+	}
+	req := httptest.NewRequest("POST", "/", nil)
+	req.RemoteAddr = "127.0.0.1:1234"
+	req.Header.Set("X-Forwarded-For", strings.Join(parts, ", "))
+	if got := clientIP(req, trusted); got != "127.0.0.1" {
+		t.Fatalf("expected fail-closed to RemoteAddr when client is beyond hop cap, got %q", got)
 	}
 }

@@ -177,7 +177,7 @@ make build-admin       # プロダクションビルド
 - `TRUSTED_PROXIES`: 信頼するプロキシのIP/CIDR（カンマ区切り、例: `127.0.0.1`）
   - 設定されたIPからのリクエストのみ `X-Forwarded-For` / `X-Real-IP` ヘッダーを信頼する
   - 未設定（デフォルト）: `RemoteAddr` のみ使用（X-Forwarded-For偽装を防止）
-  - `X-Forwarded-For` は**右から**評価し、`TRUSTED_PROXIES` に該当するエントリ（自前のプロキシ連鎖）を末尾から剥がして、最初の非信頼エントリ＝実クライアントを採用する。クライアントが偽装できるのは左端（プリペンド）だけなので、偽装値は採用されない（左端を採ると IP 単位のレート制限/ブルートフォースを回避されるため）。CDN→nginx 等の多段構成では、各段のレンジを `TRUSTED_PROXIES` に列挙すれば右から順に剥がれる
+  - `X-Forwarded-For` は**右から**評価し、`TRUSTED_PROXIES` に該当するエントリ（自前のプロキシ連鎖）を末尾から剥がして、最初の非信頼エントリ＝実クライアントを採用する。クライアントが偽装できるのは左端（プリペンド）だけなので、偽装値は採用されない（左端を採ると IP 単位のレート制限/ブルートフォースを回避されるため）。各エントリは `net/netip` で正規化（port 除去・IPv6 正規化）し、パース不能（hostname・`unknown`・不正 port 等）はフェイルクローズで `RemoteAddr` にフォールバック。走査ホップ数には上限あり。CDN→nginx 等の多段構成では、各段のレンジを `TRUSTED_PROXIES` に列挙すれば右から順に剥がれる
   - nginx等リバースプロキシ背後で運用する場合は必ず設定すること（nginx 側は `X-Forwarded-For` を追記する標準設定 `$proxy_add_x_forwarded_for` でよい。アプリ側で右からの信頼プロキシ解決を行うため、上書き設定は不要）
 - `DATABASE_PATH`: SQLiteファイルパス（デフォルト: data/goblog.db）
 - `BLOG_TITLE`: ブログタイトル
