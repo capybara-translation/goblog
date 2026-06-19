@@ -1103,10 +1103,12 @@ func TestGetClientIP(t *testing.T) {
 			expectedIP:     "203.0.113.50",
 		},
 		{
-			name:           "trusted proxy - uses X-Forwarded-For first IP",
+			// Rightmost non-trusted entry is the real client; a spoofed leftmost
+			// value must be ignored (anti-XFF-spoofing).
+			name:           "trusted proxy - returns rightmost untrusted XFF",
 			trustedProxies: []string{"127.0.0.1"},
 			remoteAddr:     "127.0.0.1:12345",
-			xForwardedFor:  "203.0.113.50, 10.0.0.1",
+			xForwardedFor:  "1.1.1.1, 203.0.113.50",
 			expectedIP:     "203.0.113.50",
 		},
 		{
@@ -1170,5 +1172,46 @@ func TestGetClientIP(t *testing.T) {
 				t.Errorf("getClientIP() = %q, want %q", got, tt.expectedIP)
 			}
 		})
+	}
+}
+
+// Rotating a spoofed X-Forwarded-For must not let an attacker dodge the per-IP
+// brute-force throttle: HandleLogin must feed the resolved real client IP
+// (rightmost, appended by the trusted proxy) to authService.Login regardless of
+// the rotating leftmost value. (The per-IP accumulation itself is unit-tested
+// in the service package; this pins the handler wiring.)
+func TestHandleLogin_XFFRotationKeepsBruteForceIPStable(t *testing.T) {
+	var gotIPs []string
+	mock := &mockAuthService{
+		loginFunc: func(username, password, ipAddress, userAgent string) (string, error) {
+			gotIPs = append(gotIPs, ipAddress)
+			return "", service.ErrInvalidCredentials
+		},
+	}
+	h := NewAuthHandlers(mock, false, []string{"127.0.0.1"}) // behind a trusted proxy
+
+	doLogin := func(xff string) int {
+		req := httptest.NewRequest("POST", "/api/v1/auth/login",
+			bytes.NewReader([]byte(`{"username":"admin","password":"wrong"}`)))
+		req.RemoteAddr = "127.0.0.1:1111"
+		req.Header.Set("X-Forwarded-For", xff)
+		rec := httptest.NewRecorder()
+		h.HandleLogin(rec, req)
+		return rec.Code
+	}
+
+	for _, xff := range []string{"1.1.1.1, 203.0.113.50", "2.2.2.2, 203.0.113.50", "3.3.3.3, 203.0.113.50"} {
+		if code := doLogin(xff); code != http.StatusUnauthorized {
+			t.Fatalf("xff %q: expected 401, got %d", xff, code)
+		}
+	}
+
+	if len(gotIPs) != 3 {
+		t.Fatalf("expected 3 login attempts captured, got %d", len(gotIPs))
+	}
+	for i, ip := range gotIPs {
+		if ip != "203.0.113.50" {
+			t.Fatalf("attempt %d: brute-force IP must be the resolved client 203.0.113.50, got %q", i, ip)
+		}
 	}
 }
