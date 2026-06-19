@@ -273,3 +273,42 @@ func TestPostViewRepository_ScrubDeviceInfoOlderThan(t *testing.T) {
 		t.Fatalf("expected 0 rows on second scrub, got %d", n2)
 	}
 }
+
+// Pins the strict `<` boundary: a row whose viewed_at equals the cutoff is NOT
+// scrubbed, while a row just before the cutoff is. Binds the same time.Time for
+// insert and cutoff so the comparison is exact (avoids datetime() format skew).
+func TestPostViewRepository_ScrubDeviceInfoOlderThan_CutoffBoundary(t *testing.T) {
+	db := setupPostViewTestDB(t)
+	r := NewPostViewRepository(db)
+
+	cutoff := time.Now().UTC().Add(-90 * time.Minute)
+	// Exactly at cutoff -> kept (not "older than").
+	if _, err := db.Exec(`INSERT INTO post_views (post_id, viewed_at, ip_address, user_agent) VALUES (1, ?, '203.0.113.9', 'UA-edge')`, cutoff); err != nil {
+		t.Fatalf("insert edge: %v", err)
+	}
+	// One second before cutoff -> scrubbed.
+	if _, err := db.Exec(`INSERT INTO post_views (post_id, viewed_at, ip_address, user_agent) VALUES (1, ?, '203.0.113.8', 'UA-old')`, cutoff.Add(-time.Second)); err != nil {
+		t.Fatalf("insert old: %v", err)
+	}
+
+	n, err := r.ScrubDeviceInfoOlderThan(cutoff)
+	if err != nil {
+		t.Fatalf("scrub: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("only the row before cutoff should be scrubbed (strict <), got %d", n)
+	}
+
+	var keptIP string
+	if err := db.Get(&keptIP, `SELECT ip_address FROM post_views WHERE ip_address != ''`); err != nil {
+		t.Fatalf("select kept: %v", err)
+	}
+	if keptIP != "203.0.113.9" {
+		t.Fatalf("the exact-cutoff row must survive, surviving ip=%q", keptIP)
+	}
+	var blanked int
+	db.Get(&blanked, `SELECT COUNT(*) FROM post_views WHERE ip_address='' AND user_agent=''`)
+	if blanked != 1 {
+		t.Fatalf("expected exactly 1 blanked row, got %d", blanked)
+	}
+}

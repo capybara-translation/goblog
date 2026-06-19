@@ -19,6 +19,10 @@ const DeduplicationWindow = 30 * time.Minute
 // a concurrent dedup check could still consult. After this window the fields are
 // reader PII with no purpose, so a background loop blanks them while keeping the
 // row (cumulative view counts are preserved).
+//
+// NOTE: StartPostViewCleanupLoop does not scrub at startup and its first tick is
+// one interval in (matching StartRememberTokenCleanupLoop), so the EFFECTIVE
+// retention is approximately IPRetentionWindow + the loop interval.
 const IPRetentionWindow = 1 * time.Hour
 
 // botPatterns contains substrings used to identify bot User-Agents.
