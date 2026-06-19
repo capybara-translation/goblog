@@ -13,13 +13,13 @@ import (
 )
 
 type mockReactionService struct {
-	getForPost      func(postID int64, visitorKey string) ([]*domain.PostReactionSummary, error)
-	get             func(slug, visitorKey string) ([]*domain.PostReactionSummary, error)
-	add             func(slug string, typeID int64, visitorKey string) ([]*domain.PostReactionSummary, error)
-	remove          func(slug string, typeID int64, visitorKey string) ([]*domain.PostReactionSummary, error)
-	attach          func([]*domain.Post) error
-	attachTotals    func([]*domain.Post) error
-	getBySlugs      func(slugs []string, visitorKey string) (map[string][]*domain.PostReactionSummary, error)
+	getForPost   func(postID int64, visitorKey string) ([]*domain.PostReactionSummary, error)
+	get          func(slug, visitorKey string) ([]*domain.PostReactionSummary, error)
+	add          func(slug string, typeID int64, visitorKey string) ([]*domain.PostReactionSummary, error)
+	remove       func(slug string, typeID int64, visitorKey string) ([]*domain.PostReactionSummary, error)
+	attach       func([]*domain.Post) error
+	attachTotals func([]*domain.Post) error
+	getBySlugs   func(slugs []string, visitorKey string) (map[string][]*domain.PostReactionSummary, error)
 }
 
 func (m *mockReactionService) GetReactionsForPost(postID int64, visitorKey string) ([]*domain.PostReactionSummary, error) {
@@ -366,4 +366,52 @@ func TestReactionHandler_Remove_RateLimited_429(t *testing.T) {
 	if code := doDelete(); code != http.StatusTooManyRequests {
 		t.Fatalf("second request expected 429, got %d", code)
 	}
+}
+
+// Rotating a spoofed X-Forwarded-For must not bypass the per-IP rate limit:
+// behind a trusted proxy the limiter keys on the resolved real client
+// (rightmost entry), not the attacker-controlled leftmost value.
+func TestReactionHandler_Add_XFFRotationDoesNotBypassRateLimit(t *testing.T) {
+	newRouter := func() *mux.Router {
+		svc := &mockReactionService{
+			add: func(slug string, typeID int64, vk string) ([]*domain.PostReactionSummary, error) {
+				return []*domain.PostReactionSummary{}, nil
+			},
+		}
+		h := NewReactionHandlers(svc, false, []string{"127.0.0.1"}) // behind a trusted proxy
+		h.limiter = newIPRateLimiter(1, time.Hour)
+		r := mux.NewRouter()
+		sub := r.PathPrefix("/api/v1/posts/{slug}/reactions").Subrouter()
+		sub.HandleFunc("/{reactionTypeID:[0-9]+}", h.HandleAdd).Methods("POST")
+		return r
+	}
+	doPost := func(r *mux.Router, xff string) int {
+		req := httptest.NewRequest("POST", "/api/v1/posts/p1/reactions/1", nil)
+		req.RemoteAddr = "127.0.0.1:1111" // nginx (trusted)
+		req.Header.Set("X-Forwarded-For", xff)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	t.Run("rotating the spoofed leftmost does not reset the limit", func(t *testing.T) {
+		r := newRouter()
+		if code := doPost(r, "1.1.1.1, 203.0.113.50"); code != http.StatusOK {
+			t.Fatalf("first request expected 200, got %d", code)
+		}
+		// Same real client (rightmost), different spoofed leftmost — still limited.
+		if code := doPost(r, "2.2.2.2, 203.0.113.50"); code != http.StatusTooManyRequests {
+			t.Fatalf("rotated XFF must not bypass the limit; expected 429, got %d", code)
+		}
+	})
+
+	t.Run("distinct real clients are keyed separately", func(t *testing.T) {
+		r := newRouter()
+		if code := doPost(r, "9.9.9.9, 203.0.113.50"); code != http.StatusOK {
+			t.Fatalf("client .50 first request expected 200, got %d", code)
+		}
+		if code := doPost(r, "9.9.9.9, 203.0.113.99"); code != http.StatusOK {
+			t.Fatalf("different real client .99 must not share .50's bucket; expected 200, got %d", code)
+		}
+	})
 }
