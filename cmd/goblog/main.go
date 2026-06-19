@@ -60,6 +60,9 @@ func main() {
 	// Initialize service layer
 	postService := service.NewPostService(postRepo)
 	postViewService := service.NewPostViewService(postViewRepo)
+	// Scrub reader IP/UA from view rows once past the retention window (privacy);
+	// rows are kept so cumulative view counts are preserved.
+	service.StartPostViewCleanupLoop(postViewService, time.Hour)
 	reactionService := service.NewReactionService(postService, reactionRepo)
 	reactionTypeService := service.NewReactionTypeService(reactionTypeRepo)
 	authService := service.NewAuthService(userRepo, sessionStore, cfg.PasswordPolicy, cfg.SessionTTL, rememberStore, cfg.RememberTTL)

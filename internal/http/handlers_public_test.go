@@ -2816,3 +2816,82 @@ func TestHandleHome_AdminEditLink_AuthServiceErrors(t *testing.T) {
 		}
 	})
 }
+
+// mockPostViewService captures the IP passed to RecordView so tests can assert
+// the resolved client IP is recorded (not the proxy's RemoteAddr).
+type mockPostViewService struct {
+	recorded chan string
+}
+
+func (m *mockPostViewService) RecordView(postID int64, ipAddress, userAgent string) error {
+	if m.recorded != nil {
+		m.recorded <- ipAddress
+	}
+	return nil
+}
+func (m *mockPostViewService) GetViewCount(postID int64) (int64, error) { return 0, nil }
+func (m *mockPostViewService) GetViewCounts(postIDs []int64) (map[int64]int64, error) {
+	return map[int64]int64{}, nil
+}
+func (m *mockPostViewService) AttachViewCounts(posts []*domain.Post) error { return nil }
+func (m *mockPostViewService) ScrubOldDeviceInfo() error                   { return nil }
+
+func TestHandlePostDetail_RecordsResolvedClientIP(t *testing.T) {
+	now := time.Now()
+	postSvc := &mockPostService{
+		getPostBySlugFunc: func(slug string) (*domain.Post, error) {
+			return &domain.Post{
+				ID: 1, Title: "T", Slug: "p1", Content: "c",
+				Status: domain.PostStatusPublished, CreatedAt: now, UpdatedAt: now, PublishedAt: &now,
+			}, nil
+		},
+	}
+
+	cases := []struct {
+		name           string
+		trustedProxies []string
+		remoteAddr     string
+		xff            string
+		wantIP         string
+	}{
+		{
+			name:           "behind trusted proxy records resolved client IP",
+			trustedProxies: []string{"127.0.0.1"},
+			remoteAddr:     "127.0.0.1:1111",
+			xff:            "1.1.1.1, 203.0.113.50",
+			wantIP:         "203.0.113.50",
+		},
+		{
+			name:           "untrusted peer records RemoteAddr (no XFF trust)",
+			trustedProxies: nil,
+			remoteAddr:     "203.0.113.9:2222",
+			xff:            "1.1.1.1",
+			wantIP:         "203.0.113.9",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			viewSvc := &mockPostViewService{recorded: make(chan string, 1)}
+			h := NewPublicHandlersFromPath(postSvc, viewSvc, nil, nil, false, tc.trustedProxies, testBlogTitle, testBaseURL, testTemplatePattern, testPostsPerPage, nil, nil)
+
+			r := mux.NewRouter()
+			r.HandleFunc("/posts/{slug}", h.HandlePostDetail).Methods("GET")
+			req := httptest.NewRequest("GET", "/posts/p1", nil)
+			req.RemoteAddr = tc.remoteAddr
+			req.Header.Set("X-Forwarded-For", tc.xff)
+			// Realistic non-bot UA so this resembles an actual recorded view.
+			req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+			r.ServeHTTP(httptest.NewRecorder(), req)
+
+			select {
+			case got := <-viewSvc.recorded:
+				if got != tc.wantIP {
+					t.Fatalf("recorded view IP = %q, want %q", got, tc.wantIP)
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatal("RecordView was not called")
+			}
+		})
+	}
+}
