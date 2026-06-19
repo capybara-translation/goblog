@@ -1103,10 +1103,12 @@ func TestGetClientIP(t *testing.T) {
 			expectedIP:     "203.0.113.50",
 		},
 		{
-			name:           "trusted proxy - uses X-Forwarded-For first IP",
+			// Rightmost non-trusted entry is the real client; a spoofed leftmost
+			// value must be ignored (anti-XFF-spoofing).
+			name:           "trusted proxy - returns rightmost untrusted XFF",
 			trustedProxies: []string{"127.0.0.1"},
 			remoteAddr:     "127.0.0.1:12345",
-			xForwardedFor:  "203.0.113.50, 10.0.0.1",
+			xForwardedFor:  "1.1.1.1, 203.0.113.50",
 			expectedIP:     "203.0.113.50",
 		},
 		{
