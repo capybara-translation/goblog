@@ -2879,6 +2879,8 @@ func TestHandlePostDetail_RecordsResolvedClientIP(t *testing.T) {
 			req := httptest.NewRequest("GET", "/posts/p1", nil)
 			req.RemoteAddr = tc.remoteAddr
 			req.Header.Set("X-Forwarded-For", tc.xff)
+			// Realistic non-bot UA so this resembles an actual recorded view.
+			req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 			r.ServeHTTP(httptest.NewRecorder(), req)
 
 			select {
