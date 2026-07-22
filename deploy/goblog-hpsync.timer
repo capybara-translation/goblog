@@ -1,0 +1,14 @@
+[Unit]
+Description=Daily Health Planet sync for goblog
+
+[Timer]
+# Midnight JST: by then the previous day's measurements are all in, and the
+# 30-day fetch window makes late manual entries catch up on a later run.
+OnCalendar=*-*-* 00:00:00 Asia/Tokyo
+# Run a missed sync on next boot if the machine was off at the scheduled time.
+Persistent=true
+# Avoid firing at the exact same second as other daily jobs.
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

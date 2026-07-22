@@ -93,6 +93,7 @@ deploy: build
 	sudo mv bin/goblog bin/adduser bin/seed bin/regenerate-variants bin/hpsync /opt/goblog/bin/
 	sudo chown root:root /opt/goblog/bin/goblog /opt/goblog/bin/adduser /opt/goblog/bin/seed /opt/goblog/bin/regenerate-variants /opt/goblog/bin/hpsync
 	sudo install -m 755 -o root -g root scripts/backup-db.sh /opt/goblog/bin/backup-db.sh
+	sudo install -m 755 -o root -g root scripts/hpsync-run.sh /opt/goblog/bin/hpsync-run.sh
 	sudo systemctl daemon-reload
 	sudo systemctl restart goblog
 	@echo "Deploy complete"
