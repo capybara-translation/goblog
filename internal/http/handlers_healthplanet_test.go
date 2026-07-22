@@ -72,6 +72,9 @@ func TestHealthPlanetStatus_EnabledNotAuthorized(t *testing.T) {
 	rr := httptest.NewRecorder()
 	h.HandleStatus(rr, req)
 
+	if rr.Code != 200 {
+		t.Fatalf("status = %d, want 200", rr.Code)
+	}
 	var body map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
 		t.Fatalf("body not JSON: %v", err)
@@ -138,6 +141,24 @@ func TestHealthPlanetExchange_ExchangeFails(t *testing.T) {
 
 	if rr.Code != 400 {
 		t.Fatalf("status = %d, want 400", rr.Code)
+	}
+	var body map[string]string
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatalf("body not JSON: %v", err)
+	}
+	if body["error"] == "" {
+		t.Error("error message should be present")
+	}
+}
+
+func TestHealthPlanetAuthURL_Disabled(t *testing.T) {
+	h := NewHealthPlanetHandlers(nil)
+	req := httptest.NewRequest("GET", "/api/v1/healthplanet/auth-url", nil)
+	rr := httptest.NewRecorder()
+	h.HandleAuthURL(rr, req)
+
+	if rr.Code != 503 {
+		t.Fatalf("status = %d, want 503", rr.Code)
 	}
 	var body map[string]string
 	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {

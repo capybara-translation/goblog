@@ -56,11 +56,19 @@ func (h *HealthPlanetHandlers) HandleStatus(w http.ResponseWriter, r *http.Reque
 
 // HandleAuthURL returns the Health Planet authorization URL.
 func (h *HealthPlanetHandlers) HandleAuthURL(w http.ResponseWriter, r *http.Request) {
+	if h.svc == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "healthplanet integration is disabled"})
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"url": h.svc.AuthCodeURL()})
 }
 
 // HandleExchange trades the pasted/redirected authorization code for a token.
 func (h *HealthPlanetHandlers) HandleExchange(w http.ResponseWriter, r *http.Request) {
+	if h.svc == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "healthplanet integration is disabled"})
+		return
+	}
 	var req struct {
 		Code string `json:"code"`
 	}
