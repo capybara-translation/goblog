@@ -11,6 +11,7 @@ import (
 	"github.com/capybara-translation/goblog/internal/auth"
 	"github.com/capybara-translation/goblog/internal/config"
 	"github.com/capybara-translation/goblog/internal/db"
+	"github.com/capybara-translation/goblog/internal/healthplanet"
 	gobloghttp "github.com/capybara-translation/goblog/internal/http"
 	"github.com/capybara-translation/goblog/internal/ogp"
 	"github.com/capybara-translation/goblog/internal/repo"
@@ -68,6 +69,21 @@ func main() {
 	authService := service.NewAuthService(userRepo, sessionStore, cfg.PasswordPolicy, cfg.SessionTTL, rememberStore, cfg.RememberTTL)
 	deviceService := service.NewDeviceService(sessionStore, rememberStore)
 
+	// Health Planet integration (nil when disabled — routes are not registered)
+	var healthPlanetAdminService *service.HealthPlanetAdminService
+	if cfg.HealthPlanetEnabled {
+		if cfg.HealthPlanetClientID == "" || cfg.HealthPlanetClientSecret == "" {
+			log.Fatal("HEALTHPLANET_ENABLED=true requires HEALTHPLANET_CLIENT_ID and HEALTHPLANET_CLIENT_SECRET")
+		}
+		hpClient := healthplanet.NewClient(
+			healthplanet.DefaultBaseURL,
+			cfg.HealthPlanetClientID,
+			cfg.HealthPlanetClientSecret,
+			cfg.BaseURL+"/admin/healthplanet/success",
+		)
+		healthPlanetAdminService = service.NewHealthPlanetAdminService(hpClient, repo.NewHealthPlanetTokenRepository(database))
+	}
+
 	// Initialize OGP service for link cards
 	ogpFetcher := ogp.NewFetcher(ogp.FetchTimeout)
 	ogpService := service.NewOGPService(ogpRepo, ogpFetcher, cfg.UploadDir)
@@ -78,7 +94,7 @@ func main() {
 	}
 
 	// Initialize router (using embedded resources)
-	r := gobloghttp.NewRouter(postService, postViewService, authService, ogpService, reactionService, reactionTypeService, deviceService, cfg.SecureCookie, cfg.TrustedProxies, cfg.BlogTitle, cfg.BaseURL, cfg.UploadDir, cfg.MaxUploadSize, cfg.PostsPerPage, goblog.Templates, goblog.StaticFiles)
+	r := gobloghttp.NewRouter(postService, postViewService, authService, ogpService, reactionService, reactionTypeService, deviceService, healthPlanetAdminService, cfg.SecureCookie, cfg.TrustedProxies, cfg.BlogTitle, cfg.BaseURL, cfg.UploadDir, cfg.MaxUploadSize, cfg.PostsPerPage, goblog.Templates, goblog.StaticFiles)
 
 	// Start server
 	port := ":" + cfg.Port

@@ -569,6 +569,37 @@ func TestGetEnvAsDurationAtLeast(t *testing.T) {
 	}
 }
 
+func TestLoad_HealthPlanetDefaults(t *testing.T) {
+	t.Setenv("HEALTHPLANET_ENABLED", "")
+	t.Setenv("HEALTHPLANET_CLIENT_ID", "")
+	t.Setenv("HEALTHPLANET_CLIENT_SECRET", "")
+
+	cfg := Load()
+
+	if cfg.HealthPlanetEnabled {
+		t.Error("HealthPlanetEnabled should default to false")
+	}
+	if cfg.HealthPlanetClientID != "" || cfg.HealthPlanetClientSecret != "" {
+		t.Errorf("credentials should default to empty, got %q / %q",
+			cfg.HealthPlanetClientID, cfg.HealthPlanetClientSecret)
+	}
+}
+
+func TestLoad_HealthPlanetConfigured(t *testing.T) {
+	t.Setenv("HEALTHPLANET_ENABLED", "true")
+	t.Setenv("HEALTHPLANET_CLIENT_ID", "hp-id")
+	t.Setenv("HEALTHPLANET_CLIENT_SECRET", "hp-secret")
+
+	cfg := Load()
+
+	if !cfg.HealthPlanetEnabled {
+		t.Error("HealthPlanetEnabled = false, want true")
+	}
+	if cfg.HealthPlanetClientID != "hp-id" || cfg.HealthPlanetClientSecret != "hp-secret" {
+		t.Errorf("unexpected credentials: %q / %q", cfg.HealthPlanetClientID, cfg.HealthPlanetClientSecret)
+	}
+}
+
 func TestGetEnvAsIntInRange(t *testing.T) {
 	const (
 		key      = "POSTS_PER_PAGE_TEST_HELPER"

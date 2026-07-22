@@ -34,7 +34,7 @@ func (n noDirListingFS) Open(name string) (http.File, error) {
 }
 
 // NewRouter creates the application router using embedded resources
-func NewRouter(postService service.PostService, postViewService service.PostViewService, authService service.AuthService, ogpService service.OGPService, reactionService service.ReactionService, reactionTypeService service.ReactionTypeService, deviceService service.DeviceService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, uploadDir string, maxUploadSize int64, postsPerPage int, templatesFS, staticFS embed.FS) *mux.Router {
+func NewRouter(postService service.PostService, postViewService service.PostViewService, authService service.AuthService, ogpService service.OGPService, reactionService service.ReactionService, reactionTypeService service.ReactionTypeService, deviceService service.DeviceService, healthPlanetAdminService *service.HealthPlanetAdminService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, uploadDir string, maxUploadSize int64, postsPerPage int, templatesFS, staticFS embed.FS) *mux.Router {
 	r := mux.NewRouter()
 
 	// Shared image-dimensions cache. The Markdown renderer asks it for
@@ -143,6 +143,16 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 	protectedAPI.HandleFunc("/devices", deviceHandlers.HandleList).Methods("GET")
 	protectedAPI.HandleFunc("/devices/logout-others", deviceHandlers.HandleLogoutOthers).Methods("POST")
 	protectedAPI.HandleFunc("/devices/{kind:remember|session}/{id}", deviceHandlers.HandleRevoke).Methods("DELETE")
+
+	// Health Planet integration (admin OAuth flow). The status endpoint is
+	// always registered so the SPA can discover whether the feature is on;
+	// the action endpoints only exist when it is (404 otherwise).
+	healthPlanetHandlers := NewHealthPlanetHandlers(healthPlanetAdminService)
+	protectedAPI.HandleFunc("/healthplanet/status", healthPlanetHandlers.HandleStatus).Methods("GET")
+	if healthPlanetAdminService != nil {
+		protectedAPI.HandleFunc("/healthplanet/auth-url", healthPlanetHandlers.HandleAuthURL).Methods("GET")
+		protectedAPI.HandleFunc("/healthplanet/exchange", healthPlanetHandlers.HandleExchange).Methods("POST")
+	}
 
 	// Markdown preview (with OGP link card support + width/height + srcset)
 	previewHandler := NewPreviewHandler(ogpService, dimensions, variants)

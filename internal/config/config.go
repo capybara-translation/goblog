@@ -46,6 +46,11 @@ type Config struct {
 
 	// Remember-me settings
 	RememberTTL time.Duration // How long a remember_token cookie remains valid
+
+	// Health Planet integration settings (admin OAuth flow + cmd/hpsync)
+	HealthPlanetEnabled      bool   // Feature flag; everything below is inert when false
+	HealthPlanetClientID     string // OAuth client ID
+	HealthPlanetClientSecret string // OAuth client secret
 }
 
 // Default maximum upload size (5MB)
@@ -90,8 +95,11 @@ func Load() *Config {
 		UploadDir:      getEnv("UPLOAD_DIR", "data/uploads"),
 		MaxUploadSize:  getEnvAsInt64("MAX_UPLOAD_SIZE", DefaultMaxUploadSize),
 		PostsPerPage:   getEnvAsIntInRange("POSTS_PER_PAGE", DefaultPostsPerPage, 1, MaxPostsPerPage),
-		SessionTTL:     getEnvAsDurationAtLeast("SESSION_TTL", DefaultSessionTTL, MinSessionTTL),
-		RememberTTL:    getEnvAsDurationAtLeast("REMEMBER_TTL", DefaultRememberTTL, MinRememberTTL),
+		SessionTTL:               getEnvAsDurationAtLeast("SESSION_TTL", DefaultSessionTTL, MinSessionTTL),
+		RememberTTL:              getEnvAsDurationAtLeast("REMEMBER_TTL", DefaultRememberTTL, MinRememberTTL),
+		HealthPlanetEnabled:      getEnvAsBool("HEALTHPLANET_ENABLED", false),
+		HealthPlanetClientID:     getEnv("HEALTHPLANET_CLIENT_ID", ""),
+		HealthPlanetClientSecret: getEnv("HEALTHPLANET_CLIENT_SECRET", ""),
 	}
 }
 
