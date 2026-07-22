@@ -3,7 +3,7 @@
 # CloudWatch (dead-man's-switch pattern, same as backup-db.sh). Used as the
 # service ExecStart once monitoring is set up; without CW_NAMESPACE it just
 # forwards the exit code.
-set -uo pipefail
+set -uo pipefail   # deliberately no -e: must not abort before publishing the failure metric
 
 /opt/goblog/bin/hpsync run
 status=$?

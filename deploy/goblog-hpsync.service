@@ -16,6 +16,10 @@ WorkingDirectory=/opt/goblog
 # anything, so an unused integration costs nothing.
 EnvironmentFile=/etc/goblog/healthplanet.env
 
+# ProtectHome=true hides the real home; point HOME at the PrivateTmp dir so the
+# AWS CLI (used by the monitoring wrapper) has a writable, private HOME.
+Environment=HOME=/tmp
+
 ExecStart=/opt/goblog/bin/hpsync run
 # For CloudWatch monitoring, switch to the wrapper instead:
 #ExecStart=/opt/goblog/bin/hpsync-run.sh
