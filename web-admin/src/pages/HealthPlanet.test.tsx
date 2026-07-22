@@ -52,7 +52,7 @@ describe('HealthPlanet', () => {
     expect(screen.getByRole('button', { name: '再認可する' })).toBeInTheDocument();
   });
 
-  it('redirects to the auth URL when connect is clicked', async () => {
+  it('redirects to the auth URL when connect is clicked and sets the oauth pending nonce', async () => {
     vi.mocked(apiClient.getHealthPlanetStatus).mockResolvedValue({
       enabled: true,
       authorized: false,
@@ -75,7 +75,10 @@ describe('HealthPlanet', () => {
     await waitFor(() => {
       expect(window.location.href).toBe('https://www.healthplanet.jp/oauth/auth?x=1');
     });
+    // The nonce must be set so HealthPlanetSuccess accepts the returning code.
+    expect(sessionStorage.getItem('hp_oauth_pending')).toBe('1');
 
     Object.defineProperty(window, 'location', { writable: true, value: original });
+    sessionStorage.clear();
   });
 });

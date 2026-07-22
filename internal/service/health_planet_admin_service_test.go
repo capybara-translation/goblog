@@ -61,6 +61,21 @@ func TestHealthPlanetAdmin_Exchange_SavesToken(t *testing.T) {
 	}
 }
 
+func TestHealthPlanetAdmin_Exchange_SaveFails(t *testing.T) {
+	// Client succeeds but repo.Save fails → error must wrap ErrHealthPlanetTokenSaveFailed.
+	client := &mockHealthPlanetAuthClient{}
+	tokenRepo := &mockHealthPlanetTokenRepo{saveErr: errors.New("io: write error")}
+	svc := NewHealthPlanetAdminService(client, tokenRepo)
+
+	err := svc.Exchange("good-code")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, ErrHealthPlanetTokenSaveFailed) {
+		t.Errorf("expected errors.Is(err, ErrHealthPlanetTokenSaveFailed) but got: %v", err)
+	}
+}
+
 func TestHealthPlanetAdmin_Exchange_ClientError(t *testing.T) {
 	client := &mockHealthPlanetAuthClient{
 		exchangeCodeFunc: func(string) (*healthplanet.Token, error) {

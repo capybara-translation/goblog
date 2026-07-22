@@ -33,13 +33,14 @@ func (f *fakeAuthClient) ExchangeCode(code string) (*healthplanet.Token, error) 
 }
 
 type fakeTokenRepo struct {
-	saved bool
+	saved   bool
+	saveErr error
 }
 
 func (f *fakeTokenRepo) Load() (*domain.HealthPlanetToken, error) { return nil, nil }
 func (f *fakeTokenRepo) Save(accessToken, refreshToken string, expiresAt time.Time) error {
 	f.saved = true
-	return nil
+	return f.saveErr
 }
 
 var (
@@ -148,6 +149,31 @@ func TestHealthPlanetExchange_ExchangeFails(t *testing.T) {
 	}
 	if body["error"] == "" {
 		t.Error("error message should be present")
+	}
+}
+
+func TestHealthPlanetExchange_SaveFails_Returns500(t *testing.T) {
+	// Token exchange with Health Planet succeeds but the repo cannot persist
+	// it — should produce HTTP 500 with a generic message (not the raw error).
+	tokenRepo := &fakeTokenRepo{saveErr: errors.New("disk full")}
+	svc := service.NewHealthPlanetAdminService(&fakeAuthClient{}, tokenRepo)
+	h := NewHealthPlanetHandlers(svc)
+	req := httptest.NewRequest("POST", "/api/v1/healthplanet/exchange", strings.NewReader(`{"code":"good-code"}`))
+	rr := httptest.NewRecorder()
+	h.HandleExchange(rr, req)
+
+	if rr.Code != 500 {
+		t.Fatalf("status = %d, want 500 (body: %s)", rr.Code, rr.Body.String())
+	}
+	var body map[string]string
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatalf("body not JSON: %v", err)
+	}
+	if body["error"] != "failed to store token" {
+		t.Errorf("error = %q, want generic 'failed to store token'", body["error"])
+	}
+	if strings.Contains(body["error"], "disk full") {
+		t.Error("raw error detail must not be exposed in the response body")
 	}
 }
 

@@ -27,7 +27,10 @@ func NewHealthRecordRepository(db *sqlx.DB) HealthRecordRepository {
 
 // measuredAtFormat pins the stored measured_at text. A single fixed layout
 // (no timezone suffix) keeps the UNIQUE(measured_at, metric) key stable
-// regardless of the server's TZ setting.
+// regardless of the server's TZ setting. When reading this column back as
+// time.Time, the SQLite driver (without a _loc DSN param) interprets it as
+// UTC; callers that need local time must scan it as a string and re-parse with
+// time.ParseInLocation using the desired location.
 const measuredAtFormat = "2006-01-02 15:04:05"
 
 func (r *sqliteHealthRecordRepository) Upsert(records []*domain.HealthRecord) error {

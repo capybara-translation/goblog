@@ -1,12 +1,19 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/capybara-translation/goblog/internal/healthplanet"
 	"github.com/capybara-translation/goblog/internal/repo"
 )
+
+// ErrHealthPlanetTokenSaveFailed is returned by Exchange when the token was
+// obtained from Health Planet successfully but could not be persisted. Callers
+// can distinguish this internal failure (→ HTTP 500) from a bad authorization
+// code (→ HTTP 400) by testing errors.Is(err, ErrHealthPlanetTokenSaveFailed).
+var ErrHealthPlanetTokenSaveFailed = errors.New("failed to store healthplanet token")
 
 // HealthPlanetAuthClient is the part of *healthplanet.Client the admin
 // (authorization) flow uses, extracted for mocking.
@@ -52,7 +59,7 @@ func (s *HealthPlanetAdminService) Exchange(code string) error {
 	}
 	expiresAt := time.Now().Add(time.Duration(tok.ExpiresIn) * time.Second)
 	if err := s.tokenRepo.Save(tok.AccessToken, tok.RefreshToken, expiresAt); err != nil {
-		return err
+		return fmt.Errorf("%w: %v", ErrHealthPlanetTokenSaveFailed, err)
 	}
 	return nil
 }

@@ -208,6 +208,32 @@ func TestFetchInnerscan_TransportErrorRedactsToken(t *testing.T) {
 	}
 }
 
+func TestExchangeCode_RedactsTokensOnUnmarshalError(t *testing.T) {
+	// expires_in comes back as a string (not a number) — Unmarshal fails with
+	// UnmarshalTypeError on an otherwise-valid body that contains real tokens.
+	// The error message must NOT expose the raw token values.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"access_token":"SECRET-AT","refresh_token":"SECRET-RT","expires_in":"2592000"}`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, "my-id", "my-secret", testRedirectURI)
+	_, err := c.ExchangeCode("any-code")
+	if err == nil {
+		t.Fatal("expected unmarshal error due to expires_in string, got nil")
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "SECRET-AT") {
+		t.Errorf("access_token leaked in error: %s", msg)
+	}
+	if strings.Contains(msg, "SECRET-RT") {
+		t.Errorf("refresh_token leaked in error: %s", msg)
+	}
+	if !strings.Contains(msg, "[REDACTED]") {
+		t.Errorf("expected [REDACTED] marker in error message: %s", msg)
+	}
+}
+
 func TestFetchInnerscan_HTTPError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)

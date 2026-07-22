@@ -9,6 +9,12 @@ import { apiClient } from '../api/client';
  * The exchange is deliberately NOT automatic: requiring an explicit click
  * prevents a crafted link (with an attacker's code) from silently binding a
  * foreign Health Planet account to the blog.
+ *
+ * We also check for a sessionStorage nonce ('hp_oauth_pending') set by
+ * HealthPlanet.tsx before redirecting. If the flag is absent, the code likely
+ * arrived via a crafted link rather than a genuine flow initiated in this
+ * browser. This is a substitute for the OAuth state parameter, which the
+ * Health Planet API does not support.
  */
 export function HealthPlanetSuccess() {
   const [params] = useSearchParams();
@@ -17,11 +23,17 @@ export function HealthPlanetSuccess() {
   const [error, setError] = useState('');
   const [isBusy, setIsBusy] = useState(false);
 
+  // Read the nonce once on render. The flag is set by HealthPlanet.tsx
+  // immediately before the redirect; its absence means this page was not
+  // reached via a legitimate flow started in this browser.
+  const flowPending = sessionStorage.getItem('hp_oauth_pending') === '1';
+
   const handleComplete = async () => {
     setIsBusy(true);
     setError('');
     try {
       await apiClient.exchangeHealthPlanetCode(code);
+      sessionStorage.removeItem('hp_oauth_pending');
       navigate('/healthplanet');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'failed to complete authorization');
@@ -42,6 +54,15 @@ export function HealthPlanetSuccess() {
       {!code ? (
         <div className="bg-white rounded-lg shadow-sm p-6 space-y-4">
           <p className="text-primary-700">認可コードが見つかりません</p>
+          <Link to="/healthplanet" className="text-sm font-medium text-primary-700 underline">
+            連携ページに戻る
+          </Link>
+        </div>
+      ) : !flowPending ? (
+        <div className="bg-white rounded-lg shadow-sm p-6 space-y-4">
+          <p className="text-primary-700">
+            この連携フローはこのブラウザで開始されたものではありません。連携ページからやり直してください。
+          </p>
           <Link to="/healthplanet" className="text-sm font-medium text-primary-700 underline">
             連携ページに戻る
           </Link>

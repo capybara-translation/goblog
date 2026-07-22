@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -104,6 +105,11 @@ func (c *Client) ExchangeCode(code string) (*Token, error) {
 }
 
 // Refresh obtains a fresh token without browser interaction.
+//
+// TODO: RFC 6749 §6 does not require redirect_uri on refresh; we send it
+// because that is the only shape verified against the live API (2026-07).
+// Next live verification: try refresh without redirect_uri and drop it if
+// accepted (removes the web/CLI URI-mismatch concern in cmd/hpsync).
 func (c *Client) Refresh(refreshToken string) (*Token, error) {
 	return c.requestToken(url.Values{
 		"client_id":     {c.clientID},
@@ -112,6 +118,17 @@ func (c *Client) Refresh(refreshToken string) (*Token, error) {
 		"refresh_token": {refreshToken},
 		"grant_type":    {"refresh_token"},
 	})
+}
+
+// reTokenValue matches the VALUE portion of access_token / refresh_token JSON
+// fields so error messages can redact them before logging.
+var reTokenValue = regexp.MustCompile(`("(?:access_token|refresh_token)"\s*:\s*")[^"]*("?)`)
+
+// redactTokenBody replaces the values of "access_token" and "refresh_token"
+// fields in a raw JSON body with "[REDACTED]", preventing token material from
+// leaking into error messages or log lines.
+func redactTokenBody(body []byte) string {
+	return reTokenValue.ReplaceAllString(string(body), "${1}[REDACTED]${2}")
 }
 
 func (c *Client) requestToken(form url.Values) (*Token, error) {
@@ -125,16 +142,16 @@ func (c *Client) requestToken(form url.Values) (*Token, error) {
 		return nil, fmt.Errorf("healthplanet token response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("healthplanet token request failed: status %d: %s", resp.StatusCode, body)
+		return nil, fmt.Errorf("healthplanet token request failed: status %d: %s", resp.StatusCode, redactTokenBody(body))
 	}
 	var tok Token
 	if err := json.Unmarshal(body, &tok); err != nil {
-		return nil, fmt.Errorf("healthplanet token response not JSON: %w: %s", err, body)
+		return nil, fmt.Errorf("healthplanet token response not JSON: %w: %s", err, redactTokenBody(body))
 	}
 	// Health Planet may answer 200 with an error body; treat a missing
 	// access_token as failure rather than storing an empty token.
 	if tok.AccessToken == "" {
-		return nil, fmt.Errorf("healthplanet token response has no access_token: %s", body)
+		return nil, fmt.Errorf("healthplanet token response has no access_token: %s", redactTokenBody(body))
 	}
 	return &tok, nil
 }

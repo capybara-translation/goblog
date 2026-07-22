@@ -33,6 +33,11 @@ export function HealthPlanet() {
     setError('');
     try {
       const { url } = await apiClient.getHealthPlanetAuthURL();
+      // Mark that this browser session initiated the OAuth flow so
+      // HealthPlanetSuccess can reject codes that arrive without this flag
+      // (e.g. a crafted link sent by a third party). This is a substitute for
+      // the OAuth state parameter, which the Health Planet API does not support.
+      sessionStorage.setItem('hp_oauth_pending', '1');
       window.location.href = url;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'failed to start authorization');

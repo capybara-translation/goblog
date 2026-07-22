@@ -2,6 +2,7 @@ package http
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"time"
@@ -81,9 +82,16 @@ func (h *HealthPlanetHandlers) HandleExchange(w http.ResponseWriter, r *http.Req
 		return
 	}
 	if err := h.svc.Exchange(req.Code); err != nil {
-		// Includes expired/invalid codes; surface the reason to the SPA.
 		log.Printf("healthplanet exchange: %v", err)
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		if errors.Is(err, service.ErrHealthPlanetTokenSaveFailed) {
+			// Token was obtained from Health Planet but storage failed — this
+			// is an internal server error, not a bad code.
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to store token"})
+		} else {
+			// Expired or invalid authorization code — surface the reason to
+			// the SPA so the operator knows what went wrong.
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		}
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

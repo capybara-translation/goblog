@@ -24,6 +24,7 @@ function renderWithCode(query: string) {
 describe('HealthPlanetSuccess', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
   });
 
   it('shows an error when code is missing', () => {
@@ -32,12 +33,14 @@ describe('HealthPlanetSuccess', () => {
   });
 
   it('does NOT auto-exchange; requires explicit confirmation', () => {
+    sessionStorage.setItem('hp_oauth_pending', '1');
     renderWithCode('?code=abc123');
     expect(apiClient.exchangeHealthPlanetCode).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: '連携を完了する' })).toBeInTheDocument();
   });
 
   it('exchanges the code and navigates on confirm', async () => {
+    sessionStorage.setItem('hp_oauth_pending', '1');
     vi.mocked(apiClient.exchangeHealthPlanetCode).mockResolvedValue(undefined);
     renderWithCode('?code=abc123');
     fireEvent.click(screen.getByRole('button', { name: '連携を完了する' }));
@@ -48,11 +51,25 @@ describe('HealthPlanetSuccess', () => {
   });
 
   it('shows the error when exchange fails', async () => {
+    sessionStorage.setItem('hp_oauth_pending', '1');
     vi.mocked(apiClient.exchangeHealthPlanetCode).mockRejectedValue(new Error('token exchange failed'));
     renderWithCode('?code=expired');
     fireEvent.click(screen.getByRole('button', { name: '連携を完了する' }));
     await waitFor(() => {
       expect(screen.getByText(/token exchange failed/)).toBeInTheDocument();
     });
+  });
+
+  it('shows a warning and hides the confirm button when code is present but nonce is missing', () => {
+    // No sessionStorage.setItem('hp_oauth_pending') — simulates a crafted link
+    // arriving in a browser that never started the OAuth flow here.
+    renderWithCode('?code=crafted-code');
+    expect(
+      screen.getByText(
+        'この連携フローはこのブラウザで開始されたものではありません。連携ページからやり直してください。'
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '連携を完了する' })).not.toBeInTheDocument();
+    expect(apiClient.exchangeHealthPlanetCode).not.toHaveBeenCalled();
   });
 });
