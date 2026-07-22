@@ -62,3 +62,23 @@ func TestOpen_CascadeDeleteWorks(t *testing.T) {
 		t.Errorf("child rows after parent delete = %d, want 0 (cascade did not fire)", childCount)
 	}
 }
+
+// TestOpen_SetsBusyTimeout verifies connections wait (rather than failing
+// immediately with SQLITE_BUSY) when another process holds the write lock.
+// hpsync writes to the same DB file as the running server, so this matters.
+func TestOpen_SetsBusyTimeout(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "busy_test.db")
+	database, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer database.Close()
+
+	var timeout int
+	if err := database.Get(&timeout, "PRAGMA busy_timeout"); err != nil {
+		t.Fatalf("PRAGMA busy_timeout: %v", err)
+	}
+	if timeout != 5000 {
+		t.Errorf("busy_timeout = %d, want 5000", timeout)
+	}
+}

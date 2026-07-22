@@ -25,11 +25,15 @@ func Open(dbPath string) (*sqlx.DB, error) {
 	// _foreign_keys=on in the DSN applies the PRAGMA to every pooled
 	// connection so cascades (e.g. deleting a post removes its post_views,
 	// deleting a user removes their remember_tokens) actually run.
+	// _busy_timeout makes writers wait up to 5s for a lock instead of
+	// failing immediately with SQLITE_BUSY. The server and the hpsync CLI
+	// write to the same DB file from separate processes, so brief lock
+	// contention is expected and must not surface as an error.
 	dsn := dbPath
 	if strings.Contains(dsn, "?") {
-		dsn += "&_foreign_keys=on"
+		dsn += "&_foreign_keys=on&_busy_timeout=5000"
 	} else {
-		dsn += "?_foreign_keys=on"
+		dsn += "?_foreign_keys=on&_busy_timeout=5000"
 	}
 	db, err := sqlx.Open("sqlite3", dsn)
 	if err != nil {
