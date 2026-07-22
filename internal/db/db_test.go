@@ -65,7 +65,9 @@ func TestOpen_CascadeDeleteWorks(t *testing.T) {
 
 // TestOpen_SetsBusyTimeout verifies connections wait (rather than failing
 // immediately with SQLITE_BUSY) when another process holds the write lock.
-// hpsync writes to the same DB file as the running server, so this matters.
+// The driver defaults to 5000ms so this test guards the explicit DSN pin
+// (it cannot distinguish DSN from driver default). hpsync writes to the same
+// DB file as the running server, so this matters.
 func TestOpen_SetsBusyTimeout(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "busy_test.db")
 	database, err := Open(dbPath)
