@@ -113,11 +113,11 @@ func runAuth(client *healthplanet.Client, tokenRepo repo.HealthPlanetTokenReposi
 
 	reader := bufio.NewReader(os.Stdin)
 	line, err := reader.ReadString('\n')
-	if err != nil {
+	code := strings.TrimSpace(line)
+	if code == "" && err != nil {
 		fmt.Fprintf(os.Stderr, "Error: Failed to read code: %v\n", err)
 		os.Exit(1)
 	}
-	code := strings.TrimSpace(line)
 	if code == "" {
 		fmt.Fprintln(os.Stderr, "Error: Code is required")
 		os.Exit(1)

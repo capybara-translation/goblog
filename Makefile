@@ -1,4 +1,4 @@
-.PHONY: help run stop test test-v test-cover clean seed reset build deploy install deps install-admin build-admin dev-admin clean-admin adduser build-css hpsync
+.PHONY: help run stop test test-v test-cover clean seed reset build deploy install deps install-admin build-admin dev-admin clean-admin adduser build-css
 
 # Default target: show help
 help:
@@ -22,7 +22,6 @@ help:
 	@echo "  make build-css     - Build Tailwind CSS for public pages"
 	@echo "  make dev-admin     - Start admin SPA development server"
 	@echo "  make clean-admin   - Delete admin SPA build artifacts"
-	@echo "  make hpsync        - Sync health data from Health Planet"
 
 # Start server (builds CSS first)
 run: build-css
