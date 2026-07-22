@@ -29,6 +29,7 @@ goblogはGoで書かれたシンプルなブログシステムです。公開ペ
 - Remember me（短命セッション+長命 remember token、SQLite 保存、SHA-256 ハッシュ、selector+raw 分離、記事を表示する公開ページ（トップ / 記事詳細 / タグ別一覧）と `/auth/me` で自動復元）
 - 記事リアクション（匿名読者が複数絵文字でリアクション、1記事・1絵文字につき1回、Cookie 重複防止、件数は SSR + reacted 状態は JS で付与。記事詳細・トップ・タグ別一覧で表示し、その場でトグル可能。絵文字の解釈は読者に委ねるため label は UI 非表示）。管理画面 (`/admin/reactions`) で絵文字マスタを作成・編集・有効/無効・条件付き物理削除(件数0かつ非seedのみ)できる。
 - ログイン中の端末管理（管理画面 `/admin/devices` で remember_token ベースの永続端末一覧＋保持OFFの一時セッションを併記。`mileusna/useragent` で UA から端末/ブラウザを導出、IP 表示。現在の端末に「この端末」バッジを付け個別失効は不可、非現端末の個別失効と「他の端末をすべてログアウト」に対応。remember 端末失効時は紐付くアクティブセッションも巻き添えで失効させ確実にログアウト）
+- Health Planet 連携（タニタ Health Planet API から体重・体脂肪率・血圧・脈拍を毎日 0:00 JST に取得し `health_records` へ冪等 upsert。`HEALTHPLANET_ENABLED` でゲート（デフォルト無効・無効時は同期 no-op / 管理画面 UI 非表示 / API ルート未登録）。OAuth 認可は管理画面 `/admin/healthplanet` から（redirect → `/admin/healthplanet/success` → 明示ボタンで code 交換。自動交換しないのは攻撃者の code を踏ませる紐付け攻撃の防止）。日次同期は `cmd/hpsync run` + systemd timer 常設。CLI フォールバック `hpsync auth`（success.html + コピペ）あり。30日窓取得で手入力の遅延登録も吸収。トークンは DB 1行テーブルに平文保存・30日有効・リフレッシュでローテーションなし（実機検証済み）・失効7日前から exit≠0 で警告。手順書: docs/HEALTHPLANET.md。ブログ上での表示は未実装）
 
 🚧 **計画中:**
 - RSS フィード
@@ -61,6 +62,7 @@ Database (SQLite)
   /goblog/main.go      # アプリケーションエントリポイント
   /seed/main.go        # テストデータ投入コマンド
   /adduser/main.go     # 管理ユーザー追加コマンド
+  /hpsync/main.go      # Health Planet 同期 CLI（run / auth サブコマンド）
 
 /internal/
   /http/               # HTTPレイヤー
@@ -77,6 +79,7 @@ Database (SQLite)
     handlers_reaction.go  # リアクション公開APIハンドラー
     handlers_reaction_admin.go # リアクション種別管理APIハンドラー（認証+CSRF）
     handlers_device.go    # ログイン中の端末一覧・失効ハンドラー（認証+CSRF）
+    handlers_healthplanet.go # Health Planet 管理APIハンドラー（status / auth-url / exchange）
     reaction_middleware.go # X-Requested-With 検証ミドルウェア
     client_ip.go       # 信頼プロキシ考慮の client IP 抽出（共有）
     ratelimiter.go     # IP 単位レートリミッタ
@@ -88,6 +91,8 @@ Database (SQLite)
     reaction_service.go  # リアクションのビジネスロジック
     reaction_type_service.go # リアクション種別のビジネスロジック（seed 保護・バリデーション）
     device_service.go    # ログイン中の端末のビジネスロジック（一覧マージ・失効・UAパース）
+    health_sync_service.go   # 日次同期ロジック（トークン更新・取得・upsert・失効警告）
+    health_planet_admin_service.go # 管理画面向け OAuth フロー（認可 URL 生成・code 交換・状態確認）
   /repo/               # データアクセス
     post_repo.go
     post_view_repo.go      # 閲覧記録
@@ -97,6 +102,8 @@ Database (SQLite)
     reaction_repo.go       # リアクションの集計・記録
     reaction_type_repo.go  # リアクション種別 CRUD（FindAll/FindByID/Create/Update/DeleteIfUnused）
     reaction_seed.go       # DefaultReactionTypes / SeedReactionTypes / IsSeedEmoji（単一ソース）
+    health_record_repo.go     # health_records upsert
+    healthplanet_token_repo.go # healthplanet_tokens の load / save（1 行テーブル）
   /domain/             # ドメインモデル
     post.go
     user.go
@@ -109,6 +116,8 @@ Database (SQLite)
     converter.go
   /ogp/                # OGPフェッチャー
     fetcher.go
+  /healthplanet/       # Health Planet API クライアント
+    client.go          # OAuth・innerscan・sphygmomanometer フェッチャー
   /view/               # ビュー関連
     templates/         # HTMLテンプレート
       layout.html
@@ -131,11 +140,14 @@ initschema.go          # InitSchema: マイグレーション + reaction seed �
   005_add_ogp_local_image.sql
   006_add_post_views.sql
   008_create_reactions.sql
+  011_create_health_records.sql # health_records + healthplanet_tokens テーブル
 
 /web-admin/            # React SPA 管理画面
   /src/
     /pages/            # PostList, PostEdit, Login, ReactionTypeList
       ReactionTypeList.tsx # リアクション種別管理画面（テーブル + モーダル CRUD）
+      HealthPlanet.tsx     # Health Planet 連携状態・認可フロー開始画面
+      HealthPlanetSuccess.tsx # redirect 後の「連携を完了する」画面
     /components/       # MarkdownEditor, TagInput, StatusBadge, etc.
     /api/client.ts     # APIクライアント（CSRF対応）
 ```
@@ -194,6 +206,9 @@ make build-admin       # プロダクションビルド
 - `POSTS_PER_PAGE`: トップページ (`/`) とタグ別記事一覧 (`/tags/{tag}`) の 1 ページあたり件数（デフォルト: 20、有効範囲: 1-100、範囲外/パース不能な値はデフォルトに silent fallback）
 - `SESSION_TTL`: 管理者セッションの有効期限（`time.ParseDuration` 形式: `24h`、`30m`、`168h` 等）。デフォルト: `24h`、最小: `1m`、不正値/未満は silent fallback。サーバ側セッション TTL とログインクッキーの `MaxAge` の両方をこの値から導出するため、片方だけがズレることはない。**注意**: 変更は次回ログイン以降に発行されるセッションにのみ適用される。既存セッションは発行時の TTL を保持したまま残るため、即座に全員ログアウトさせたい場合はサーバを再起動する（インメモリストアなのでセッションは消える）
 - `REMEMBER_TTL`: Remember me クッキーの有効期限（Go duration 形式）。デフォルト: `720h` (30 日)、最小: `1h`、不正値は silent fallback。ログイン時にチェックボックスを ON にすると `remember_tokens` テーブルにこの TTL のレコードが作られ、ブラウザにも同じ MaxAge の `remember_token` クッキーが設定される。session_id が切れていても remember_token が有効なら、公開ページ / `/auth/me` 経由で自動的に新しい session_id が払い出される
+- `HEALTHPLANET_ENABLED`: Health Planet 連携の有効化フラグ（`true` のみ有効。デフォルト: 無効）。goblog 本体（管理画面 OAuth フロー）と `hpsync` CLI（日次同期）の両方に必要。本番では goblog の env と `/etc/goblog/healthplanet.env` の両方に設定する
+- `HEALTHPLANET_CLIENT_ID`: Health Planet OAuth クライアント ID（goblog 本体と hpsync の両方に必要）
+- `HEALTHPLANET_CLIENT_SECRET`: Health Planet OAuth クライアントシークレット（goblog 本体と hpsync の両方に必要）
 
 **重要**: 本番環境では`SECURE_COOKIE=true`と`PASSWORD_POLICY=STRONG`と`BASE_URL`と`TRUSTED_PROXIES`を必ず設定すること。
 
@@ -317,6 +332,9 @@ func (m *mockPostRepository) FindAll(status *domain.PostStatus, limit, offset in
 - `GET /api/v1/devices` - ログイン中の端末一覧（remember 端末＋一時セッション、`is_current`/`is_ephemeral` 付き、最終利用の降順）
 - `DELETE /api/v1/devices/{kind}/{id}` - 端末の個別失効（kind: `remember`|`session`。現在の端末は 403、他ユーザー/不明な id は 404、不正な kind は 400）
 - `POST /api/v1/devices/logout-others` - 現在の端末以外を一括失効
+- `GET /api/v1/healthplanet/status` - Health Planet 連携状態確認（常設。`enabled: false` で機能無効を表現）
+- `GET /api/v1/healthplanet/auth-url` - 認可 URL 取得（`HEALTHPLANET_ENABLED=true` のときのみ登録）
+- `POST /api/v1/healthplanet/exchange` - 認可コードをトークンに交換して保存（`HEALTHPLANET_ENABLED=true` のときのみ登録）
 
 ## データフロー例
 
@@ -406,6 +424,8 @@ POST /api/v1/auth/login (JSON)
   - `remember_tokens`: Remember me トークン（selector / token_hash / expires_at / user_id ON DELETE CASCADE / user_agent / ip_address）。`user_agent`（migration 009）と `ip_address`（migration 010）は端末の **last-seen** 情報で、ログイン中の端末一覧に使用。remember 復元時（`RestoreFromRememberToken`）に現リクエストの UA/IP と差があれば書き戻す（差分が無ければ書き込みなし、UA が空のリクエストでは上書きしない）。これにより、カラム追加前に発行された空文字の既存行（一時的に「不明な端末」表示）も、信頼プロキシ未解決で記録されてしまった IP（nginx 背後の `127.0.0.1` 等）も、次回復元時に自動修復される。IP は公開ページ／管理 API いずれの復元パスでも `TRUSTED_PROXIES` を考慮して解決する
   - `reaction_types`: リアクション絵文字マスタ（id, emoji, label, sort_order, is_active, created_at）。seed は `repo.DefaultReactionTypes` (Go) を単一ソースに `goblog.InitSchema` で `INSERT OR IGNORE` 投入する。migration 008 は CREATE のみ（seed 行は持たない）。seed 絵文字（👍❤️🎉👀🤔）は管理画面から emoji 変更・物理削除不可（無効化のみ）。
   - `post_reactions`: リアクション記録（post_id, reaction_type_id, visitor_key, created_at, UNIQUE(post_id, reaction_type_id, visitor_key)）※ON DELETE CASCADE
+  - `health_records`: 健康測定データ（id, measured_at, metric, value, created_at, UNIQUE(measured_at, metric)）。`measured_at` は Health Planet の分単位ローカル時刻。UNIQUE 制約により同一測定点への upsert が冪等。metrics: weight / body_fat / systolic / diastolic / pulse（tags 6021/6022/622E/622F/6230）
+  - `healthplanet_tokens`: Health Planet OAuth トークン（id=1 の 1 行テーブル。access_token / refresh_token / expires_at / updated_at）。トークンは API 呼び出しに平文が必要なため平文保存（DB は S3 バックアップに含まれるためアクセス制御に注意）。`updated_at` は毎回リフレッシュ時に更新されるため管理画面の「最終リフレッシュ」= 最終同期成功の近似値として表示する
 
 ## 依存関係
 
