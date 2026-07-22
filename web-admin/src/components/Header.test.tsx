@@ -4,10 +4,19 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { Header } from './Header'
 import { useAuth } from '../hooks/useAuth'
+import { apiClient } from '../api/client'
 
 // Mock useAuth
 vi.mock('../hooks/useAuth', () => ({
   useAuth: vi.fn(),
+}))
+
+// Mock apiClient — Health Planet feature flag defaults to disabled so existing
+// tests are unaffected. Individual tests can override getHealthPlanetStatus.
+vi.mock('../api/client', () => ({
+  apiClient: {
+    getHealthPlanetStatus: vi.fn().mockResolvedValue({ enabled: false }),
+  },
 }))
 
 // Mock React Router navigation
@@ -124,6 +133,14 @@ describe('Header', () => {
     it('shows the Reactions nav link', () => {
       renderHeader()
       expect(screen.getByRole('link', { name: 'Reactions' })).toBeInTheDocument()
+    })
+
+    it('shows the Health Planet link when the integration is enabled', async () => {
+      vi.mocked(apiClient.getHealthPlanetStatus).mockResolvedValue({ enabled: true });
+      renderHeader()
+      await waitFor(() => {
+        expect(screen.getByText('Health Planet')).toBeInTheDocument()
+      })
     })
   })
 

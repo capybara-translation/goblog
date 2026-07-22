@@ -8,6 +8,8 @@ import { PostList } from './pages/PostList';
 import { PostEdit } from './pages/PostEdit';
 import { ReactionTypeList } from './pages/ReactionTypeList';
 import { DeviceList } from './pages/DeviceList';
+import { HealthPlanet } from './pages/HealthPlanet';
+import { HealthPlanetSuccess } from './pages/HealthPlanetSuccess';
 
 function App() {
   return (
@@ -33,6 +35,8 @@ function App() {
             <Route path="posts/:id/edit" element={<PostEdit />} />
             <Route path="reactions" element={<ReactionTypeList />} />
             <Route path="devices" element={<DeviceList />} />
+            <Route path="healthplanet" element={<HealthPlanet />} />
+            <Route path="healthplanet/success" element={<HealthPlanetSuccess />} />
           </Route>
 
           {/* 404 */}

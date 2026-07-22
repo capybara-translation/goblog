@@ -1,11 +1,23 @@
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { apiClient } from '../api/client';
 
 const BLOG_TITLE = import.meta.env.VITE_BLOG_TITLE || 'goblog';
 
 export function Header() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [hpEnabled, setHpEnabled] = useState(false);
+
+  useEffect(() => {
+    // Feature-flagged: only show the menu item when the server says the
+    // integration is enabled. Errors just leave the link hidden.
+    apiClient
+      .getHealthPlanetStatus()
+      .then((s) => setHpEnabled(s.enabled))
+      .catch(() => {});
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -54,6 +66,14 @@ export function Header() {
             >
               Devices
             </Link>
+            {hpEnabled && (
+              <Link
+                to="/healthplanet"
+                className="text-sm font-medium text-primary-700 hover:text-primary-900 transition-colors"
+              >
+                Health Planet
+              </Link>
+            )}
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-4 ml-auto order-2 sm:order-3 shrink-0">

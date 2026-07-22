@@ -85,6 +85,13 @@ export interface Device {
   is_ephemeral: boolean;
 }
 
+export interface HealthPlanetStatus {
+  enabled: boolean;
+  authorized?: boolean;
+  token_expires_at?: string | null;
+  last_refreshed_at?: string | null;
+}
+
 export interface AdminReactionCount {
   id: number;
   emoji: string;
@@ -296,6 +303,22 @@ class ApiClient {
 
   async logoutOtherDevices(): Promise<void> {
     return this.request<void>('/devices/logout-others', { method: 'POST' });
+  }
+
+  // Health Planet integration endpoints
+  async getHealthPlanetStatus(): Promise<HealthPlanetStatus> {
+    return this.request<HealthPlanetStatus>('/healthplanet/status');
+  }
+
+  async getHealthPlanetAuthURL(): Promise<{ url: string }> {
+    return this.request<{ url: string }>('/healthplanet/auth-url');
+  }
+
+  async exchangeHealthPlanetCode(code: string): Promise<void> {
+    return this.request<void>('/healthplanet/exchange', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
   }
 
   // Tags endpoint
