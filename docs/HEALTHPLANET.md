@@ -113,11 +113,14 @@ timer は `HEALTHPLANET_ENABLED != true` のときも常設で問題ない。そ
 
 ## 動作確認
 
+管理画面から初回認可が完了したら、すぐに手動で同期を走らせてリフレッシュが正常に動作することを確認する。`journalctl` に "token refresh failed" の警告が出ていなければ、redirect_uri の一致検証は問題ない。
+
 ```bash
 # 手動で同期を実行
 sudo systemctl start goblog-hpsync.service
 
-# ログを確認（"Sync complete." が出ていれば成功）
+# ログを確認（"Sync complete." が出ていれば成功。"token refresh failed" が出ていた場合は
+# redirect_uri の不一致が疑われるため、管理画面から再認可して redirect_uri を揃えること）
 journalctl -u goblog-hpsync -n 20
 
 # timer の次回発火時刻

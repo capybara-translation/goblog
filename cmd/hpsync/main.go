@@ -94,7 +94,11 @@ func main() {
 			cfg.HealthPlanetClientID, cfg.HealthPlanetClientSecret, healthplanet.SuccessRedirectURI)
 		runAuth(client, tokenRepo)
 	case "run":
-		// redirectURI is unused by refresh/fetch but keep it consistent.
+		// Refresh sends this redirect_uri in the token request. The live API
+		// accepted refresh in the spike; if Health Planet ever enforces
+		// redirect_uri equality with the authorizing flow, refresh of a
+		// web-authorized token would fail (warned + retried daily, caught by
+		// the T-7d alarm).
 		client := healthplanet.NewClient(healthplanet.DefaultBaseURL,
 			cfg.HealthPlanetClientID, cfg.HealthPlanetClientSecret, healthplanet.SuccessRedirectURI)
 		runSync(client, tokenRepo, repo.NewHealthRecordRepository(database))

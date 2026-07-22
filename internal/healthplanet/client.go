@@ -6,6 +6,7 @@ package healthplanet
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -162,6 +163,10 @@ func (c *Client) fetchStatus(path, accessToken, tags string, from, to time.Time)
 	}
 	resp, err := c.httpClient.Get(c.baseURL + path + "?" + q.Encode())
 	if err != nil {
+		var uerr *url.Error
+		if errors.As(err, &uerr) {
+			uerr.URL = c.baseURL + path // drop the query: it carries access_token
+		}
 		return nil, fmt.Errorf("healthplanet %s: %w", path, err)
 	}
 	defer resp.Body.Close()

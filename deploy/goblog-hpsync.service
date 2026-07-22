@@ -11,10 +11,11 @@ WorkingDirectory=/opt/goblog
 
 # HEALTHPLANET_ENABLED / _CLIENT_ID / _CLIENT_SECRET / DATABASE_PATH.
 # chmod 600, owned by goblog. See deploy/healthplanet.env.example.
-# The timer is meant to be enabled unconditionally at setup time: with
-# HEALTHPLANET_ENABLED unset/false, `hpsync run` exits 0 without doing
-# anything, so an unused integration costs nothing.
-EnvironmentFile=/etc/goblog/healthplanet.env
+# The leading dash makes the file optional: if it does not exist systemd
+# ignores the missing file rather than hard-failing the unit. This is safe
+# because hpsync itself exits 0 when HEALTHPLANET_ENABLED is unset/false,
+# so an enabled timer without the env file costs nothing.
+EnvironmentFile=-/etc/goblog/healthplanet.env
 
 # ProtectHome=true hides the real home; point HOME at the PrivateTmp dir so the
 # AWS CLI (used by the monitoring wrapper) has a writable, private HOME.

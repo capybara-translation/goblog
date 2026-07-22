@@ -190,6 +190,24 @@ func TestFetchSphygmomanometer(t *testing.T) {
 	}
 }
 
+func TestFetchInnerscan_TransportErrorRedactsToken(t *testing.T) {
+	// Point at a closed server so the HTTP GET fails at the transport layer.
+	// The resulting *url.Error would normally embed the full URL (including
+	// access_token as a query param); the fix must strip the query string.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	addr := srv.URL
+	srv.Close() // close immediately so the connection is refused
+
+	c := NewClient(addr, "my-id", "my-secret", testRedirectURI)
+	_, err := c.FetchInnerscan("SECRET-TOKEN", time.Now().Add(-time.Hour), time.Now())
+	if err == nil {
+		t.Fatal("expected transport error, got nil")
+	}
+	if strings.Contains(err.Error(), "SECRET-TOKEN") {
+		t.Errorf("access_token leaked in error message: %v", err)
+	}
+}
+
 func TestFetchInnerscan_HTTPError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
