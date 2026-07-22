@@ -253,6 +253,35 @@ func TestHealthSync_SkipsUnparseableMeasurements(t *testing.T) {
 	}
 }
 
+func TestHealthSync_SkipsNonFiniteMeasurements(t *testing.T) {
+	// strconv.ParseFloat succeeds for "NaN", "Inf", "-Inf" — they return IEEE
+	// non-finite values that SQLite stores as NULL (violating NOT NULL). The
+	// non-finite guard must catch them and skip, while the one valid entry is
+	// upserted.
+	client := &mockHealthPlanetClient{
+		fetchInnerFunc: func(string, time.Time, time.Time) ([]healthplanet.Measurement, error) {
+			return []healthplanet.Measurement{
+				{Date: "202607201624", Keydata: "NaN", Tag: healthplanet.TagWeight},
+				{Date: "202607201624", Keydata: "Inf", Tag: healthplanet.TagBodyFat},
+				{Date: "202607201624", Keydata: "-Inf", Tag: healthplanet.TagBodyFat},
+				{Date: "202607201624", Keydata: "72.10", Tag: healthplanet.TagWeight}, // valid
+			}, nil
+		},
+	}
+	recordRepo := &mockHealthRecordRepo{}
+	svc := NewHealthSyncService(client, &mockHealthPlanetTokenRepo{token: validHealthPlanetToken()}, recordRepo)
+
+	if err := svc.Sync(); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	if len(recordRepo.upserted) != 1 {
+		t.Errorf("upserted %d records, want 1 (non-finite entries skipped)", len(recordRepo.upserted))
+	}
+	if recordRepo.upserted[0].Value != 72.10 {
+		t.Errorf("upserted value = %v, want 72.10", recordRepo.upserted[0].Value)
+	}
+}
+
 func TestHealthSync_FetchFailureAndTokenExpiringSoon_BothReported(t *testing.T) {
 	// Refresh succeeds but returns a short ExpiresIn (within the 7-day warning
 	// window), AND FetchInnerscan fails. Both conditions must appear in the

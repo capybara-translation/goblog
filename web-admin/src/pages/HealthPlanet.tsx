@@ -82,7 +82,7 @@ export function HealthPlanet() {
                 <dd>{formatDate(status.token_expires_at)}</dd>
               </div>
               <div className="flex gap-2">
-                <dt className="font-medium">最終リフレッシュ（≒最終同期成功）:</dt>
+                <dt className="font-medium">トークン最終リフレッシュ:</dt>
                 <dd>{formatDate(status.last_refreshed_at)}</dd>
               </div>
             </dl>

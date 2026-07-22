@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"strconv"
 	"time"
 
@@ -92,6 +93,11 @@ func (s *HealthSyncService) Sync() error {
 	} else {
 		accessToken = newTok.AccessToken
 		expiresAt = now.Add(time.Duration(newTok.ExpiresIn) * time.Second)
+		// last-write-wins against a concurrent admin re-authorization is accepted —
+		// Health Planet does not rotate tokens (verified 2026-07) so both writers
+		// converge on the same pair; a harmful clobber would need a re-auth racing
+		// the daily run with a still-valid old pair, and the next day's run surfaces
+		// ReauthRequired via monitoring if that ever changes.
 		if err := s.tokenRepo.Save(newTok.AccessToken, newTok.RefreshToken, expiresAt); err != nil {
 			return fmt.Errorf("failed to save refreshed token: %w", err)
 		}
@@ -163,6 +169,11 @@ func mapHealthMeasurements(ms []healthplanet.Measurement) []*domain.HealthRecord
 		value, err := strconv.ParseFloat(m.Keydata, 64)
 		if err != nil {
 			log.Printf("warning: skipping %s measurement with bad value %q (date %s): %v", metric, m.Keydata, m.Date, err)
+			continue
+		}
+		// SQLite stores NaN as NULL, which violates the NOT NULL constraint and would roll back the whole upsert transaction daily for the 30-day window.
+		if math.IsNaN(value) || math.IsInf(value, 0) {
+			log.Printf("warning: skipping %s measurement with non-finite value %q (date %s)", metric, m.Keydata, m.Date)
 			continue
 		}
 		records = append(records, &domain.HealthRecord{

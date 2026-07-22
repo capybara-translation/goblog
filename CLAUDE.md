@@ -425,7 +425,7 @@ POST /api/v1/auth/login (JSON)
   - `reaction_types`: リアクション絵文字マスタ（id, emoji, label, sort_order, is_active, created_at）。seed は `repo.DefaultReactionTypes` (Go) を単一ソースに `goblog.InitSchema` で `INSERT OR IGNORE` 投入する。migration 008 は CREATE のみ（seed 行は持たない）。seed 絵文字（👍❤️🎉👀🤔）は管理画面から emoji 変更・物理削除不可（無効化のみ）。
   - `post_reactions`: リアクション記録（post_id, reaction_type_id, visitor_key, created_at, UNIQUE(post_id, reaction_type_id, visitor_key)）※ON DELETE CASCADE
   - `health_records`: 健康測定データ（id, measured_at, metric, value, created_at, UNIQUE(measured_at, metric)）。`measured_at` は Health Planet の分単位ローカル時刻。UNIQUE 制約により同一測定点への upsert が冪等。metrics: weight / body_fat / systolic / diastolic / pulse（tags 6021/6022/622E/622F/6230）
-  - `healthplanet_tokens`: Health Planet OAuth トークン（id=1 の 1 行テーブル。access_token / refresh_token / expires_at / updated_at）。トークンは API 呼び出しに平文が必要なため平文保存（DB は S3 バックアップに含まれるためアクセス制御に注意）。`updated_at` は毎回リフレッシュ時に更新されるため管理画面の「最終リフレッシュ」= 最終同期成功の近似値として表示する
+  - `healthplanet_tokens`: Health Planet OAuth トークン（id=1 の 1 行テーブル。access_token / refresh_token / expires_at / updated_at）。トークンは API 呼び出しに平文が必要なため平文保存（DB は S3 バックアップに含まれるためアクセス制御に注意）。`updated_at` は毎回リフレッシュ時に更新されるため管理画面の「トークン最終リフレッシュ」タイムスタンプとして表示する（リフレッシュ成功時に更新、後続の同期失敗は hpsync exit コードで検知）
 
 ## 依存関係
 

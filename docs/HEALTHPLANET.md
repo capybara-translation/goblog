@@ -131,7 +131,7 @@ sqlite3 /var/lib/goblog/goblog.db \
   'SELECT metric, COUNT(*) FROM health_records GROUP BY metric;'
 ```
 
-成功すると管理画面 `/admin/healthplanet` の「最終リフレッシュ」タイムスタンプも更新される（`healthplanet_tokens.updated_at` = 最終同期成功の近似値）。
+成功すると管理画面 `/admin/healthplanet` の「トークン最終リフレッシュ」タイムスタンプも更新される（`healthplanet_tokens.updated_at`）。
 
 ---
 

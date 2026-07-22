@@ -72,4 +72,15 @@ describe('HealthPlanetSuccess', () => {
     expect(screen.queryByRole('button', { name: '連携を完了する' })).not.toBeInTheDocument();
     expect(apiClient.exchangeHealthPlanetCode).not.toHaveBeenCalled();
   });
+
+  it('consumes hp_oauth_pending on mount (one-shot) while still showing the confirm button', () => {
+    // The flag must be read into state before removal so the button is visible,
+    // but removed immediately so a subsequent crafted link cannot pass the check.
+    sessionStorage.setItem('hp_oauth_pending', '1');
+    renderWithCode('?code=abc123');
+    // Flag must be gone after mount.
+    expect(sessionStorage.getItem('hp_oauth_pending')).toBeNull();
+    // Yet the confirm button must still be visible (flowPending was captured as true).
+    expect(screen.getByRole('button', { name: '連携を完了する' })).toBeInTheDocument();
+  });
 });

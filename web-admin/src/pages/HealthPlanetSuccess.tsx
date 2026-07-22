@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
 
@@ -11,9 +11,10 @@ import { apiClient } from '../api/client';
  * foreign Health Planet account to the blog.
  *
  * We also check for a sessionStorage nonce ('hp_oauth_pending') set by
- * HealthPlanet.tsx before redirecting. If the flag is absent, the code likely
- * arrived via a crafted link rather than a genuine flow initiated in this
- * browser. This is a substitute for the OAuth state parameter, which the
+ * HealthPlanet.tsx before redirecting. Read the nonce once into state and
+ * consume it immediately on mount (one-shot): a lingering flag from an
+ * abandoned flow must not validate a later crafted link opened in the same
+ * tab. This is a substitute for the OAuth state parameter, which the
  * Health Planet API does not support.
  */
 export function HealthPlanetSuccess() {
@@ -23,17 +24,22 @@ export function HealthPlanetSuccess() {
   const [error, setError] = useState('');
   const [isBusy, setIsBusy] = useState(false);
 
-  // Read the nonce once on render. The flag is set by HealthPlanet.tsx
-  // immediately before the redirect; its absence means this page was not
-  // reached via a legitimate flow started in this browser.
-  const flowPending = sessionStorage.getItem('hp_oauth_pending') === '1';
+  // Read the nonce once into state (runs only on mount). The flag is set by
+  // HealthPlanet.tsx immediately before the redirect; its absence means this
+  // page was not reached via a legitimate flow started in this browser.
+  const [flowPending] = useState(() => sessionStorage.getItem('hp_oauth_pending') === '1');
+
+  useEffect(() => {
+    // Consume the flag immediately: a lingering flag from an abandoned flow
+    // must not validate a later crafted link opened in the same tab.
+    sessionStorage.removeItem('hp_oauth_pending');
+  }, []);
 
   const handleComplete = async () => {
     setIsBusy(true);
     setError('');
     try {
       await apiClient.exchangeHealthPlanetCode(code);
-      sessionStorage.removeItem('hp_oauth_pending');
       navigate('/healthplanet');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'failed to complete authorization');

@@ -29,9 +29,10 @@ var _ HealthPlanetAuthClient = (*healthplanet.Client)(nil)
 type HealthPlanetStatus struct {
 	Authorized bool
 	ExpiresAt  *time.Time
-	// LastRefreshedAt is the token row's updated_at. The daily sync
-	// refreshes (and re-saves) the token on every successful run, so this
-	// doubles as "last successful sync" for display purposes.
+	// LastRefreshedAt is the token row's updated_at — a token-lifecycle
+	// timestamp that advances on any successful token refresh, including
+	// when the subsequent fetch/upsert fails. Sync failures surface via
+	// hpsync exit codes and monitoring rather than this field.
 	LastRefreshedAt *time.Time
 }
 
