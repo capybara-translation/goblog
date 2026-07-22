@@ -1,4 +1,4 @@
-.PHONY: help run stop test test-v test-cover clean seed reset build deploy install deps install-admin build-admin dev-admin clean-admin adduser build-css
+.PHONY: help run stop test test-v test-cover clean seed reset build deploy install deps install-admin build-admin dev-admin clean-admin adduser build-css hpsync
 
 # Default target: show help
 help:
@@ -22,6 +22,7 @@ help:
 	@echo "  make build-css     - Build Tailwind CSS for public pages"
 	@echo "  make dev-admin     - Start admin SPA development server"
 	@echo "  make clean-admin   - Delete admin SPA build artifacts"
+	@echo "  make hpsync        - Sync health data from Health Planet"
 
 # Start server (builds CSS first)
 run: build-css
@@ -83,14 +84,15 @@ build: install install-admin build-admin build-css
 	go build -o bin/seed cmd/seed/main.go
 	go build -o bin/adduser cmd/adduser/main.go
 	go build -o bin/regenerate-variants cmd/regenerate-variants/main.go
-	@echo "Build complete: bin/goblog, bin/seed, bin/adduser, bin/regenerate-variants"
+	go build -o bin/hpsync cmd/hpsync/main.go
+	@echo "Build complete: bin/goblog, bin/seed, bin/adduser, bin/regenerate-variants, bin/hpsync"
 
 # Build and deploy to /opt/goblog (Linux production server only)
 deploy: build
 	@echo "Deploying to /opt/goblog..."
 	sudo mkdir -p /opt/goblog/bin
-	sudo mv bin/goblog bin/adduser bin/seed bin/regenerate-variants /opt/goblog/bin/
-	sudo chown root:root /opt/goblog/bin/goblog /opt/goblog/bin/adduser /opt/goblog/bin/seed /opt/goblog/bin/regenerate-variants
+	sudo mv bin/goblog bin/adduser bin/seed bin/regenerate-variants bin/hpsync /opt/goblog/bin/
+	sudo chown root:root /opt/goblog/bin/goblog /opt/goblog/bin/adduser /opt/goblog/bin/seed /opt/goblog/bin/regenerate-variants /opt/goblog/bin/hpsync
 	sudo install -m 755 -o root -g root scripts/backup-db.sh /opt/goblog/bin/backup-db.sh
 	sudo systemctl daemon-reload
 	sudo systemctl restart goblog
