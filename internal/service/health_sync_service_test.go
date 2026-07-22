@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -191,8 +192,9 @@ func TestHealthSync_TokenExpiringSoon_SyncsButReturnsSentinel(t *testing.T) {
 			}, nil
 		},
 	}
+	tokenRepo := &mockHealthPlanetTokenRepo{token: validHealthPlanetToken()}
 	recordRepo := &mockHealthRecordRepo{}
-	svc := NewHealthSyncService(client, &mockHealthPlanetTokenRepo{token: validHealthPlanetToken()}, recordRepo)
+	svc := NewHealthSyncService(client, tokenRepo, recordRepo)
 
 	err := svc.Sync()
 	if !errors.Is(err, ErrHealthPlanetTokenExpiringSoon) {
@@ -200,6 +202,9 @@ func TestHealthSync_TokenExpiringSoon_SyncsButReturnsSentinel(t *testing.T) {
 	}
 	if len(recordRepo.upserted) != 1 {
 		t.Errorf("sync should still store records, upserted %d", len(recordRepo.upserted))
+	}
+	if len(tokenRepo.saved) != 1 {
+		t.Errorf("token should be saved on successful refresh, saved %d times", len(tokenRepo.saved))
 	}
 }
 
@@ -245,6 +250,34 @@ func TestHealthSync_SkipsUnparseableMeasurements(t *testing.T) {
 	}
 	if len(recordRepo.upserted) != 1 {
 		t.Errorf("upserted %d records, want 1 (bad entries skipped)", len(recordRepo.upserted))
+	}
+}
+
+func TestHealthSync_FetchFailureAndTokenExpiringSoon_BothReported(t *testing.T) {
+	// Refresh succeeds but returns a short ExpiresIn (within the 7-day warning
+	// window), AND FetchInnerscan fails. Both conditions must appear in the
+	// returned error simultaneously.
+	fetchErr := errors.New("innerscan 503")
+	client := &mockHealthPlanetClient{
+		refreshFunc: func(string) (*healthplanet.Token, error) {
+			return &healthplanet.Token{AccessToken: "AT/new", RefreshToken: "RT/new", ExpiresIn: 3 * 24 * 3600}, nil
+		},
+		fetchInnerFunc: func(string, time.Time, time.Time) ([]healthplanet.Measurement, error) {
+			return nil, fetchErr
+		},
+	}
+	tokenRepo := &mockHealthPlanetTokenRepo{token: validHealthPlanetToken()}
+	svc := NewHealthSyncService(client, tokenRepo, &mockHealthRecordRepo{})
+
+	err := svc.Sync()
+	if err == nil {
+		t.Fatal("Sync should return a non-nil error")
+	}
+	if !errors.Is(err, ErrHealthPlanetTokenExpiringSoon) {
+		t.Errorf("err should wrap ErrHealthPlanetTokenExpiringSoon, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), fetchErr.Error()) {
+		t.Errorf("err should mention the fetch failure %q, got: %v", fetchErr.Error(), err)
 	}
 }
 

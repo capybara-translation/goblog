@@ -121,12 +121,16 @@ func (s *HealthSyncService) Sync() error {
 	log.Printf("healthplanet sync: upserted %d records (window %s..%s)",
 		len(records), from.Format("2006-01-02"), to.Format("2006-01-02"))
 
+	var errs []error
 	if len(fetchErrs) > 0 {
-		return errors.Join(fetchErrs...)
+		errs = append(errs, fetchErrs...)
 	}
 	if expiresAt.Before(now.Add(tokenExpiryWarning)) {
-		return fmt.Errorf("%w: expires at %s — if the next runs do not extend it, re-authorize from the admin panel",
-			ErrHealthPlanetTokenExpiringSoon, expiresAt.Format(time.RFC3339))
+		errs = append(errs, fmt.Errorf("%w: expires at %s — if the next runs do not extend it, re-authorize from the admin panel",
+			ErrHealthPlanetTokenExpiringSoon, expiresAt.Format(time.RFC3339)))
+	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
 	return nil
 }
