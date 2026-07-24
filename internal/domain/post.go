@@ -35,6 +35,7 @@ type Post struct {
 	Status      PostStatus `json:"status" db:"status"`
 	Tags        string     `json:"tags" db:"tags"`           // Stored as comma-separated (for simplicity)
 	IsPinned    bool       `json:"is_pinned" db:"is_pinned"` // Pinned to header display
+	HealthDate  *string    `json:"health_date" db:"health_date"`
 	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at" db:"updated_at"`
 	PublishedAt *time.Time `json:"published_at,omitempty" db:"published_at"` // Published date (nil if unpublished)

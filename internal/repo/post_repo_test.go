@@ -24,6 +24,7 @@ func setupTestDB(t *testing.T) *sqlx.DB {
 	migrations := []string{
 		"../../migrations/001_create_posts.sql",
 		"../../migrations/003_add_is_pinned.sql",
+		"../../migrations/012_add_post_health_date.sql",
 	}
 
 	for _, migrationPath := range migrations {
@@ -1139,4 +1140,35 @@ func TestPostRepository_FindPublishedBySlugs(t *testing.T) {
 			t.Fatalf("expected empty slice, got %d", len(results))
 		}
 	})
+}
+
+func TestPostRepository_HealthDate_RoundTrip(t *testing.T) {
+	db := setupTestDB(t)
+	r := NewPostRepository(db)
+
+	hd := "2026-07-20"
+	post := &domain.Post{Title: "t", Slug: "hd-roundtrip", Content: "c", Status: domain.PostStatusDraft, HealthDate: &hd}
+	if err := r.Create(post); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	got, err := r.FindByID(post.ID)
+	if err != nil {
+		t.Fatalf("FindByID: %v", err)
+	}
+	if got.HealthDate == nil || *got.HealthDate != "2026-07-20" {
+		t.Errorf("HealthDate = %v, want 2026-07-20", got.HealthDate)
+	}
+
+	// Update で解除（nil に戻す）
+	got.HealthDate = nil
+	if err := r.Update(got); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	got2, err := r.FindByID(post.ID)
+	if err != nil {
+		t.Fatalf("FindByID after update: %v", err)
+	}
+	if got2.HealthDate != nil {
+		t.Errorf("HealthDate = %v, want nil after clearing", got2.HealthDate)
+	}
 }

@@ -15,4 +15,5 @@ var MigrationFiles = []string{
 	"migrations/009_add_remember_token_device.sql",
 	"migrations/010_add_remember_token_ip.sql",
 	"migrations/011_create_health_records.sql",
+	"migrations/012_add_post_health_date.sql",
 }

@@ -125,8 +125,8 @@ func (r *postRepository) FindByID(id int64) (*domain.Post, error) {
 // Create creates a new post
 func (r *postRepository) Create(post *domain.Post) error {
 	query := `
-		INSERT INTO posts (title, slug, content, status, tags, is_pinned, created_at, updated_at, published_at)
-		VALUES (:title, :slug, :content, :status, :tags, :is_pinned, :created_at, :updated_at, :published_at)
+		INSERT INTO posts (title, slug, content, status, tags, is_pinned, created_at, updated_at, published_at, health_date)
+		VALUES (:title, :slug, :content, :status, :tags, :is_pinned, :created_at, :updated_at, :published_at, :health_date)
 	`
 
 	result, err := r.db.NamedExec(query, post)
@@ -148,7 +148,7 @@ func (r *postRepository) Update(post *domain.Post) error {
 	query := `
 		UPDATE posts
 		SET title = :title, slug = :slug, content = :content, status = :status,
-		    tags = :tags, is_pinned = :is_pinned, updated_at = :updated_at, published_at = :published_at
+		    tags = :tags, is_pinned = :is_pinned, updated_at = :updated_at, published_at = :published_at, health_date = :health_date
 		WHERE id = :id
 	`
 
