@@ -29,7 +29,8 @@ goblogはGoで書かれたシンプルなブログシステムです。公開ペ
 - Remember me（短命セッション+長命 remember token、SQLite 保存、SHA-256 ハッシュ、selector+raw 分離、記事を表示する公開ページ（トップ / 記事詳細 / タグ別一覧）と `/auth/me` で自動復元）
 - 記事リアクション（匿名読者が複数絵文字でリアクション、1記事・1絵文字につき1回、Cookie 重複防止、件数は SSR + reacted 状態は JS で付与。記事詳細・トップ・タグ別一覧で表示し、その場でトグル可能。絵文字の解釈は読者に委ねるため label は UI 非表示）。管理画面 (`/admin/reactions`) で絵文字マスタを作成・編集・有効/無効・条件付き物理削除(件数0かつ非seedのみ)できる。
 - ログイン中の端末管理（管理画面 `/admin/devices` で remember_token ベースの永続端末一覧＋保持OFFの一時セッションを併記。`mileusna/useragent` で UA から端末/ブラウザを導出、IP 表示。現在の端末に「この端末」バッジを付け個別失効は不可、非現端末の個別失効と「他の端末をすべてログアウト」に対応。remember 端末失効時は紐付くアクティブセッションも巻き添えで失効させ確実にログアウト）
-- Health Planet 連携（タニタ Health Planet API から体重・体脂肪率・血圧・脈拍を毎日 0:00 JST に取得し `health_records` へ冪等 upsert。`HEALTHPLANET_ENABLED` でゲート（デフォルト無効・無効時は同期 no-op / 管理画面 UI 非表示 / API ルート未登録）。OAuth 認可は管理画面 `/admin/healthplanet` から（redirect → `/admin/healthplanet/success` → 明示ボタンで code 交換。自動交換しないのは攻撃者の code を踏ませる紐付け攻撃の防止）。日次同期は `cmd/hpsync run` + systemd timer 常設。CLI フォールバック `hpsync auth`（success.html + コピペ）あり。30日窓取得で手入力の遅延登録も吸収。トークンは DB 1行テーブルに平文保存・30日有効・リフレッシュでローテーションなし（実機検証済み）・失効7日前から exit≠0 で警告。手順書: docs/HEALTHPLANET.md。ブログ上での表示は未実装）
+- Health Planet 連携（タニタ Health Planet API から体重・体脂肪率・血圧・脈拍を毎日 0:00 JST に取得し `health_records` へ冪等 upsert。`HEALTHPLANET_ENABLED` でゲート（デフォルト無効・無効時は同期 no-op / 管理画面 UI 非表示 / API ルート未登録）。OAuth 認可は管理画面 `/admin/healthplanet` から（redirect → `/admin/healthplanet/success` → 明示ボタンで code 交換。自動交換しないのは攻撃者の code を踏ませる紐付け攻撃の防止）。日次同期は `cmd/hpsync run` + systemd timer 常設。CLI フォールバック `hpsync auth`（success.html + コピペ）あり。30日窓取得で手入力の遅延登録も吸収。トークンは DB 1行テーブルに平文保存・30日有効・リフレッシュでローテーションなし（実機検証済み）・失効7日前から exit≠0 で警告。手順書: docs/HEALTHPLANET.md）
+- 健康データ表示（`/health` で体重・体脂肪率・血圧・脈拍の折れ線グラフを SSR 表示。サーバーサイド SVG 生成（`internal/healthchart`、JS 依存なし）、`?range=30|90|365|all` の期間切替（デフォルト90・不正値 silent fallback）、日単位平均に集約。nav に「Healthcare」リンク。記事は `posts.health_date`（YYYY-MM-DD、エディタで指定・空で解除）で1日と紐付き、その日の日平均バッジ（体重/血圧/脈拍/体脂肪率、ラベル文字）をリアクション隣接のフッター部に詳細+一覧で表示（バッチ取得で N+1 なし・データ無し日は非表示）。丸めはサービス層で一元化（体重・体脂肪率 小数1桁、血圧・脈拍 整数）し、グラフとバッジの数値が一致する。`HEALTHPLANET_ENABLED` 無効時は /health 404・nav とバッジ非表示・エディタフィールド非表示。日付は全経路 YYYY-MM-DD 文字列で扱い time.Time スキャンを回避）
 
 🚧 **計画中:**
 - RSS フィード
@@ -80,6 +81,7 @@ Database (SQLite)
     handlers_reaction_admin.go # リアクション種別管理APIハンドラー（認証+CSRF）
     handlers_device.go    # ログイン中の端末一覧・失効ハンドラー（認証+CSRF）
     handlers_healthplanet.go # Health Planet 管理APIハンドラー（status / auth-url / exchange）
+    handlers_health_page.go # /health SSR ハンドラー（range 切替・SVG 埋め込み）
     reaction_middleware.go # X-Requested-With 検証ミドルウェア
     client_ip.go       # 信頼プロキシ考慮の client IP 抽出（共有）
     ratelimiter.go     # IP 単位レートリミッタ
@@ -93,6 +95,7 @@ Database (SQLite)
     device_service.go    # ログイン中の端末のビジネスロジック（一覧マージ・失効・UAパース）
     health_sync_service.go   # 日次同期ロジック（トークン更新・取得・upsert・失効警告）
     health_planet_admin_service.go # 管理画面向け OAuth フロー（認可 URL 生成・code 交換・状態確認）
+    health_display_service.go # /health・記事バッジ向け日次集約（丸め一元化）
   /repo/               # データアクセス
     post_repo.go
     post_view_repo.go      # 閲覧記録
@@ -118,6 +121,8 @@ Database (SQLite)
     fetcher.go
   /healthplanet/       # Health Planet API クライアント
     client.go          # OAuth・innerscan・sphygmomanometer フェッチャー
+  /healthchart/        # 健康グラフの SVG 生成（JS 依存なし）
+    chart.go
   /view/               # ビュー関連
     templates/         # HTMLテンプレート
       layout.html
@@ -126,6 +131,7 @@ Database (SQLite)
       tags.html
       tag_posts.html
       notfound.html
+      health.html       # /health ページ（グラフ4枚 + 期間切替）
     static/
       js/
         reactions.js   # リアクションボタンの JS（reacted 状態付与・トグル）
@@ -141,6 +147,7 @@ initschema.go          # InitSchema: マイグレーション + reaction seed �
   006_add_post_views.sql
   008_create_reactions.sql
   011_create_health_records.sql # health_records + healthplanet_tokens テーブル
+  012_add_post_health_date.sql # posts.health_date 追加
 
 /web-admin/            # React SPA 管理画面
   /src/
@@ -294,6 +301,7 @@ func (m *mockPostRepository) FindAll(status *domain.PostStatus, limit, offset in
 - `GET /posts/{slug}` - 記事詳細
 - `GET /tags` - タグ一覧
 - `GET /tags/{tag}` - タグ別記事一覧
+- `GET /health` - 健康データグラフ（体重・体脂肪率・血圧・脈拍。期間切替 `?range=`。`HEALTHPLANET_ENABLED=true` のときのみ登録）
 
 ### 管理画面（SPA）
 - `GET /admin` - SPA入口
@@ -377,6 +385,7 @@ POST /api/v1/auth/login (JSON)
   - `Tags`: カンマ区切り文字列（非正規化）
   - `IsPinned`: ヘッダーにピン留め表示
   - `ViewCount`: 閲覧回数（`db:"-"`、post_viewsテーブルからサービス層で付与）
+  - `HealthDate` / `HealthSummary`: `HealthDate`（`*string`、YYYY-MM-DD）で紐付いた日の健康データ日平均。`HealthSummary`は`db:"-"`でハンドラーが付与
 - `User`: 認証ユーザー
   - `PasswordHash`: bcryptハッシュ（JSON出力時は`json:"-"`で除外）
 
@@ -417,7 +426,7 @@ POST /api/v1/auth/login (JSON)
 - マイグレーションは起動時に自動実行（`IF NOT EXISTS`で冪等性を確保）
 - トランザクションはリポジトリ層で管理
 - **スキーマ**:
-  - `posts`: 記事データ（id, title, slug, content, status, tags, is_pinned, created_at, updated_at, published_at）
+  - `posts`: 記事データ（id, title, slug, content, status, tags, is_pinned, health_date, created_at, updated_at, published_at）。`health_date`（migration 012）は `/health` の日平均バッジと紐付ける YYYY-MM-DD 文字列（nullable、エディタで指定・空で解除）
   - `users`: ユーザーデータ（id, username, password_hash, created_at, updated_at）
   - `ogp_cache`: OGPメタ情報キャッシュ（url, title, description, image, local_image, expires_at）
   - `post_views`: 閲覧記録（post_id, viewed_at, ip_address, user_agent）※ON DELETE CASCADE。`ip_address` は信頼プロキシ解決済みの client IP（`clientIP(r, trustedProxies)`、ログイン/リアクションと同じ）で、IP+UA の 30 分重複排除に使う。nginx 背後でも実クライアント単位で dedup される。プライバシー対策として、dedup ウィンドウ経過後（既定 1 時間 = `IPRetentionWindow`、`StartPostViewCleanupLoop` が定期実行）に `ip_address` / `user_agent` を空文字へスクラブする。行は削除しないので累計PV（`COUNT(*)`）は不変、閲覧者の生IP/UAは必要な間だけ保持される。なお起動時スクラブは無くループ初回発火も1間隔後（remember-token sweep と同じ）なので、実効保持 ≈ `IPRetentionWindow` + ループ間隔
