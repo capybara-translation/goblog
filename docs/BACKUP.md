@@ -138,10 +138,16 @@ aws iam create-access-key --user-name goblog-backup
 AWS 完結の dead-man's switch を作る。**SNS（通知役）と CloudWatch Alarm（検知役）はセット**で必要。
 
 ```bash
-# (a) 通知先 SNS トピックを作成し、メールを購読（届いた確認メールで Confirm する）
+# (a) 通知先 SNS トピックを作成し、メールを購読
 TOPIC_ARN=$(aws sns create-topic --name goblog-backup-alerts --query TopicArn --output text)
 aws sns subscribe --topic-arn "$TOPIC_ARN" --protocol email \
   --notification-endpoint you@example.com
+
+# 確認メールが届くが、「Confirm subscription」リンクはクリックせず、
+# リンク URL 内の Token= パラメータの値をコピーして CLI で確認する:
+aws sns confirm-subscription --topic-arn "$TOPIC_ARN" \
+  --token "<メール内リンクの Token= の値>" \
+  --authenticate-on-unsubscribe true
 
 # (b) 「24h 以内に成功 heartbeat が来ない／失敗(0)が来た」で発報するアラーム。
 #     TreatMissingData=breaching が「そもそも走らなかった」を捉える肝。
@@ -157,6 +163,8 @@ aws cloudwatch put-metric-alarm \
 ```
 
 > メトリクスは `--unit Count`、period は 1 日（86400 秒）。`Minimum < 1` なので「失敗(0)」でも「データ点なし」でも発報し、復旧（次回成功で 1）すると OK 通知が届く。リージョンは env と揃えること（SNS/CloudWatch/メトリクスは同一リージョン）。
+
+> **`--authenticate-on-unsubscribe true` を使う理由**: SNS の通知メール末尾（および Confirm 完了ページ）の unsubscribe リンクは確認画面なしの GET 一発で購読解除される。メールプロバイダのリンクスキャンがこれを自動アクセスするだけで解除が成立し、監視が黙って止まる（Health Planet 監視の構築時に実際に発生）。CLI 確認でこのフラグを立てると解除に AWS 認証が必須になる。メールのリンクで Confirm 済みの既存購読は `aws sns get-subscription-attributes` の `ConfirmationWasAuthenticated` が `false` になっているので、気になる場合は unsubscribe → 上記の CLI 方式で再購読するとよい。
 
 ### 5. 設定ファイルを配置
 
