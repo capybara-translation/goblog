@@ -171,7 +171,10 @@ func Render(c Chart) (template.HTML, error) {
 		} else {
 			d = from.Add(time.Duration(float64(i) / float64(tickCount-1) * totalDays * 24 * float64(time.Hour)))
 		}
-		x := padL + float64(i)/float64(tickCount-1)*plotW
+		x := padL
+		if tickCount > 1 {
+			x = padL + float64(i)/float64(tickCount-1)*plotW
+		}
 		label := fmt.Sprintf("%d/%d", int(d.Month()), d.Day())
 		if longSpan {
 			label = fmt.Sprintf("%d/%d", d.Year(), int(d.Month()))

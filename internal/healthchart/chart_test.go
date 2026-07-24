@@ -3,6 +3,7 @@ package healthchart
 import (
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -119,6 +120,7 @@ func TestNiceTicks(t *testing.T) {
 }
 
 // x 軸の重複ラベル: 短い span（1日）では、複数のティックが同じ日付をレンダリングしないこと
+// また、x-軸ティック位置がすべて有限値で、スケール範囲内であることを検証する
 func TestRender_XAxisNoDuplicatesOnShortSpan_SingleDay(t *testing.T) {
 	c := Chart{
 		Title: "体重", Unit: "kg", From: "2026-07-15", To: "2026-07-15",
@@ -132,18 +134,37 @@ func TestRender_XAxisNoDuplicatesOnShortSpan_SingleDay(t *testing.T) {
 	}
 	s := string(svg)
 
-	// Extract all x-axis tick labels (e.g., "7/15")
-	tickRe := regexp.MustCompile(`<text x="[^"]*" y="232" font-size="10" fill="#737373" text-anchor="middle">([^<]+)</text>`)
+	// Extract all x-axis tick labels with their x position (e.g., x="48.5" y="232" ... "7/15")
+	tickRe := regexp.MustCompile(`<text x="([^"]*)" y="232" font-size="10" fill="#737373" text-anchor="middle">([^<]+)</text>`)
 	matches := tickRe.FindAllStringSubmatch(s, -1)
 	if len(matches) == 0 {
 		t.Error("no x-axis tick labels found")
 		return
 	}
 
-	// Collect unique labels
+	// Verify each tick position is finite and within bounds [padL, chartW-padR]
+	const padL, chartW, padR = 48.0, 720.0, 12.0
+	xMin, xMax := padL, chartW-padR
+
+	var xs []float64
 	labelCounts := make(map[string]int)
 	for _, m := range matches {
-		labelCounts[m[1]]++
+		xStr, label := m[1], m[2]
+		x, err := strconv.ParseFloat(xStr, 64)
+		if err != nil {
+			t.Errorf("failed to parse x=%q as float64: %v", xStr, err)
+			continue
+		}
+		// Verify x is finite
+		if math.IsNaN(x) || math.IsInf(x, 0) {
+			t.Errorf("tick position x=%q is not finite (NaN/Inf), label=%q", xStr, label)
+		}
+		// Verify x is within bounds
+		if x < xMin || x > xMax {
+			t.Errorf("tick position x=%g is out of bounds [%g, %g], label=%q", x, xMin, xMax, label)
+		}
+		xs = append(xs, x)
+		labelCounts[label]++
 	}
 
 	// For a single day, exactly one unique label should appear
