@@ -50,13 +50,13 @@ const (
 	dateFmt = "2006-01-02"
 )
 
-// Series colors: first series blue, second red (blood pressure: 最高=red is
-// placed second by the caller? No — caller passes 最高 first; keep 最高 red).
+// Series colors: index 0 red (blood pressure 最高 comes first), index 1 blue.
 var seriesColors = [2]string{"#dc2626" /* red-600 */, "#2563eb" /* blue-600 */}
 
 func parseDay(s string) (time.Time, error) { return time.Parse(dateFmt, s) }
 
-// formatValue renders 72.5 as "72.5" and 71.0 as "71".
+// formatValue renders 72.5 as "72.5" and 71.0 as "71". Values are expected
+// pre-rounded by the display service; this function does not cap precision.
 func formatValue(v float64) string {
 	return strconv.FormatFloat(v, 'f', -1, 64)
 }
@@ -102,7 +102,13 @@ func Render(c Chart) (template.HTML, error) {
 	if err != nil {
 		return "", fmt.Errorf("healthchart: bad To %q: %w", c.To, err)
 	}
-	totalDays := to.Sub(from).Hours() / 24
+	if to.Before(from) {
+		return "", fmt.Errorf("healthchart: From %q is after To %q", c.From, c.To)
+	}
+	daysSpan := to.Sub(from).Hours() / 24
+	// For tick count: 0 days (same day) → 1 tick, 1 day diff → 2 ticks, etc.
+	minTickCount := int(daysSpan) + 1
+	totalDays := daysSpan
 	if totalDays < 1 {
 		totalDays = 1
 	}
@@ -151,10 +157,20 @@ func Render(c Chart) (template.HTML, error) {
 	}
 
 	// x tick labels: ~6 evenly spaced dates; M/D for spans <= 120 days, Y/M beyond.
+	// For short spans, reduce tickCount to avoid duplicate date labels.
 	tickCount := 6
+	if minTickCount < 6 {
+		tickCount = minTickCount
+	}
 	longSpan := totalDays > 120
 	for i := 0; i < tickCount; i++ {
-		d := from.Add(time.Duration(float64(i) / float64(tickCount-1) * totalDays * 24 * float64(time.Hour)))
+		var d time.Time
+		if tickCount == 1 {
+			// Single tick: place at the left edge (From date).
+			d = from
+		} else {
+			d = from.Add(time.Duration(float64(i) / float64(tickCount-1) * totalDays * 24 * float64(time.Hour)))
+		}
 		x := padL + float64(i)/float64(tickCount-1)*plotW
 		label := fmt.Sprintf("%d/%d", int(d.Month()), d.Day())
 		if longSpan {
@@ -181,7 +197,7 @@ func Render(c Chart) (template.HTML, error) {
 		for _, p := range s.Points {
 			x, _ := xFor(p.Date)
 			fmt.Fprintf(&b, `<circle cx="%.1f" cy="%.1f" r="%g" fill="%s"><title>%s: %s%s</title></circle>`,
-				x, yFor(p.Value), dotR, color, p.Date, formatValue(p.Value), template.HTMLEscapeString(c.Unit))
+				x, yFor(p.Value), dotR, color, template.HTMLEscapeString(p.Date), formatValue(p.Value), template.HTMLEscapeString(c.Unit))
 		}
 	}
 

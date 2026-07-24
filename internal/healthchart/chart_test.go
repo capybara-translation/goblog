@@ -117,3 +117,101 @@ func TestNiceTicks(t *testing.T) {
 		}
 	}
 }
+
+// x 軸の重複ラベル: 短い span（1日）では、複数のティックが同じ日付をレンダリングしないこと
+func TestRender_XAxisNoDuplicatesOnShortSpan_SingleDay(t *testing.T) {
+	c := Chart{
+		Title: "体重", Unit: "kg", From: "2026-07-15", To: "2026-07-15",
+		Series: []Series{{Label: "体重", Points: []Point{
+			{Date: "2026-07-15", Value: 72.5},
+		}}},
+	}
+	svg, err := Render(c)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	s := string(svg)
+
+	// Extract all x-axis tick labels (e.g., "7/15")
+	tickRe := regexp.MustCompile(`<text x="[^"]*" y="232" font-size="10" fill="#737373" text-anchor="middle">([^<]+)</text>`)
+	matches := tickRe.FindAllStringSubmatch(s, -1)
+	if len(matches) == 0 {
+		t.Error("no x-axis tick labels found")
+		return
+	}
+
+	// Collect unique labels
+	labelCounts := make(map[string]int)
+	for _, m := range matches {
+		labelCounts[m[1]]++
+	}
+
+	// For a single day, exactly one unique label should appear
+	if len(labelCounts) != 1 {
+		t.Errorf("x-axis labels have duplicates: %v", labelCounts)
+	}
+
+	// The label should appear exactly once
+	for label, count := range labelCounts {
+		if count != 1 {
+			t.Errorf("label %q appears %d times, want 1", label, count)
+		}
+	}
+}
+
+// x 軸の重複ラベル: 3 日間の span では、複数のティックが同じ日付をレンダリングしないこと
+func TestRender_XAxisNoDuplicatesOnShortSpan_ThreeDays(t *testing.T) {
+	c := Chart{
+		Title: "体重", Unit: "kg", From: "2026-07-13", To: "2026-07-15",
+		Series: []Series{{Label: "体重", Points: []Point{
+			{Date: "2026-07-13", Value: 72.5},
+			{Date: "2026-07-14", Value: 72.0},
+			{Date: "2026-07-15", Value: 71.5},
+		}}},
+	}
+	svg, err := Render(c)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	s := string(svg)
+
+	// Extract all x-axis tick labels
+	tickRe := regexp.MustCompile(`<text x="[^"]*" y="232" font-size="10" fill="#737373" text-anchor="middle">([^<]+)</text>`)
+	matches := tickRe.FindAllStringSubmatch(s, -1)
+	if len(matches) == 0 {
+		t.Error("no x-axis tick labels found")
+		return
+	}
+
+	// Collect all label texts in order
+	var labels []string
+	for _, m := range matches {
+		labels = append(labels, m[1])
+	}
+
+	// Check for duplicate labels
+	seen := make(map[string]bool)
+	for _, label := range labels {
+		if seen[label] {
+			t.Errorf("duplicate label %q found in: %v", label, labels)
+		}
+		seen[label] = true
+	}
+}
+
+// From <= To validation: Render should error when From is after To
+func TestRender_RejectReversedRange(t *testing.T) {
+	c := Chart{
+		Title: "体重", Unit: "kg", From: "2026-07-31", To: "2026-07-01",
+		Series: []Series{{Label: "体重", Points: []Point{
+			{Date: "2026-07-15", Value: 72.5},
+		}}},
+	}
+	_, err := Render(c)
+	if err == nil {
+		t.Error("Render with From > To should error")
+	}
+	if !strings.Contains(err.Error(), "From") || !strings.Contains(err.Error(), "after To") {
+		t.Errorf("error message should mention From/To/after: %v", err)
+	}
+}
