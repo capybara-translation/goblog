@@ -44,6 +44,7 @@ describe('PostList', () => {
       updated_at: '2024-01-05T00:00:00Z',
       published_at: '2024-01-02T00:00:00Z',
       view_count: 0,
+      health_date: null,
     },
     {
       id: 2,
@@ -57,6 +58,7 @@ describe('PostList', () => {
       updated_at: '2024-01-06T00:00:00Z',
       published_at: null,
       view_count: 0,
+      health_date: null,
     },
     {
       id: 3,
@@ -70,6 +72,7 @@ describe('PostList', () => {
       updated_at: '2024-01-07T00:00:00Z',
       published_at: '2024-01-05T00:00:00Z',
       view_count: 0,
+      health_date: null,
     },
   ]
 
@@ -285,6 +288,7 @@ describe('PostList', () => {
           updated_at: '2024-01-01T00:00:00Z',
           published_at: '2024-01-01T00:00:00Z',
       view_count: 0,
+          health_date: null,
         },
         {
           id: 2,
@@ -298,6 +302,7 @@ describe('PostList', () => {
           updated_at: '2024-01-02T00:00:00Z',
           published_at: '2024-01-02T00:00:00Z',
       view_count: 0,
+          health_date: null,
         },
       ]
 
@@ -325,6 +330,7 @@ describe('PostList', () => {
           updated_at: '2024-01-01T00:00:00Z',
           published_at: '2024-01-01T00:00:00Z',
       view_count: 0,
+          health_date: null,
         },
         {
           id: 2,
@@ -338,6 +344,7 @@ describe('PostList', () => {
           updated_at: '2024-01-02T00:00:00Z',
           published_at: '2024-01-02T00:00:00Z',
       view_count: 0,
+          health_date: null,
         },
       ]
 
@@ -500,6 +507,7 @@ describe('PostList', () => {
         updated_at: '2024-01-01T00:00:00Z',
         published_at: '2024-01-01T00:00:00Z',
       view_count: 0,
+        health_date: null,
       }))
       return { posts, total: count }
     }
@@ -821,6 +829,7 @@ describe('PostList', () => {
           updated_at: '2024-01-01T00:00:00Z',
           published_at: '2024-01-01T00:00:00Z',
       view_count: 0,
+          health_date: null,
         }))
         return { posts, total: count }
       }
@@ -950,6 +959,7 @@ describe('PostList', () => {
           updated_at: '2024-12-25T15:30:00Z',
           published_at: '2024-12-25T15:30:00Z',
       view_count: 0,
+          health_date: null,
         },
       ]
 
@@ -1279,6 +1289,7 @@ describe('PostList', () => {
         updated_at: '2024-01-01T00:00:00Z',
         published_at: '2024-01-01T00:00:00Z',
         view_count: 0,
+        health_date: null,
         reactions: [
           { id: 1, emoji: '👍', label: 'いいね', count: 3, is_active: true },
           { id: 5, emoji: '🤔', label: 'なるほど', count: 2, is_active: false },

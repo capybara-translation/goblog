@@ -49,6 +49,7 @@ describe('PostEdit', () => {
     updated_at: '2024-01-01T00:00:00Z',
     published_at: null,
     view_count: 0,
+    health_date: null,
   }
 
   const mockPublishedPost: Post = {
@@ -63,6 +64,7 @@ describe('PostEdit', () => {
     updated_at: '2024-01-01T00:00:00Z',
     published_at: '2024-01-01T10:00:00Z',
     view_count: 42,
+    health_date: null,
   }
 
   beforeEach(() => {
@@ -809,6 +811,7 @@ describe('PostEdit', () => {
       updated_at: '2024-01-01T00:00:00Z',
       published_at: '2024-01-01T00:00:00Z',
       view_count: 0,
+      health_date: null,
       reactions: [
         { id: 1, emoji: '👍', label: 'いいね', count: 4, is_active: true },
         { id: 5, emoji: '🤔', label: 'なるほど', count: 1, is_active: false },
