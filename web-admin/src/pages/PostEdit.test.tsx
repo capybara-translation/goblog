@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { PostEdit } from './PostEdit'
@@ -23,6 +23,7 @@ vi.mock('../api/client', () => ({
     deletePost: vi.fn(),
     getTags: vi.fn(),
     previewMarkdown: vi.fn().mockResolvedValue(''),
+    getHealthPlanetStatus: vi.fn(),
   },
 }))
 
@@ -77,6 +78,8 @@ describe('PostEdit', () => {
       { name: 'React', count: 3 },
       { name: 'Testing', count: 2 },
     ])
+    // Default: healthplanet integration disabled unless a test overrides it.
+    vi.mocked(apiClient.getHealthPlanetStatus).mockResolvedValue({ enabled: false })
   })
 
   afterEach(() => {
@@ -426,6 +429,7 @@ describe('PostEdit', () => {
           content: '',
           tags: 'React',
           is_pinned: false,
+          health_date: null,
         })
       })
 
@@ -536,6 +540,7 @@ describe('PostEdit', () => {
           content: 'Draft content',
           tags: 'Go, Testing',
           is_pinned: false,
+          health_date: null,
         })
       })
 
@@ -884,6 +889,63 @@ describe('PostEdit', () => {
       await waitFor(() => {
         expect(screen.getByText('Failed to save')).toBeInTheDocument()
       })
+    })
+  })
+
+  describe('health_date field', () => {
+    it('hides the field when healthplanet is disabled', async () => {
+      vi.mocked(apiClient.getHealthPlanetStatus).mockResolvedValue({ enabled: false })
+      await renderCreateMode()
+
+      await waitFor(() => {
+        expect(screen.queryByLabelText('健康データの日付')).not.toBeInTheDocument()
+      })
+    })
+
+    it('shows the field when enabled and sends the date on create', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getHealthPlanetStatus).mockResolvedValue({ enabled: true })
+      vi.mocked(apiClient.createPost).mockResolvedValue(mockDraftPost)
+      await renderCreateMode()
+
+      const field = await screen.findByLabelText('健康データの日付')
+      fireEvent.change(field, { target: { value: '2026-07-20' } })
+
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+
+      await waitFor(() => {
+        expect(apiClient.createPost).toHaveBeenCalledWith(
+          expect.objectContaining({ health_date: '2026-07-20' })
+        )
+      })
+    })
+
+    it('sends null when the field is left empty', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.getHealthPlanetStatus).mockResolvedValue({ enabled: true })
+      vi.mocked(apiClient.createPost).mockResolvedValue(mockDraftPost)
+      await renderCreateMode()
+
+      await screen.findByLabelText('健康データの日付')
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+
+      await waitFor(() => {
+        expect(apiClient.createPost).toHaveBeenCalledWith(
+          expect.objectContaining({ health_date: null })
+        )
+      })
+    })
+
+    it('seeds the field from the loaded post in edit mode', async () => {
+      vi.mocked(apiClient.getHealthPlanetStatus).mockResolvedValue({ enabled: true })
+      vi.mocked(apiClient.getPost).mockResolvedValue({
+        ...mockDraftPost,
+        health_date: '2026-07-15',
+      })
+      await renderEditMode(1)
+
+      const field = await screen.findByLabelText('健康データの日付')
+      expect(field).toHaveValue('2026-07-15')
     })
   })
 })

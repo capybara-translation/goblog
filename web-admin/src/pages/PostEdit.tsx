@@ -40,6 +40,8 @@ export function PostEdit() {
   const [content, setContent] = useState('');
   const [tags, setTags] = useState('');
   const [isPinned, setIsPinned] = useState(false);
+  const [healthDate, setHealthDate] = useState('');
+  const [hpEnabled, setHpEnabled] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -49,6 +51,15 @@ export function PostEdit() {
       loadPost(Number(id));
     }
   }, [id, isEditMode]);
+
+  useEffect(() => {
+    // Feature-flagged: only show the health-date field when the server
+    // says the integration is enabled. Errors just leave the field hidden.
+    apiClient
+      .getHealthPlanetStatus()
+      .then((s) => setHpEnabled(s.enabled))
+      .catch(() => {});
+  }, []);
 
   // Save handler (shared between form submit and shortcut key)
   const performSave = useCallback(async () => {
@@ -71,6 +82,7 @@ export function PostEdit() {
           content,
           tags,
           is_pinned: isPinned,
+          health_date: healthDate === '' ? null : healthDate,
         });
         setPost((prev) => ({ ...updated, reactions: prev?.reactions }));
         await showAlert('Post updated');
@@ -81,6 +93,7 @@ export function PostEdit() {
           content,
           tags,
           is_pinned: isPinned,
+          health_date: healthDate === '' ? null : healthDate,
         });
         await showAlert('Post created');
         navigate(`/posts/${created.id}/edit`);
@@ -90,7 +103,7 @@ export function PostEdit() {
     } finally {
       setIsSaving(false);
     }
-  }, [title, slug, content, tags, isPinned, isSaving, isEditMode, id, navigate, showAlert]);
+  }, [title, slug, content, tags, isPinned, healthDate, isSaving, isEditMode, id, navigate, showAlert]);
 
   const loadPost = async (postId: number) => {
     try {
@@ -103,6 +116,7 @@ export function PostEdit() {
       setContent(data.content);
       setTags(data.tags);
       setIsPinned(data.is_pinned);
+      setHealthDate(data.health_date ?? '');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load post');
     } finally {
@@ -350,6 +364,28 @@ export function PostEdit() {
             Pinned
           </label>
         </div>
+
+        {hpEnabled && (
+          <div>
+            <label
+              htmlFor="health-date"
+              className="block text-sm font-medium text-primary-700 mb-1"
+            >
+              健康データの日付
+            </label>
+            <input
+              id="health-date"
+              type="date"
+              value={healthDate}
+              onChange={(e) => setHealthDate(e.target.value)}
+              disabled={isSaving}
+              className="px-3 py-2 border border-primary-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            />
+            <p className="mt-1 text-sm text-primary-500">
+              指定した日の体重・血圧が記事に表示されます（空欄で解除）
+            </p>
+          </div>
+        )}
 
         <div>
           <label
