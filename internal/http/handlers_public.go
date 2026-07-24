@@ -247,6 +247,18 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 		"formatDateWithTZ":       formatDateWithTZ,
 		"formatDateDetailWithTZ": formatDateDetailWithTZ,
 		"highlightQuery":         highlightQuery,
+		"healthValue1": func(v *float64) string {
+			if v == nil {
+				return ""
+			}
+			return strconv.FormatFloat(*v, 'f', 1, 64)
+		},
+		"healthValue0": func(v *float64) string {
+			if v == nil {
+				return ""
+			}
+			return strconv.FormatFloat(*v, 'f', 0, 64)
+		},
 		// Closure-based markdown functions that use the OGP-enabled converter
 		"renderMarkdown": func(content string) template.HTML {
 			htmlContent, err := converter.Convert(content)
@@ -350,6 +362,18 @@ func NewPublicHandlersFromPath(postService service.PostService, postViewService 
 		"formatDateWithTZ":       formatDateWithTZ,
 		"formatDateDetailWithTZ": formatDateDetailWithTZ,
 		"highlightQuery":         highlightQuery,
+		"healthValue1": func(v *float64) string {
+			if v == nil {
+				return ""
+			}
+			return strconv.FormatFloat(*v, 'f', 1, 64)
+		},
+		"healthValue0": func(v *float64) string {
+			if v == nil {
+				return ""
+			}
+			return strconv.FormatFloat(*v, 'f', 0, 64)
+		},
 		"renderMarkdown": func(content string) template.HTML {
 			htmlContent, err := converter.Convert(content)
 			if err != nil {
@@ -407,6 +431,34 @@ func NewPublicHandlersFromPath(postService service.PostService, postViewService 
 		tagPostsTemplate:  tagPostsTemplate,
 		notFoundTemplate:  notFoundTemplate,
 		healthTemplate:    healthTemplate,
+	}
+}
+
+// attachHealthSummaries fills Post.HealthSummary for posts that have a
+// HealthDate with data. One batched query per page (mirrors AttachReactions).
+// No-op when the Health Planet integration is disabled.
+func (h *PublicHandlers) attachHealthSummaries(posts []*domain.Post) {
+	if h.healthDisplay == nil || len(posts) == 0 {
+		return
+	}
+	dates := make([]string, 0, len(posts))
+	for _, p := range posts {
+		if p.HealthDate != nil {
+			dates = append(dates, *p.HealthDate)
+		}
+	}
+	if len(dates) == 0 {
+		return
+	}
+	summaries, err := h.healthDisplay.SummariesForDates(dates)
+	if err != nil {
+		log.Printf("warning: failed to attach health summaries: %v", err)
+		return // バッジは装飾。ページ全体は落とさない
+	}
+	for _, p := range posts {
+		if p.HealthDate != nil {
+			p.HealthSummary = summaries[*p.HealthDate] // 無い日付は nil のまま
+		}
 	}
 }
 
@@ -500,6 +552,7 @@ func (h *PublicHandlers) HandleHome(w http.ResponseWriter, r *http.Request) {
 			log.Printf("failed to attach reactions: %v", err)
 		}
 	}
+	h.attachHealthSummaries(posts)
 
 	data := map[string]any{
 		"SiteTitle":     h.blogTitle,
@@ -572,6 +625,7 @@ func (h *PublicHandlers) HandlePostDetail(w http.ResponseWriter, r *http.Request
 			log.Printf("failed to attach reactions for post %d: %v", post.ID, err)
 		}
 	}
+	h.attachHealthSummaries([]*domain.Post{post})
 
 	data := map[string]any{
 		"SiteTitle":     h.blogTitle,
@@ -691,6 +745,7 @@ func (h *PublicHandlers) HandleTagPosts(w http.ResponseWriter, r *http.Request) 
 			log.Printf("failed to attach reactions: %v", err)
 		}
 	}
+	h.attachHealthSummaries(posts)
 
 	data := map[string]any{
 		"SiteTitle":     h.blogTitle,

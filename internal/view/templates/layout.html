@@ -129,3 +129,12 @@
     {{end}}
 </div>
 {{end}}
+
+{{define "healthBadges"}}{{with .HealthSummary}}
+<div class="mt-4 pt-4 border-t border-primary-200 flex flex-wrap gap-x-3 gap-y-1 text-sm font-sans text-primary-500">
+    {{if .Weight}}<span>体重 {{healthValue1 .Weight}}kg</span>{{end}}
+    {{if and .Systolic .Diastolic}}<span>血圧 {{healthValue0 .Systolic}}/{{healthValue0 .Diastolic}}</span>{{end}}
+    {{if .Pulse}}<span>脈拍 {{healthValue0 .Pulse}}bpm</span>{{end}}
+    {{if .BodyFat}}<span>体脂肪率 {{healthValue1 .BodyFat}}%</span>{{end}}
+</div>
+{{end}}{{end}}

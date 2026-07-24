@@ -1,6 +1,7 @@
 package http
 
 import (
+	"bytes"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -60,5 +61,63 @@ func TestHandleHealthPage_RendersChartsAndRangeLinks(t *testing.T) {
 	// 体脂肪率・脈拍はデータ 0 件 → 空状態メッセージ
 	if !strings.Contains(body, "データがありません") {
 		t.Error("empty-state message missing for metrics without data")
+	}
+}
+
+func TestAttachHealthSummaries(t *testing.T) {
+	h := newTestPublicHandlersWithHealth(t, service.NewHealthDisplayService(&fakeHealthRecordRepoForBadges{}))
+	hd := "2026-07-20"
+	noData := "2026-07-22"
+	posts := []*domain.Post{
+		{ID: 1, HealthDate: &hd},
+		{ID: 2, HealthDate: nil},
+		{ID: 3, HealthDate: &noData},
+	}
+	h.attachHealthSummaries(posts)
+
+	if posts[0].HealthSummary == nil || posts[0].HealthSummary.Weight == nil || *posts[0].HealthSummary.Weight != 72.1 {
+		t.Errorf("post 1 summary = %+v, want weight 72.1", posts[0].HealthSummary)
+	}
+	if posts[1].HealthSummary != nil {
+		t.Error("post without HealthDate should have nil summary")
+	}
+	if posts[2].HealthSummary != nil {
+		t.Error("post whose date has no data should have nil summary")
+	}
+}
+
+// fakeHealthRecordRepoForBadges: 2026-07-20 のみデータを返す
+type fakeHealthRecordRepoForBadges struct{ fakeHealthRecordRepo }
+
+func (f *fakeHealthRecordRepoForBadges) DailyAveragesByDates(dates []string) ([]repo.DailyAverage, error) {
+	return []repo.DailyAverage{{Date: "2026-07-20", Metric: domain.MetricWeight, Avg: 72.1}}, nil
+}
+
+func TestHealthBadges_Template(t *testing.T) {
+	h := newTestPublicHandlersWithHealth(t, service.NewHealthDisplayService(&fakeHealthRecordRepoForBadges{}))
+
+	render := func(p *domain.Post) string {
+		var buf bytes.Buffer
+		// homeTemplate は layout.html を含むセットなので healthBadges partial を持つ
+		if err := h.homeTemplate.ExecuteTemplate(&buf, "healthBadges", p); err != nil {
+			t.Fatalf("render healthBadges: %v", err)
+		}
+		return buf.String()
+	}
+
+	w, sys := 72.1, 119.0
+	full := &domain.Post{HealthSummary: &domain.HealthSummary{Weight: &w}}
+	if got := render(full); !strings.Contains(got, "体重 72.1kg") {
+		t.Errorf("weight badge missing: %q", got)
+	}
+
+	halfBP := &domain.Post{HealthSummary: &domain.HealthSummary{Systolic: &sys}} // Diastolic なし
+	if got := render(halfBP); strings.Contains(got, "血圧") {
+		t.Errorf("one-sided blood pressure must not render: %q", got)
+	}
+
+	none := &domain.Post{HealthSummary: nil}
+	if got := strings.TrimSpace(render(none)); got != "" {
+		t.Errorf("nil summary should render nothing, got %q", got)
 	}
 }
