@@ -114,7 +114,7 @@ func validatePostRequest(title, slug string, healthDate *string) error {
 
 	if healthDate != nil {
 		if _, err := time.Parse("2006-01-02", *healthDate); err != nil {
-			return fmt.Errorf("health_date must be YYYY-MM-DD")
+			return fmt.Errorf("health_date must be YYYY-MM-DD (send null to clear)")
 		}
 	}
 

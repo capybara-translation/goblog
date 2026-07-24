@@ -57,6 +57,14 @@ func roundFor(metric string, v float64) float64 {
 // Series returns the daily-average series for the requested range.
 // Unknown range values silently fall back to "90" (same convention as
 // POSTS_PER_PAGE). For "all", From is the earliest data date.
+//
+// The window boundaries are derived from time.Now() in the server process's
+// local TZ, and this is assumed to match the local calendar dates stored in
+// measured_at (production runs TZ=Asia/Tokyo, matching the Health Planet
+// account's locale). On a server configured with a different TZ, "today"'s
+// rows can be excluded from the window for up to the TZ offset — e.g. a UTC
+// server computing `to` a few hours before JST midnight would miss records
+// whose measured_at date, interpreted in JST, is already "today".
 func (s *HealthDisplayService) Series(rangeParam string) (*HealthSeries, error) {
 	applied := rangeParam
 	if _, ok := healthRangeDays[applied]; !ok && applied != "all" {

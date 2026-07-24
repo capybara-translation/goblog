@@ -72,6 +72,15 @@ func (r *sqliteHealthRecordRepository) Upsert(records []*domain.HealthRecord) er
 	return nil
 }
 
+// DailyAverages groups by date(measured_at), which is a function of the
+// indexed column rather than the column itself, so SQLite cannot use the
+// UNIQUE(measured_at, metric) index for this query — it's a full scan of
+// health_records. That's fine at personal-blog scale (thousands of rows,
+// daily inserts), but a future rewrite to a half-open range on measured_at
+// itself (e.g. `measured_at >= ? AND measured_at < ?`, letting the date
+// bounds be plain string prefixes given the fixed measuredAtFormat) would
+// let the index be used instead. DailyAveragesByDates below shares the same
+// date(measured_at) pattern and the same caveat.
 func (r *sqliteHealthRecordRepository) DailyAverages(fromDate, toDate string) ([]DailyAverage, error) {
 	var rows []DailyAverage
 	err := r.db.Select(&rows, `

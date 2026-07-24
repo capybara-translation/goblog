@@ -76,6 +76,26 @@ func TestHandleHealthPage_RendersChartsAndRangeLinks(t *testing.T) {
 	}
 }
 
+// range クエリ指定（デフォルト以外の URL バリエーション）は home の ?q/page と同様に
+// noindex にすべき — 同一データの別 URL が重複コンテンツとして評価されるのを防ぐ。
+func TestHandleHealthPage_NoIndexForNonDefaultRange(t *testing.T) {
+	h := newTestPublicHandlersWithHealth(t, service.NewHealthDisplayService(&fakeHealthRecordRepo{}))
+
+	reqDefault := httptest.NewRequest("GET", "/health", nil)
+	rrDefault := httptest.NewRecorder()
+	h.HandleHealthPage(rrDefault, reqDefault)
+	if strings.Contains(rrDefault.Body.String(), `name="robots" content="noindex,follow"`) {
+		t.Error("default /health (no range param) should not have noindex meta")
+	}
+
+	reqRange := httptest.NewRequest("GET", "/health?range=30", nil)
+	rrRange := httptest.NewRecorder()
+	h.HandleHealthPage(rrRange, reqRange)
+	if !strings.Contains(rrRange.Body.String(), `name="robots" content="noindex,follow"`) {
+		t.Error("/health?range=30 should have noindex meta")
+	}
+}
+
 func TestAttachHealthSummaries(t *testing.T) {
 	h := newTestPublicHandlersWithHealth(t, service.NewHealthDisplayService(&fakeHealthRecordRepoForBadges{}))
 	hd := "2026-07-20"

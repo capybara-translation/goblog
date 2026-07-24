@@ -270,3 +270,118 @@ func TestRender_RejectReversedRange(t *testing.T) {
 		t.Errorf("error message should mention From/To/after: %v", err)
 	}
 }
+
+// 有限だが極端に巨大な値: tick 計算 ((max-min)/4 等) が Inf/NaN にオーバーフローし、
+// 空 ticks への index out of range でパニックしないこと。空データ状態に倒す。
+func TestRender_HugeButFiniteValues_TwoExtremes(t *testing.T) {
+	c := Chart{Title: "体重", Unit: "kg", From: "2026-07-01", To: "2026-07-02",
+		Series: []Series{{Label: "体重", Points: []Point{
+			{Date: "2026-07-01", Value: -1.7e308},
+			{Date: "2026-07-02", Value: 1.7e308},
+		}}}}
+	if _, err := Render(c); !errors.Is(err, ErrNoData) {
+		t.Fatalf("err = %v, want ErrNoData", err)
+	}
+}
+
+// 有限だが極端に巨大な単一値: pad 加算が Inf にオーバーフローし NaN 座標の SVG
+// を出力しないこと。空データ状態に倒す。
+func TestRender_HugeButFiniteValue_Single(t *testing.T) {
+	c := Chart{Title: "体重", Unit: "kg", From: "2026-07-01", To: "2026-07-01",
+		Series: []Series{{Label: "体重", Points: []Point{
+			{Date: "2026-07-01", Value: 1.7e308},
+		}}}}
+	svg, err := Render(c)
+	if !errors.Is(err, ErrNoData) {
+		t.Fatalf("err = %v, want ErrNoData; svg=%s", err, svg)
+	}
+}
+
+// x 軸の重複ラベル: 長い span（Y/M ラベル、120日超）でも、6分割の等間隔ティックが
+// 同じ年月に収まって重複ラベルをレンダリングしないこと（短い span の tickCount
+// 削減とは別の重複パターン）。
+func TestRender_XAxisNoDuplicatesOnLongSpan_130Days(t *testing.T) {
+	c := Chart{
+		Title: "体重", Unit: "kg", From: "2026-01-01", To: "2026-05-11",
+		Series: []Series{{Label: "体重", Points: []Point{
+			{Date: "2026-01-01", Value: 72.5},
+			{Date: "2026-05-11", Value: 70.0},
+		}}},
+	}
+	svg, err := Render(c)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	s := string(svg)
+
+	tickRe := regexp.MustCompile(`<text x="[^"]*" y="232" font-size="10" fill="#737373" text-anchor="middle">([^<]+)</text>`)
+	matches := tickRe.FindAllStringSubmatch(s, -1)
+	if len(matches) == 0 {
+		t.Fatal("no x-axis tick labels found")
+	}
+	seen := make(map[string]bool)
+	for _, m := range matches {
+		label := m[1]
+		if seen[label] {
+			t.Errorf("duplicate label %q found in x-axis ticks", label)
+		}
+		seen[label] = true
+	}
+}
+
+// 200日 span でも重複なく、かつ 2 種類以上の年月ラベルが残ること（全部潰れて
+// 1 ラベルだけになる過剰な dedupe になっていないかの確認）。
+func TestRender_XAxisNoDuplicatesOnLongSpan_200Days(t *testing.T) {
+	c := Chart{
+		Title: "体重", Unit: "kg", From: "2026-01-01", To: "2026-07-19",
+		Series: []Series{{Label: "体重", Points: []Point{
+			{Date: "2026-01-01", Value: 72.5},
+			{Date: "2026-07-19", Value: 70.0},
+		}}},
+	}
+	svg, err := Render(c)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	s := string(svg)
+
+	tickRe := regexp.MustCompile(`<text x="[^"]*" y="232" font-size="10" fill="#737373" text-anchor="middle">([^<]+)</text>`)
+	matches := tickRe.FindAllStringSubmatch(s, -1)
+	seen := make(map[string]bool)
+	distinct := 0
+	for _, m := range matches {
+		label := m[1]
+		if seen[label] {
+			t.Errorf("duplicate label %q found in x-axis ticks", label)
+			continue
+		}
+		seen[label] = true
+		distinct++
+	}
+	if distinct < 2 {
+		t.Errorf("distinct x-axis label count = %d, want >= 2", distinct)
+	}
+}
+
+// 凡例は実際に描画された（有限点が1つ以上ある）系列のみを表示すること。
+// 全点が非有限値の系列は polyline/circle が描かれないので、凡例にも出すべきでない。
+func TestRender_LegendOnlyForDrawnSeries(t *testing.T) {
+	c := Chart{
+		Title: "血圧", Unit: "mmHg", From: "2026-07-01", To: "2026-07-01",
+		Series: []Series{
+			{Label: "最高", Points: []Point{{Date: "2026-07-01", Value: 120}}},
+			{Label: "最低", Points: []Point{{Date: "2026-07-01", Value: math.Inf(1)}}},
+		},
+	}
+	svg, err := Render(c)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	s := string(svg)
+	if got := strings.Count(s, "最高"); got != 1 {
+		t.Errorf("count of 最高 in output = %d, want 1 (legend only)", got)
+	}
+	if strings.Contains(s, "最低") {
+		t.Errorf("legend should not include series with zero drawn points: %s", s)
+	}
+}

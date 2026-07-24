@@ -148,6 +148,11 @@ func Render(c Chart) (template.HTML, error) {
 		}
 	}
 	ticks := niceTicks(yMin-pad, yMax+pad)
+	if len(ticks) < 2 || !isFinite(ticks[0]) || !isFinite(ticks[len(ticks)-1]) || ticks[len(ticks)-1] <= ticks[0] {
+		// Finite-but-huge values can overflow the tick math into NaN/Inf;
+		// degrade to the empty state rather than panicking or emitting NaN.
+		return "", ErrNoData
+	}
 	yLo, yHi := ticks[0], ticks[len(ticks)-1]
 
 	plotW := chartW - padL - padR
@@ -182,6 +187,7 @@ func Render(c Chart) (template.HTML, error) {
 		tickCount = minTickCount
 	}
 	longSpan := totalDays > 120
+	prevLabel := ""
 	for i := 0; i < tickCount; i++ {
 		var d time.Time
 		if tickCount == 1 {
@@ -198,11 +204,23 @@ func Render(c Chart) (template.HTML, error) {
 		if longSpan {
 			label = fmt.Sprintf("%d/%d", d.Year(), int(d.Month()))
 		}
+		// Y/M labels are coarser than M/D, so evenly-spaced ticks on a long
+		// span can land in the same year-month even though the short-span
+		// tickCount reduction above doesn't kick in. Skip a repeat of the
+		// immediately preceding label rather than drawing it twice.
+		if label == prevLabel {
+			continue
+		}
+		prevLabel = label
 		fmt.Fprintf(&b, `<text x="%.1f" y="%g" font-size="10" fill="#737373" text-anchor="middle">%s</text>`, x, chartH-8, label)
 	}
 
 	// series. Non-finite points are skipped entirely — treated as absent —
-	// both for the polyline and for their circle markers.
+	// both for the polyline and for their circle markers. drawnSeries tracks
+	// which series indices actually produced a mark, so the legend below can
+	// omit a series that had points but all of them were non-finite (e.g. a
+	// blood-pressure chart where only diastolic is currently plottable).
+	var drawnSeries []int
 	for si, s := range c.Series {
 		color := seriesColors[si%len(seriesColors)]
 		var pts []string
@@ -219,6 +237,7 @@ func Render(c Chart) (template.HTML, error) {
 		if len(pts) == 0 {
 			continue
 		}
+		drawnSeries = append(drawnSeries, si)
 		fmt.Fprintf(&b, `<polyline points="%s" fill="none" stroke="%s" stroke-width="2"/>`, strings.Join(pts, " "), color)
 		for _, p := range s.Points {
 			if !isFinite(p.Value) {
@@ -230,10 +249,11 @@ func Render(c Chart) (template.HTML, error) {
 		}
 	}
 
-	// legend for two-series charts
+	// legend for two-series charts — only for series that actually drew a point.
 	if len(c.Series) > 1 {
 		lx := padL
-		for si, s := range c.Series {
+		for _, si := range drawnSeries {
+			s := c.Series[si]
 			color := seriesColors[si%len(seriesColors)]
 			fmt.Fprintf(&b, `<rect x="%.1f" y="%g" width="10" height="10" fill="%s"/>`, lx, padT, color)
 			fmt.Fprintf(&b, `<text x="%.1f" y="%g" font-size="11" fill="#404040">%s</text>`, lx+14, padT+9, template.HTMLEscapeString(s.Label))

@@ -76,6 +76,7 @@ func (h *PublicHandlers) HandleHealthPage(w http.ResponseWriter, r *http.Request
 		"IsAdmin":       h.isAdminRequest(w, r),
 		"Query":         "",
 		"OGP":           h.defaultOGP("Healthcare - "+h.blogTitle, r.URL.Path, h.blogTitle),
+		"NoIndex":       r.URL.Query().Get("range") != "",
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
