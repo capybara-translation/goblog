@@ -947,5 +947,48 @@ describe('PostEdit', () => {
       const field = await screen.findByLabelText('健康データの日付')
       expect(field).toHaveValue('2026-07-15')
     })
+
+    it('preserves health_date when integration is disabled (regression)', async () => {
+      const user = userEvent.setup()
+      // Regression: when healthplanet is disabled, the field is hidden,
+      // but saving must preserve the stored health_date value
+      vi.mocked(apiClient.getHealthPlanetStatus).mockResolvedValue({ enabled: false })
+      const postWithHealthDate: Post = {
+        ...mockDraftPost,
+        health_date: '2026-07-10',
+      }
+      vi.mocked(apiClient.getPost).mockResolvedValue(postWithHealthDate)
+      vi.mocked(apiClient.updatePost).mockResolvedValue({
+        ...postWithHealthDate,
+        title: 'Updated Title',
+      })
+
+      await renderEditMode(1)
+
+      // Verify the health_date field is NOT displayed
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Title/)).toHaveValue('Draft Post')
+      })
+      expect(screen.queryByLabelText('健康データの日付')).not.toBeInTheDocument()
+
+      // Change title and save
+      const titleInput = screen.getByLabelText(/Title/)
+      await user.clear(titleInput)
+      await user.type(titleInput, 'Updated Title')
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+
+      // Assert that updatePost was called with the health_date preserved
+      await waitFor(() => {
+        expect(apiClient.updatePost).toHaveBeenCalledWith(
+          1,
+          expect.objectContaining({ health_date: '2026-07-10' })
+        )
+      })
+
+      // Verify success modal appears
+      await waitFor(() => {
+        expect(screen.getByText('Post updated')).toBeInTheDocument()
+      })
+    })
   })
 })
