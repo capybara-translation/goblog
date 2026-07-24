@@ -23,6 +23,16 @@ type HealthRecord struct {
 	CreatedAt  time.Time `db:"created_at"`
 }
 
+// HealthSummary is one day's representative (daily-average, pre-rounded)
+// values for display. A nil field means no measurement that day.
+type HealthSummary struct {
+	Weight    *float64
+	BodyFat   *float64
+	Systolic  *float64
+	Diastolic *float64
+	Pulse     *float64
+}
+
 // HealthPlanetToken is the OAuth token state for the Health Planet API.
 // The table holds a single row (id = 1).
 type HealthPlanetToken struct {

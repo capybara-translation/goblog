@@ -47,4 +47,7 @@ type Post struct {
 	// view (all types incl. inactive, counts, is_active; no reacted). Serialized as
 	// "reactions" in admin API responses only. Not persisted.
 	ReactionTotals []*AdminReactionCount `json:"reactions,omitempty" db:"-"`
+	// HealthSummary is display-only: the daily averages for HealthDate,
+	// attached by handlers (mirrors how Reactions are attached).
+	HealthSummary *HealthSummary `json:"-" db:"-"`
 }
