@@ -89,11 +89,11 @@ func (m *mockPostService) GetPostByID(id int64) (*domain.Post, error) {
 	return nil, nil
 }
 
-func (m *mockPostService) CreatePost(title, slug, content, tags string, isPinned bool) (*domain.Post, error) {
+func (m *mockPostService) CreatePost(title, slug, content, tags string, isPinned bool, healthDate *string) (*domain.Post, error) {
 	return nil, nil
 }
 
-func (m *mockPostService) UpdatePost(id int64, title, slug, content, tags string, isPinned bool) (*domain.Post, error) {
+func (m *mockPostService) UpdatePost(id int64, title, slug, content, tags string, isPinned bool, healthDate *string) (*domain.Post, error) {
 	return nil, nil
 }
 

@@ -41,10 +41,10 @@ type PostService interface {
 	GetPostByID(id int64) (*domain.Post, error)
 
 	// CreatePost creates a new post
-	CreatePost(title, slug, content, tags string, isPinned bool) (*domain.Post, error)
+	CreatePost(title, slug, content, tags string, isPinned bool, healthDate *string) (*domain.Post, error)
 
 	// UpdatePost updates a post
-	UpdatePost(id int64, title, slug, content, tags string, isPinned bool) (*domain.Post, error)
+	UpdatePost(id int64, title, slug, content, tags string, isPinned bool, healthDate *string) (*domain.Post, error)
 
 	// PublishPost publishes a post
 	PublishPost(id int64) (*domain.Post, error)
@@ -137,7 +137,7 @@ func (s *postService) GetPostByID(id int64) (*domain.Post, error) {
 }
 
 // CreatePost creates a new post
-func (s *postService) CreatePost(title, slug, content, tags string, isPinned bool) (*domain.Post, error) {
+func (s *postService) CreatePost(title, slug, content, tags string, isPinned bool, healthDate *string) (*domain.Post, error) {
 	// Check for slug duplication
 	existing, err := s.repo.FindBySlug(slug)
 	if err != nil {
@@ -149,14 +149,15 @@ func (s *postService) CreatePost(title, slug, content, tags string, isPinned boo
 
 	now := time.Now()
 	post := &domain.Post{
-		Title:     title,
-		Slug:      slug,
-		Content:   content,
-		Status:    domain.PostStatusDraft,
-		Tags:      normalizeTags(tags),
-		IsPinned:  isPinned,
-		CreatedAt: now,
-		UpdatedAt: now,
+		Title:      title,
+		Slug:       slug,
+		Content:    content,
+		Status:     domain.PostStatusDraft,
+		Tags:       normalizeTags(tags),
+		IsPinned:   isPinned,
+		HealthDate: healthDate,
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
 	if err := s.repo.Create(post); err != nil {
@@ -167,7 +168,7 @@ func (s *postService) CreatePost(title, slug, content, tags string, isPinned boo
 }
 
 // UpdatePost updates a post
-func (s *postService) UpdatePost(id int64, title, slug, content, tags string, isPinned bool) (*domain.Post, error) {
+func (s *postService) UpdatePost(id int64, title, slug, content, tags string, isPinned bool, healthDate *string) (*domain.Post, error) {
 	post, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, err
@@ -192,6 +193,7 @@ func (s *postService) UpdatePost(id int64, title, slug, content, tags string, is
 	post.Content = content
 	post.Tags = normalizeTags(tags)
 	post.IsPinned = isPinned
+	post.HealthDate = healthDate
 	post.UpdatedAt = time.Now()
 
 	if err := s.repo.Update(post); err != nil {

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/capybara-translation/goblog/internal/domain"
 	"github.com/capybara-translation/goblog/internal/markdown"
@@ -43,20 +44,22 @@ func HandleHealth(w http.ResponseWriter, r *http.Request) {
 
 // CreatePostRequest is the struct for post creation requests
 type CreatePostRequest struct {
-	Title    string `json:"title"`
-	Slug     string `json:"slug"`
-	Content  string `json:"content"`
-	Tags     string `json:"tags"`
-	IsPinned bool   `json:"is_pinned"`
+	Title      string  `json:"title"`
+	Slug       string  `json:"slug"`
+	Content    string  `json:"content"`
+	Tags       string  `json:"tags"`
+	IsPinned   bool    `json:"is_pinned"`
+	HealthDate *string `json:"health_date"`
 }
 
 // UpdatePostRequest is the struct for post update requests
 type UpdatePostRequest struct {
-	Title    string `json:"title"`
-	Slug     string `json:"slug"`
-	Content  string `json:"content"`
-	Tags     string `json:"tags"`
-	IsPinned bool   `json:"is_pinned"`
+	Title      string  `json:"title"`
+	Slug       string  `json:"slug"`
+	Content    string  `json:"content"`
+	Tags       string  `json:"tags"`
+	IsPinned   bool    `json:"is_pinned"`
+	HealthDate *string `json:"health_date"`
 }
 
 // ErrorResponse is the struct for error responses
@@ -88,7 +91,7 @@ func writeError(w http.ResponseWriter, status int, message string) {
 var slugPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 // validatePostRequest validates post creation and update requests
-func validatePostRequest(title, slug string) error {
+func validatePostRequest(title, slug string, healthDate *string) error {
 	// Title required check
 	if strings.TrimSpace(title) == "" {
 		return fmt.Errorf("title is required")
@@ -107,6 +110,12 @@ func validatePostRequest(title, slug string) error {
 	// Check if slug is URL-safe (lowercase letters, numbers, and hyphens only)
 	if !slugPattern.MatchString(slug) {
 		return fmt.Errorf("slug must contain only lowercase letters, numbers, and hyphens")
+	}
+
+	if healthDate != nil {
+		if _, err := time.Parse("2006-01-02", *healthDate); err != nil {
+			return fmt.Errorf("health_date must be YYYY-MM-DD")
+		}
 	}
 
 	return nil
@@ -266,12 +275,12 @@ func (h *APIHandlers) HandleCreatePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validation
-	if err := validatePostRequest(req.Title, req.Slug); err != nil {
+	if err := validatePostRequest(req.Title, req.Slug, req.HealthDate); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	post, err := h.postService.CreatePost(req.Title, req.Slug, req.Content, req.Tags, req.IsPinned)
+	post, err := h.postService.CreatePost(req.Title, req.Slug, req.Content, req.Tags, req.IsPinned, req.HealthDate)
 	if err != nil {
 		log.Printf("failed to create post: %v", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -300,12 +309,12 @@ func (h *APIHandlers) HandleUpdatePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validation
-	if err := validatePostRequest(req.Title, req.Slug); err != nil {
+	if err := validatePostRequest(req.Title, req.Slug, req.HealthDate); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	post, err := h.postService.UpdatePost(id, req.Title, req.Slug, req.Content, req.Tags, req.IsPinned)
+	post, err := h.postService.UpdatePost(id, req.Title, req.Slug, req.Content, req.Tags, req.IsPinned, req.HealthDate)
 	if err != nil {
 		log.Printf("failed to update post: %v", err)
 		writeError(w, http.StatusInternalServerError, err.Error())

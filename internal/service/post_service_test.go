@@ -260,7 +260,7 @@ func TestPostService_CreatePost(t *testing.T) {
 		}
 
 		service := NewPostService(mockRepo)
-		post, err := service.CreatePost("Test Post", "test-post", "Test content", "go,test", false)
+		post, err := service.CreatePost("Test Post", "test-post", "Test content", "go,test", false, nil)
 
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -289,7 +289,7 @@ func TestPostService_CreatePost(t *testing.T) {
 		}
 
 		service := NewPostService(mockRepo)
-		_, err := service.CreatePost("Test Post", "existing-slug", "Test content", "go", false)
+		_, err := service.CreatePost("Test Post", "existing-slug", "Test content", "go", false, nil)
 
 		if err == nil {
 			t.Fatal("expected error for duplicate slug, got nil")
@@ -324,7 +324,7 @@ func TestPostService_UpdatePost(t *testing.T) {
 		}
 
 		service := NewPostService(mockRepo)
-		updated, err := service.UpdatePost(1, "Updated Title", "updated-slug", "Updated content", "go", false)
+		updated, err := service.UpdatePost(1, "Updated Title", "updated-slug", "Updated content", "go", false, nil)
 
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -361,7 +361,7 @@ func TestPostService_UpdatePost(t *testing.T) {
 		}
 
 		service := NewPostService(mockRepo)
-		_, err := service.UpdatePost(1, "Updated Title", "same-slug", "Updated content", "go", false)
+		_, err := service.UpdatePost(1, "Updated Title", "same-slug", "Updated content", "go", false, nil)
 
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -388,7 +388,7 @@ func TestPostService_UpdatePost(t *testing.T) {
 		}
 
 		service := NewPostService(mockRepo)
-		_, err := service.UpdatePost(1, "Title", "existing-slug", "Content", "go", false)
+		_, err := service.UpdatePost(1, "Title", "existing-slug", "Content", "go", false, nil)
 
 		if err == nil {
 			t.Fatal("expected error for duplicate slug, got nil")
@@ -403,7 +403,7 @@ func TestPostService_UpdatePost(t *testing.T) {
 		}
 
 		service := NewPostService(mockRepo)
-		_, err := service.UpdatePost(999, "Title", "slug", "Content", "go", false)
+		_, err := service.UpdatePost(999, "Title", "slug", "Content", "go", false, nil)
 
 		if err == nil {
 			t.Fatal("expected error for non-existent post, got nil")
@@ -1245,7 +1245,7 @@ func TestPostService_CreatePost_NormalizesTags(t *testing.T) {
 		}
 
 		service := NewPostService(mockRepo)
-		post, err := service.CreatePost("Test Post", "test-post", "Content", "Go, React, TypeScript", false)
+		post, err := service.CreatePost("Test Post", "test-post", "Content", "Go, React, TypeScript", false, nil)
 
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -1290,7 +1290,7 @@ func TestPostService_UpdatePost_NormalizesTags(t *testing.T) {
 		}
 
 		service := NewPostService(mockRepo)
-		post, err := service.UpdatePost(1, "Updated Title", "updated-slug", "Content", "Go, React, TypeScript", false)
+		post, err := service.UpdatePost(1, "Updated Title", "updated-slug", "Content", "Go, React, TypeScript", false, nil)
 
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -1597,4 +1597,38 @@ func TestPostService_SetPinned(t *testing.T) {
 			t.Fatal("expected error, got nil")
 		}
 	})
+}
+
+func TestCreatePost_PassesHealthDate(t *testing.T) {
+	var created *domain.Post
+	repo := &mockPostRepository{
+		createFunc: func(p *domain.Post) error { created = p; return nil },
+	}
+	svc := NewPostService(repo)
+
+	hd := "2026-07-20"
+	if _, err := svc.CreatePost("t", "s", "c", "", false, &hd); err != nil {
+		t.Fatalf("CreatePost: %v", err)
+	}
+	if created.HealthDate == nil || *created.HealthDate != "2026-07-20" {
+		t.Errorf("HealthDate = %v, want 2026-07-20", created.HealthDate)
+	}
+}
+
+func TestUpdatePost_ClearsHealthDate(t *testing.T) {
+	hd := "2026-07-20"
+	existing := &domain.Post{ID: 1, Title: "t", Slug: "s", HealthDate: &hd}
+	var updated *domain.Post
+	repo := &mockPostRepository{
+		findByIDFunc: func(id int64) (*domain.Post, error) { return existing, nil },
+		updateFunc:   func(p *domain.Post) error { updated = p; return nil },
+	}
+	svc := NewPostService(repo)
+
+	if _, err := svc.UpdatePost(1, "t", "s", "c", "", false, nil); err != nil {
+		t.Fatalf("UpdatePost: %v", err)
+	}
+	if updated.HealthDate != nil {
+		t.Errorf("HealthDate = %v, want nil (cleared)", updated.HealthDate)
+	}
 }

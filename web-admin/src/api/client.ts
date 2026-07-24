@@ -21,6 +21,7 @@ export interface Post {
   created_at: string;
   updated_at: string;
   published_at: string | null;
+  health_date: string | null;
   view_count: number;
   // Admin analytics: per-type reaction counts (all types incl. inactive).
   // Present on GET list/detail responses; omitted by mutation responses.
@@ -44,6 +45,7 @@ export interface PostCreateRequest {
   content: string;
   tags?: string;
   is_pinned?: boolean;
+  health_date?: string | null;
 }
 
 export interface PostUpdateRequest {
@@ -52,6 +54,7 @@ export interface PostUpdateRequest {
   content: string;
   tags?: string;
   is_pinned?: boolean;
+  health_date?: string | null;
 }
 
 export interface ApiError {

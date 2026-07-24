@@ -16,14 +16,32 @@ import (
 
 const testSessionID = "test-session-id"
 
+func TestValidatePostRequest_HealthDate(t *testing.T) {
+	bad := "2026-13-45"
+	if err := validatePostRequest("t", "valid-slug", &bad); err == nil {
+		t.Error("expected error for invalid health_date")
+	}
+	notADate := "next tuesday"
+	if err := validatePostRequest("t", "valid-slug", &notADate); err == nil {
+		t.Error("expected error for non-date health_date")
+	}
+	good := "2026-07-20"
+	if err := validatePostRequest("t", "valid-slug", &good); err != nil {
+		t.Errorf("unexpected error for valid health_date: %v", err)
+	}
+	if err := validatePostRequest("t", "valid-slug", nil); err != nil {
+		t.Errorf("unexpected error for nil health_date: %v", err)
+	}
+}
+
 // mockPostServiceForAPI is a mock implementation of PostService (for API)
 type mockPostServiceForAPI struct {
 	getAllPostsFunc          func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
 	getAllPostsByTagFunc     func(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
 	getAllTagsFunc           func(status *domain.PostStatus) (map[string]int, error)
 	getPostByIDFunc          func(id int64) (*domain.Post, error)
-	createPostFunc           func(title, slug, content, tags string, isPinned bool) (*domain.Post, error)
-	updatePostFunc           func(id int64, title, slug, content, tags string, isPinned bool) (*domain.Post, error)
+	createPostFunc           func(title, slug, content, tags string, isPinned bool, healthDate *string) (*domain.Post, error)
+	updatePostFunc           func(id int64, title, slug, content, tags string, isPinned bool, healthDate *string) (*domain.Post, error)
 	deletePostFunc           func(id int64) error
 	publishPostFunc          func(id int64) (*domain.Post, error)
 	unpublishPostFunc        func(id int64) (*domain.Post, error)
@@ -81,16 +99,16 @@ func (m *mockPostServiceForAPI) GetPostByID(id int64) (*domain.Post, error) {
 	return nil, nil
 }
 
-func (m *mockPostServiceForAPI) CreatePost(title, slug, content, tags string, isPinned bool) (*domain.Post, error) {
+func (m *mockPostServiceForAPI) CreatePost(title, slug, content, tags string, isPinned bool, healthDate *string) (*domain.Post, error) {
 	if m.createPostFunc != nil {
-		return m.createPostFunc(title, slug, content, tags, isPinned)
+		return m.createPostFunc(title, slug, content, tags, isPinned, healthDate)
 	}
 	return nil, nil
 }
 
-func (m *mockPostServiceForAPI) UpdatePost(id int64, title, slug, content, tags string, isPinned bool) (*domain.Post, error) {
+func (m *mockPostServiceForAPI) UpdatePost(id int64, title, slug, content, tags string, isPinned bool, healthDate *string) (*domain.Post, error) {
 	if m.updatePostFunc != nil {
-		return m.updatePostFunc(id, title, slug, content, tags, isPinned)
+		return m.updatePostFunc(id, title, slug, content, tags, isPinned, healthDate)
 	}
 	return nil, nil
 }
@@ -620,7 +638,7 @@ func TestHandleGetPost_Success(t *testing.T) {
 
 func TestHandleCreatePost_Success(t *testing.T) {
 	mockPostService := &mockPostServiceForAPI{
-		createPostFunc: func(title, slug, content, tags string, isPinned bool) (*domain.Post, error) {
+		createPostFunc: func(title, slug, content, tags string, isPinned bool, healthDate *string) (*domain.Post, error) {
 			return &domain.Post{
 				ID:       1,
 				Title:    title,
@@ -833,7 +851,7 @@ func TestHandleUpdatePost_Validation(t *testing.T) {
 
 func TestHandleUpdatePost_Success(t *testing.T) {
 	mockPostService := &mockPostServiceForAPI{
-		updatePostFunc: func(id int64, title, slug, content, tags string, isPinned bool) (*domain.Post, error) {
+		updatePostFunc: func(id int64, title, slug, content, tags string, isPinned bool, healthDate *string) (*domain.Post, error) {
 			if id == 1 {
 				return &domain.Post{
 					ID:       id,
