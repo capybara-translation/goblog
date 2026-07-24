@@ -71,6 +71,9 @@ func TestHandleHealthPage_RendersChartsAndRangeLinks(t *testing.T) {
 	if !strings.Contains(body, "データがありません") {
 		t.Error("empty-state message missing for metrics without data")
 	}
+	if !strings.Contains(body, `<meta property="og:title" content="Healthcare - `) {
+		t.Error("og:title meta with Healthcare title missing")
+	}
 }
 
 func TestAttachHealthSummaries(t *testing.T) {
@@ -95,11 +98,43 @@ func TestAttachHealthSummaries(t *testing.T) {
 	}
 }
 
-// fakeHealthRecordRepoForBadges: 2026-07-20 のみデータを返す
-type fakeHealthRecordRepoForBadges struct{ fakeHealthRecordRepo }
+// fakeHealthRecordRepoForBadges: 2026-07-20 のみデータを返す。DailyAveragesByDates
+// の呼び出し回数を数えて、バッジ付与が投稿ごとに N+1 クエリを打っていないことを検証する。
+type fakeHealthRecordRepoForBadges struct {
+	fakeHealthRecordRepo
+	calls int
+}
 
 func (f *fakeHealthRecordRepoForBadges) DailyAveragesByDates(dates []string) ([]repo.DailyAverage, error) {
+	f.calls++
 	return []repo.DailyAverage{{Date: "2026-07-20", Metric: domain.MetricWeight, Avg: 72.1}}, nil
+}
+
+func TestAttachHealthSummaries_QueryBatching(t *testing.T) {
+	t.Run("no HealthDate on any post issues zero queries", func(t *testing.T) {
+		fake := &fakeHealthRecordRepoForBadges{}
+		h := newTestPublicHandlersWithHealth(t, service.NewHealthDisplayService(fake))
+		posts := []*domain.Post{{ID: 1, HealthDate: nil}, {ID: 2, HealthDate: nil}}
+
+		h.attachHealthSummaries(posts)
+
+		if fake.calls != 0 {
+			t.Errorf("DailyAveragesByDates calls = %d, want 0 (no dates to look up)", fake.calls)
+		}
+	})
+
+	t.Run("two posts sharing one date issue exactly one batched query", func(t *testing.T) {
+		fake := &fakeHealthRecordRepoForBadges{}
+		h := newTestPublicHandlersWithHealth(t, service.NewHealthDisplayService(fake))
+		hd := "2026-07-20"
+		posts := []*domain.Post{{ID: 1, HealthDate: &hd}, {ID: 2, HealthDate: &hd}}
+
+		h.attachHealthSummaries(posts)
+
+		if fake.calls != 1 {
+			t.Errorf("DailyAveragesByDates calls = %d, want 1 (single batched query, not one per post)", fake.calls)
+		}
+	})
 }
 
 func TestHealthBadges_Template(t *testing.T) {

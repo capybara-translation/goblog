@@ -55,6 +55,15 @@ var seriesColors = [2]string{"#dc2626" /* red-600 */, "#2563eb" /* blue-600 */}
 
 func parseDay(s string) (time.Time, error) { return time.Parse(dateFmt, s) }
 
+// isFinite reports whether v is safe to plot. Values only reach this package
+// from stored health_records rows (inserted via the daily sync or, per
+// docs/HEALTHPLANET.md, manual DB inserts for historical backfill), so a
+// NaN/±Inf value is possible even though normal application code paths never
+// produce one.
+func isFinite(v float64) bool {
+	return !math.IsNaN(v) && !math.IsInf(v, 0)
+}
+
 // formatValue renders 72.5 as "72.5" and 71.0 as "71". Values are expected
 // pre-rounded by the display service; this function does not cap precision.
 func formatValue(v float64) string {
@@ -113,13 +122,23 @@ func Render(c Chart) (template.HTML, error) {
 		totalDays = 1
 	}
 
-	// y domain: data min/max with 5% padding.
+	// y domain: data min/max with 5% padding. Non-finite (NaN/±Inf) values
+	// are excluded so a single bad point can't poison the whole axis; if
+	// every point is non-finite there is nothing plottable.
 	yMin, yMax := math.Inf(1), math.Inf(-1)
+	finiteCount := 0
 	for _, s := range c.Series {
 		for _, p := range s.Points {
+			if !isFinite(p.Value) {
+				continue
+			}
+			finiteCount++
 			yMin = math.Min(yMin, p.Value)
 			yMax = math.Max(yMax, p.Value)
 		}
+	}
+	if finiteCount == 0 {
+		return "", ErrNoData
 	}
 	pad := (yMax - yMin) * 0.05
 	if pad == 0 {
@@ -182,22 +201,29 @@ func Render(c Chart) (template.HTML, error) {
 		fmt.Fprintf(&b, `<text x="%.1f" y="%g" font-size="10" fill="#737373" text-anchor="middle">%s</text>`, x, chartH-8, label)
 	}
 
-	// series
+	// series. Non-finite points are skipped entirely — treated as absent —
+	// both for the polyline and for their circle markers.
 	for si, s := range c.Series {
-		if len(s.Points) == 0 {
-			continue
-		}
 		color := seriesColors[si%len(seriesColors)]
 		var pts []string
 		for _, p := range s.Points {
+			if !isFinite(p.Value) {
+				continue
+			}
 			x, err := xFor(p.Date)
 			if err != nil {
 				return "", err
 			}
 			pts = append(pts, fmt.Sprintf("%.1f,%.1f", x, yFor(p.Value)))
 		}
+		if len(pts) == 0 {
+			continue
+		}
 		fmt.Fprintf(&b, `<polyline points="%s" fill="none" stroke="%s" stroke-width="2"/>`, strings.Join(pts, " "), color)
 		for _, p := range s.Points {
+			if !isFinite(p.Value) {
+				continue
+			}
 			x, _ := xFor(p.Date)
 			fmt.Fprintf(&b, `<circle cx="%.1f" cy="%.1f" r="%g" fill="%s"><title>%s: %s%s</title></circle>`,
 				x, yFor(p.Value), dotR, color, template.HTMLEscapeString(p.Date), formatValue(p.Value), template.HTMLEscapeString(c.Unit))

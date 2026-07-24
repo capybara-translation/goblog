@@ -75,6 +75,7 @@ func (h *PublicHandlers) HandleHealthPage(w http.ResponseWriter, r *http.Request
 		"Charts":        buildHealthCharts(series),
 		"IsAdmin":       h.isAdminRequest(w, r),
 		"Query":         "",
+		"OGP":           h.defaultOGP("Healthcare - "+h.blogTitle, r.URL.Path, h.blogTitle),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

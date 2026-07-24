@@ -91,6 +91,40 @@ func TestRender_NoData(t *testing.T) {
 	}
 }
 
+// 手動 DB 挿入（過去データの遡及登録）経由で NaN/±Inf が health_records に
+// 混入しても、その点だけ無視され、y 軸ドメインを汚染したり NaN/Inf 文字列が
+// 出力に混じったりしないこと。
+func TestRender_SkipsNonFiniteValues(t *testing.T) {
+	c := Chart{Title: "体重", Unit: "kg", From: "2026-07-01", To: "2026-07-31",
+		Series: []Series{{Label: "体重", Points: []Point{
+			{Date: "2026-07-01", Value: math.Inf(1)},
+			{Date: "2026-07-16", Value: 71.0},
+		}}}}
+	svg, err := Render(c)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	s := string(svg)
+	if got := strings.Count(s, "<circle"); got != 1 {
+		t.Errorf("circles = %d, want 1 (Inf point must be dropped)", got)
+	}
+	if strings.Contains(s, "NaN") || strings.Contains(s, "Inf") {
+		t.Errorf("output contains non-finite literal: %s", s)
+	}
+}
+
+// 全点が非有限値なら、データなし扱い（ErrNoData）で空状態表示に倒す。
+func TestRender_AllNonFiniteReturnsErrNoData(t *testing.T) {
+	c := Chart{Title: "体重", Unit: "kg", From: "2026-07-01", To: "2026-07-31",
+		Series: []Series{{Label: "体重", Points: []Point{
+			{Date: "2026-07-01", Value: math.NaN()},
+			{Date: "2026-07-16", Value: math.Inf(-1)},
+		}}}}
+	if _, err := Render(c); !errors.Is(err, ErrNoData) {
+		t.Fatalf("err = %v, want ErrNoData", err)
+	}
+}
+
 // 値のフォーマット: 小数1桁の値は "72.5"、整数値は "72"（"72.0" にしない）
 func TestFormatValue(t *testing.T) {
 	for _, tc := range []struct {
