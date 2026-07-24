@@ -8,6 +8,13 @@ User=goblog
 Group=goblog
 WorkingDirectory=/opt/goblog
 
+# Health Planet integration settings — single source shared with hpsync
+# (see docs/HEALTHPLANET.md). Optional (leading dash): a missing file just
+# leaves the feature disabled. Placed BEFORE the inline Environment= lines
+# so overlapping keys in the file (e.g. DATABASE_PATH, which hpsync needs)
+# are overridden by the authoritative inline values below.
+EnvironmentFile=-/etc/goblog/healthplanet.env
+
 # Environment variables
 Environment="PORT=8080"
 Environment="SECURE_COOKIE=true"

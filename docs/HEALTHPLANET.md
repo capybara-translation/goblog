@@ -53,23 +53,7 @@ OAuth 認可フローの redirect URI は `{BASE_URL}/admin/healthplanet/success
 
 > **注意**: CLI フォールバック (`hpsync auth`) はタニタ自身の `success.html` に redirect するため、blog ドメインとは別に登録する必要はないが、本番運用では管理画面フローに統一することを推奨する。
 
-### 2. goblog サーバの環境変数を設定
-
-goblog 本体（`goblog.service` が読む env、通常は `/etc/goblog/goblog.env`）に以下を追記して再起動:
-
-```bash
-HEALTHPLANET_ENABLED=true
-HEALTHPLANET_CLIENT_ID=your-client-id
-HEALTHPLANET_CLIENT_SECRET=your-client-secret
-```
-
-```bash
-sudo systemctl restart goblog
-```
-
-管理画面 `/admin/healthplanet` に「連携する」ボタンが現れれば有効化できている。
-
-### 3. hpsync 用設定ファイルを配置
+### 2. 連携設定ファイルを配置（goblog と hpsync の単一ソース）
 
 ```bash
 sudo install -D -o goblog -g goblog -m 600 \
@@ -78,9 +62,17 @@ sudo nano /etc/goblog/healthplanet.env
 # HEALTHPLANET_ENABLED / _CLIENT_ID / _CLIENT_SECRET / DATABASE_PATH を記入
 ```
 
-goblog サーバと hpsync の両方が同じ 3 つの `HEALTHPLANET_*` 変数を参照する。`DATABASE_PATH` はサーバと共通の SQLite ファイル（通常 `/var/lib/goblog/goblog.db`）を指す。
+`/etc/goblog/healthplanet.env` は goblog 本体（`goblog.service` の `EnvironmentFile=-` で読み込み）と hpsync（`goblog-hpsync.service`）の**両方が読む単一ソース**。シークレットのローテーションはこのファイル 1 つの更新で済む。`DATABASE_PATH` は hpsync 用で、goblog 本体側では unit 内の inline `Environment=` 指定が後勝ちで優先されるため、重複していても安全。
 
-### 4. バイナリを配布
+```bash
+sudo systemctl restart goblog
+```
+
+管理画面 `/admin/healthplanet` に「連携する」ボタンが現れれば有効化できている。
+
+> **既存サーバでの注意**: インストール済みの `/etc/systemd/system/goblog.service` に `EnvironmentFile=-/etc/goblog/healthplanet.env` の行が無い場合（この機能より前に構築したサーバ）は、inline の `Environment=` 群より**前**に追記してから `sudo systemctl daemon-reload && sudo systemctl restart goblog` を実行する。リポジトリの `deploy/goblog.service` には追加済み。
+
+### 3. バイナリを配布
 
 ```bash
 make deploy
@@ -88,7 +80,7 @@ make deploy
 
 `make deploy` で `bin/hpsync` と `scripts/hpsync-run.sh` が `/opt/goblog/bin/` に配置される。
 
-### 5. systemd unit を常設
+### 4. systemd unit を常設
 
 ```bash
 sudo cp deploy/goblog-hpsync.service deploy/goblog-hpsync.timer /etc/systemd/system/
@@ -98,7 +90,7 @@ sudo systemctl enable --now goblog-hpsync.timer
 
 timer は `HEALTHPLANET_ENABLED != true` のときも常設で問題ない。その場合 `hpsync run` は "skipping" を出力して exit 0 するだけで副作用はない。
 
-### 6. 管理画面から認可
+### 5. 管理画面から認可
 
 ブラウザで管理画面 `/admin/healthplanet` を開く:
 
@@ -178,7 +170,7 @@ BACKUP.md の CloudWatch dead-man's-switch と同じパターンで、`hpsync ru
 
 **通常の再認可（管理画面が使える場合）:**
 
-管理画面 `/admin/healthplanet` の「再認可する」をクリックし、手順「6. 管理画面から認可」を再度行う。
+管理画面 `/admin/healthplanet` の「再認可する」をクリックし、手順「5. 管理画面から認可」を再度行う。
 
 **CLI フォールバック（管理画面が使えない場合）:**
 

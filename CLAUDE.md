@@ -206,7 +206,7 @@ make build-admin       # プロダクションビルド
 - `POSTS_PER_PAGE`: トップページ (`/`) とタグ別記事一覧 (`/tags/{tag}`) の 1 ページあたり件数（デフォルト: 20、有効範囲: 1-100、範囲外/パース不能な値はデフォルトに silent fallback）
 - `SESSION_TTL`: 管理者セッションの有効期限（`time.ParseDuration` 形式: `24h`、`30m`、`168h` 等）。デフォルト: `24h`、最小: `1m`、不正値/未満は silent fallback。サーバ側セッション TTL とログインクッキーの `MaxAge` の両方をこの値から導出するため、片方だけがズレることはない。**注意**: 変更は次回ログイン以降に発行されるセッションにのみ適用される。既存セッションは発行時の TTL を保持したまま残るため、即座に全員ログアウトさせたい場合はサーバを再起動する（インメモリストアなのでセッションは消える）
 - `REMEMBER_TTL`: Remember me クッキーの有効期限（Go duration 形式）。デフォルト: `720h` (30 日)、最小: `1h`、不正値は silent fallback。ログイン時にチェックボックスを ON にすると `remember_tokens` テーブルにこの TTL のレコードが作られ、ブラウザにも同じ MaxAge の `remember_token` クッキーが設定される。session_id が切れていても remember_token が有効なら、公開ページ / `/auth/me` 経由で自動的に新しい session_id が払い出される
-- `HEALTHPLANET_ENABLED`: Health Planet 連携の有効化フラグ（`true` のみ有効。デフォルト: 無効）。goblog 本体（管理画面 OAuth フロー）と `hpsync` CLI（日次同期）の両方に必要。本番では goblog の env と `/etc/goblog/healthplanet.env` の両方に設定する
+- `HEALTHPLANET_ENABLED`: Health Planet 連携の有効化フラグ（`true` のみ有効。デフォルト: 無効）。goblog 本体（管理画面 OAuth フロー）と `hpsync` CLI（日次同期）の両方に必要。本番では `/etc/goblog/healthplanet.env` が単一ソース（goblog.service は `EnvironmentFile=-` で同ファイルを読み、重複キーは unit 内の inline `Environment=` が後勝ちで優先）
 - `HEALTHPLANET_CLIENT_ID`: Health Planet OAuth クライアント ID（goblog 本体と hpsync の両方に必要）
 - `HEALTHPLANET_CLIENT_SECRET`: Health Planet OAuth クライアントシークレット（goblog 本体と hpsync の両方に必要）
 
