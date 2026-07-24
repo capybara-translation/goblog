@@ -129,35 +129,111 @@ sqlite3 /var/lib/goblog/goblog.db \
 
 ## 監視（任意）
 
-BACKUP.md の CloudWatch dead-man's-switch と同じパターンで、`hpsync run` の成否を監視できる。
-
-**IAM ポリシー**: `cloudwatch:PutMetricData` を namespace `Goblog/HPSync` に限定（手順の詳細は `docs/BACKUP.md` の「最小権限の IAM ユーザー」を参照、namespace / metric を読み替えること）。
-
-**設定方法**:
-
-1. `/etc/goblog/healthplanet.env` に CloudWatch 認証情報を追記:
-
-   ```bash
-   CW_NAMESPACE=Goblog/HPSync
-   AWS_ACCESS_KEY_ID=...
-   AWS_SECRET_ACCESS_KEY=...
-   AWS_DEFAULT_REGION=ap-northeast-1
-   ```
-
-2. `goblog-hpsync.service` の `ExecStart` を wrapper に切り替え:
-
-   ```ini
-   # ExecStart=/opt/goblog/bin/hpsync run
-   ExecStart=/opt/goblog/bin/hpsync-run.sh
-   ```
-
-   ```bash
-   sudo systemctl daemon-reload
-   ```
-
-3. SNS トピックと CloudWatch Alarm を作成（BACKUP.md の「監視」手順を参照。namespace を `Goblog/HPSync`、metric を `SyncSuccess` に読み替える）。
+`hpsync run` の成否を CloudWatch の dead-man's switch で監視できる。wrapper（`hpsync-run.sh`）が実行のたびにメトリクス `SyncSuccess`（成功=1 / 失敗=0）を送信し、CloudWatch Alarm が「失敗（値 0）」と「そもそも走らなかった＝timer 不発・インスタンス停止（データ点なし）」の両方を検知する。**SNS は通知の配信役で、検知役は CloudWatch Alarm** という分担。後者を捉えるのが `TreatMissingData=breaching` で、これが dead-man's switch の肝（SNS 単独では「走らなかった」を検知できない）。
 
 > **重要**: `HEALTHPLANET_ENABLED != true` のままアラームを設定しないこと。無効運用中の `hpsync run` は exit 0 で終了するため `SyncSuccess=1` が継続して報告され、アラームは発報しない（正しく見えてしまう）。監視はサービスが実際に稼働してから有効化する。
+
+### 1. 最小権限の IAM ユーザーを作成
+
+Lightsail は EC2 のような IAM インスタンスロールに非対応なので、プログラム用アクセスキーを持つ IAM ユーザーが必要。権限は **指定 namespace への `cloudwatch:PutMetricData` のみ**に絞る（キーが漏洩してもメトリクス送信以外は何もできない）。
+
+まずポリシーを `policy.json` として保存:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "GoblogHPSyncMetric",
+      "Effect": "Allow",
+      "Action": "cloudwatch:PutMetricData",
+      "Resource": "*",
+      "Condition": { "StringEquals": { "cloudwatch:namespace": "Goblog/HPSync" } }
+    }
+  ]
+}
+```
+
+> `cloudwatch:PutMetricData` は resource-level 制限に非対応（`Resource: "*"` 必須）なので、`Condition` で namespace を縛って最小権限化する。
+
+ユーザー作成・ポリシー付与・アクセスキー発行（admin 認証情報で実行）:
+
+```bash
+aws iam create-user --user-name goblog-hpsync
+aws iam put-user-policy --user-name goblog-hpsync \
+  --policy-name goblog-hpsync --policy-document file://policy.json
+aws iam create-access-key --user-name goblog-hpsync
+# -> 出力の AccessKeyId / SecretAccessKey を控える（シークレットはこの一度しか表示されない）
+```
+
+> DB バックアップ（docs/BACKUP.md）の監視を設定済みの場合は、専用ユーザーを作らず既存の `goblog-backup` ユーザーのポリシーの Condition を `"cloudwatch:namespace": ["Goblog/Backup", "Goblog/HPSync"]` に広げて、同じアクセスキーを使い回してもよい。
+
+### 2. `/etc/goblog/healthplanet.env` に CloudWatch 認証情報を追記
+
+```bash
+CW_NAMESPACE=Goblog/HPSync
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_DEFAULT_REGION=ap-northeast-1
+```
+
+`CW_NAMESPACE` が未設定なら wrapper はメトリクスを送らず exit code の転送だけ行う（この変数が監視の有効/無効スイッチ）。
+
+### 3. `goblog-hpsync.service` の `ExecStart` を wrapper に切り替え
+
+```ini
+# ExecStart=/opt/goblog/bin/hpsync run
+ExecStart=/opt/goblog/bin/hpsync-run.sh
+```
+
+```bash
+sudo systemctl daemon-reload
+```
+
+wrapper は `aws` CLI を使う。サーバに未導入の場合は AWS 公式の v2 インストーラで入れる（apt の `awscli` は使わない。手順は docs/BACKUP.md「サーバに sqlite3 / aws CLI を用意」と共通）。
+
+### 4. SNS トピックと CloudWatch Alarm を作成（admin 認証情報で実行）
+
+```bash
+# (a) 通知先 SNS トピックを作成し、メールを購読（届いた確認メールで Confirm する）
+TOPIC_ARN=$(aws sns create-topic --name goblog-hpsync-alerts --query TopicArn --output text)
+aws sns subscribe --topic-arn "$TOPIC_ARN" --protocol email \
+  --notification-endpoint you@example.com
+
+# バックアップ監視の goblog-backup-alerts トピックが既にあるなら、
+# 新規作成せずその TOPIC_ARN を使い回してよい（通知の集約先が同じメールなら分ける理由はない）
+
+# (b) 「24h 以内に成功 heartbeat が来ない／失敗(0)が来た」で発報するアラーム
+aws cloudwatch put-metric-alarm \
+  --alarm-name goblog-hpsync-missing \
+  --alarm-description "Daily Health Planet sync did not succeed" \
+  --namespace Goblog/HPSync --metric-name SyncSuccess \
+  --statistic Minimum --period 86400 \
+  --evaluation-periods 1 --datapoints-to-alarm 1 \
+  --threshold 1 --comparison-operator LessThanThreshold \
+  --treat-missing-data breaching \
+  --alarm-actions "$TOPIC_ARN" --ok-actions "$TOPIC_ARN"
+```
+
+> `Minimum < 1` なので「失敗(0)」でも「データ点なし」でも発報し、復旧（次回成功で 1）すると OK 通知が届く。リージョンは env と揃えること（SNS / CloudWatch / メトリクスは同一リージョン）。
+
+### 5. 監視の動作確認
+
+```bash
+# 正常系: サーバ上で手動同期 → メトリクスが送られる
+sudo systemctl start goblog-hpsync.service
+
+# メトリクス確認（admin 認証情報で。hpsync ユーザーは PutMetricData のみで読み取り権限を持たない）
+# 注: `date -u -d '1 day ago'` は GNU date 前提（Linux）。macOS/BSD では `date -u -v-1d +%FT%TZ` に置き換える。
+aws cloudwatch get-metric-statistics --namespace Goblog/HPSync --metric-name SyncSuccess \
+  --start-time "$(date -u -d '1 day ago' +%FT%TZ)" --end-time "$(date -u +%FT%TZ)" \
+  --period 86400 --statistics Minimum Maximum
+
+# 異常系: サーバ上で意図的に失敗させ、メトリクス 0 を送る
+# （数分内にアラーム→メールが届けば dead-man's switch は機能している。
+#   client_id を空にすると hpsync が設定エラーで exit 1 になり、副作用なしに失敗を再現できる）
+sudo bash -c 'set -a; . /etc/goblog/healthplanet.env; set +a; HEALTHPLANET_CLIENT_ID= /opt/goblog/bin/hpsync-run.sh'; echo "exit=$?"
+```
 
 ---
 
