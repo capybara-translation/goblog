@@ -7,12 +7,25 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+// DailyAverage is one metric's average value for one calendar day.
+// Date stays a string end-to-end (see measuredAtFormat comment).
+type DailyAverage struct {
+	Date   string  `db:"date"` // YYYY-MM-DD
+	Metric string  `db:"metric"`
+	Avg    float64 `db:"avg"`
+}
+
 // HealthRecordRepository persists Health Planet measurements.
 type HealthRecordRepository interface {
 	// Upsert inserts records, updating value on (measured_at, metric)
 	// conflict so re-syncing the same window is idempotent and upstream
 	// corrections win.
 	Upsert(records []*domain.HealthRecord) error
+	// DailyAverages returns the daily average for each metric in the date range (inclusive).
+	DailyAverages(fromDate, toDate string) ([]DailyAverage, error)
+	// DailyAveragesByDates returns the daily average for each metric on the given dates.
+	// If dates is empty or nil, returns (nil, nil).
+	DailyAveragesByDates(dates []string) ([]DailyAverage, error)
 }
 
 type sqliteHealthRecordRepository struct {
@@ -57,4 +70,39 @@ func (r *sqliteHealthRecordRepository) Upsert(records []*domain.HealthRecord) er
 		return fmt.Errorf("failed to commit health record upsert: %w", err)
 	}
 	return nil
+}
+
+func (r *sqliteHealthRecordRepository) DailyAverages(fromDate, toDate string) ([]DailyAverage, error) {
+	var rows []DailyAverage
+	err := r.db.Select(&rows, `
+		SELECT date(measured_at) AS date, metric, AVG(value) AS avg
+		FROM health_records
+		WHERE date(measured_at) BETWEEN ? AND ?
+		GROUP BY date(measured_at), metric
+		ORDER BY date
+	`, fromDate, toDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query daily averages: %w", err)
+	}
+	return rows, nil
+}
+
+func (r *sqliteHealthRecordRepository) DailyAveragesByDates(dates []string) ([]DailyAverage, error) {
+	if len(dates) == 0 {
+		return nil, nil
+	}
+	query, args, err := sqlx.In(`
+		SELECT date(measured_at) AS date, metric, AVG(value) AS avg
+		FROM health_records
+		WHERE date(measured_at) IN (?)
+		GROUP BY date(measured_at), metric
+	`, dates)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build daily averages query: %w", err)
+	}
+	var rows []DailyAverage
+	if err := r.db.Select(&rows, r.db.Rebind(query), args...); err != nil {
+		return nil, fmt.Errorf("failed to query daily averages by dates: %w", err)
+	}
+	return rows, nil
 }

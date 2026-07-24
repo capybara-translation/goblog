@@ -8,6 +8,7 @@ import (
 
 	"github.com/capybara-translation/goblog/internal/domain"
 	"github.com/capybara-translation/goblog/internal/healthplanet"
+	"github.com/capybara-translation/goblog/internal/repo"
 )
 
 type mockHealthPlanetClient struct {
@@ -67,6 +68,14 @@ type mockHealthRecordRepo struct {
 func (m *mockHealthRecordRepo) Upsert(records []*domain.HealthRecord) error {
 	m.upserted = append(m.upserted, records...)
 	return m.upsertErr
+}
+
+func (m *mockHealthRecordRepo) DailyAverages(fromDate, toDate string) ([]repo.DailyAverage, error) {
+	panic("not used in sync tests")
+}
+
+func (m *mockHealthRecordRepo) DailyAveragesByDates(dates []string) ([]repo.DailyAverage, error) {
+	panic("not used in sync tests")
 }
 
 func validHealthPlanetToken() *domain.HealthPlanetToken {
