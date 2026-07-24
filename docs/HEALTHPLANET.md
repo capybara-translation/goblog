@@ -195,10 +195,16 @@ wrapper は `aws` CLI を使う。サーバに未導入の場合は AWS 公式�
 ### 4. SNS トピックと CloudWatch Alarm を作成（admin 認証情報で実行）
 
 ```bash
-# (a) 通知先 SNS トピックを作成し、メールを購読（届いた確認メールで Confirm する）
+# (a) 通知先 SNS トピックを作成し、メールを購読
 TOPIC_ARN=$(aws sns create-topic --name goblog-hpsync-alerts --query TopicArn --output text)
 aws sns subscribe --topic-arn "$TOPIC_ARN" --protocol email \
   --notification-endpoint you@example.com
+
+# 確認メールが届くが、「Confirm subscription」リンクはクリックせず、
+# リンク URL 内の Token= パラメータの値をコピーして CLI で確認する:
+aws sns confirm-subscription --topic-arn "$TOPIC_ARN" \
+  --token "<メール内リンクの Token= の値>" \
+  --authenticate-on-unsubscribe true
 
 # バックアップ監視の goblog-backup-alerts トピックが既にあるなら、
 # 新規作成せずその TOPIC_ARN を使い回してよい（通知の集約先が同じメールなら分ける理由はない）
@@ -216,6 +222,10 @@ aws cloudwatch put-metric-alarm \
 ```
 
 > `Minimum < 1` なので「失敗(0)」でも「データ点なし」でも発報し、復旧（次回成功で 1）すると OK 通知が届く。リージョンは env と揃えること（SNS / CloudWatch / メトリクスは同一リージョン）。
+
+> **`--authenticate-on-unsubscribe true` を使う理由**: SNS の通知メール末尾の unsubscribe リンクは確認画面なしの GET 一発で購読解除される。メールプロバイダのリンクスキャン（フィッシング検査等）がこのリンクを自動アクセスするだけで解除が成立し、「Unsubscribe Confirmation」が届いて監視が黙って止まる（実際に発生を確認済み）。CLI 確認でこのフラグを立てると、解除に AWS 認証が必須になりリンク経由の事故を防げる。
+>
+> **作成直後の ALARM は正常**: メトリクスがまだ無いため `TreatMissingData=breaching` により数分で ALARM 通知が来る。初回の同期成功メトリクス（手順5）が届いて OK に戻るまではそのままでよい。通知を一度で済ませたい場合は、このアラーム作成を手順5の正常系確認の後に回す。
 
 ### 5. 監視の動作確認
 
