@@ -1,0 +1,31 @@
+{{- define "health" -}}
+{{template "layout" .}}
+{{- end -}}
+
+{{define "title"}}Healthcare - {{.SiteTitle}}{{end}}
+
+{{define "content"}}
+<div class="space-y-6">
+    <div class="flex flex-wrap items-center gap-4">
+        <h1 class="text-2xl font-serif font-bold text-primary-900">Healthcare</h1>
+        <nav class="flex gap-3 text-sm font-sans" aria-label="表示期間">
+            {{$r := .Range}}
+            <a href="/health?range=30" class="{{if eq $r "30"}}font-bold text-primary-900 underline{{else}}text-primary-500 hover:text-primary-700{{end}}">30日</a>
+            <a href="/health?range=90" class="{{if eq $r "90"}}font-bold text-primary-900 underline{{else}}text-primary-500 hover:text-primary-700{{end}}">90日</a>
+            <a href="/health?range=365" class="{{if eq $r "365"}}font-bold text-primary-900 underline{{else}}text-primary-500 hover:text-primary-700{{end}}">1年</a>
+            <a href="/health?range=all" class="{{if eq $r "all"}}font-bold text-primary-900 underline{{else}}text-primary-500 hover:text-primary-700{{end}}">全期間</a>
+        </nav>
+    </div>
+
+    {{range .Charts}}
+    <section class="bg-white rounded-lg shadow-sm p-5">
+        <h2 class="text-lg font-sans font-semibold text-primary-800 mb-3">{{.Title}}</h2>
+        {{if .Empty}}
+        <p class="text-primary-400 text-sm">データがありません</p>
+        {{else}}
+        {{.SVG}}
+        {{end}}
+    </section>
+    {{end}}
+</div>
+{{end}}

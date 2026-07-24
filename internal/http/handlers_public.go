@@ -29,17 +29,19 @@ type PublicHandlers struct {
 	postService       service.PostService
 	postViewService   service.PostViewService
 	ogpService        service.OGPService
-	reactionService   service.ReactionService // Nil disables the SSR reaction block.
-	currentUserHelper *CurrentUserHelper      // Nil disables admin-only UI (edit links, etc.); resolves session-or-remember-token.
-	trustedProxies    []*net.IPNet            // Trusted proxies for resolving the client IP when recording views.
-	blogTitle         string                  // Blog title
-	baseURL           string                  // Site base URL (for sitemap)
-	postsPerPage      int                     // Posts per page on listing views
+	reactionService   service.ReactionService       // Nil disables the SSR reaction block.
+	currentUserHelper *CurrentUserHelper            // Nil disables admin-only UI (edit links, etc.); resolves session-or-remember-token.
+	trustedProxies    []*net.IPNet                  // Trusted proxies for resolving the client IP when recording views.
+	blogTitle         string                        // Blog title
+	baseURL           string                        // Site base URL (for sitemap)
+	postsPerPage      int                           // Posts per page on listing views
+	healthDisplay     *service.HealthDisplayService // Nil disables /health and the nav link/sitemap entry (Health Planet integration off).
 	homeTemplate      *template.Template
 	postTemplate      *template.Template
 	tagsTemplate      *template.Template
 	tagPostsTemplate  *template.Template
 	notFoundTemplate  *template.Template
+	healthTemplate    *template.Template
 }
 
 // truncateRunes truncates a string by rune (character) count
@@ -235,7 +237,7 @@ func resolvedTrustedProxies(helper *CurrentUserHelper, raw []string) []*net.IPNe
 // dimensions and variants may be nil; when non-nil, the rendered <img>
 // tags carry width/height and srcset/sizes attributes resolved from the
 // upload directory on disk.
-func NewPublicHandlers(postService service.PostService, postViewService service.PostViewService, ogpService service.OGPService, reactionService service.ReactionService, authService service.AuthService, secureCookie bool, trustedProxies []string, blogTitle, baseURL string, postsPerPage int, templatesFS embed.FS, dimensions markdown.DimensionsProvider, variants markdown.VariantsProvider) *PublicHandlers {
+func NewPublicHandlers(postService service.PostService, postViewService service.PostViewService, ogpService service.OGPService, reactionService service.ReactionService, authService service.AuthService, secureCookie bool, trustedProxies []string, blogTitle, baseURL string, postsPerPage int, healthDisplay *service.HealthDisplayService, templatesFS embed.FS, dimensions markdown.DimensionsProvider, variants markdown.VariantsProvider) *PublicHandlers {
 	converter := markdown.NewConverterFor(ogpService, dimensions, variants)
 
 	// Define custom template functions with closure-based markdown functions
@@ -302,6 +304,7 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 	tagsTemplate := parseTemplates("layout.html", "tags.html")
 	tagPostsTemplate := parseTemplates("layout.html", "tag_posts.html")
 	notFoundTemplate := parseTemplates("layout.html", "notfound.html")
+	healthTemplate := parseTemplates("layout.html", "health.html")
 
 	var helper *CurrentUserHelper
 	if authService != nil {
@@ -319,17 +322,19 @@ func NewPublicHandlers(postService service.PostService, postViewService service.
 		blogTitle:         blogTitle,
 		baseURL:           baseURL,
 		postsPerPage:      postsPerPage,
+		healthDisplay:     healthDisplay,
 		homeTemplate:      homeTemplate,
 		postTemplate:      postTemplate,
 		tagsTemplate:      tagsTemplate,
 		tagPostsTemplate:  tagPostsTemplate,
 		notFoundTemplate:  notFoundTemplate,
+		healthTemplate:    healthTemplate,
 	}
 }
 
 // NewPublicHandlersFromPath creates PublicHandlers by loading templates from the filesystem (for testing).
 // dimensions and variants may be nil.
-func NewPublicHandlersFromPath(postService service.PostService, postViewService service.PostViewService, reactionService service.ReactionService, authService service.AuthService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, templatePattern string, postsPerPage int, dimensions markdown.DimensionsProvider, variants markdown.VariantsProvider) *PublicHandlers {
+func NewPublicHandlersFromPath(postService service.PostService, postViewService service.PostViewService, reactionService service.ReactionService, authService service.AuthService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, templatePattern string, postsPerPage int, healthDisplay *service.HealthDisplayService, dimensions markdown.DimensionsProvider, variants markdown.VariantsProvider) *PublicHandlers {
 	dir := filepath.Dir(templatePattern)
 	layoutPath := filepath.Join(dir, "layout.html")
 
@@ -378,6 +383,7 @@ func NewPublicHandlersFromPath(postService service.PostService, postViewService 
 	tagsTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "tags.html")))
 	tagPostsTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "tag_posts.html")))
 	notFoundTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "notfound.html")))
+	healthTemplate := template.Must(template.New("").Funcs(funcMap).ParseFiles(layoutPath, filepath.Join(dir, "health.html")))
 
 	var helper *CurrentUserHelper
 	if authService != nil {
@@ -394,11 +400,13 @@ func NewPublicHandlersFromPath(postService service.PostService, postViewService 
 		blogTitle:         blogTitle,
 		baseURL:           baseURL,
 		postsPerPage:      postsPerPage,
+		healthDisplay:     healthDisplay,
 		homeTemplate:      homeTemplate,
 		postTemplate:      postTemplate,
 		tagsTemplate:      tagsTemplate,
 		tagPostsTemplate:  tagPostsTemplate,
 		notFoundTemplate:  notFoundTemplate,
+		healthTemplate:    healthTemplate,
 	}
 }
 
@@ -434,10 +442,11 @@ func (h *PublicHandlers) isAdminRequest(w http.ResponseWriter, r *http.Request) 
 // renderNotFound renders the 404 page
 func (h *PublicHandlers) renderNotFound(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{
-		"SiteTitle":   h.blogTitle,
-		"PinnedPosts": h.getPinnedPosts(),
-		"OGP":         h.defaultOGP("Not Found - "+h.blogTitle, r.URL.Path, h.blogTitle),
-		"Query":       "",
+		"SiteTitle":     h.blogTitle,
+		"PinnedPosts":   h.getPinnedPosts(),
+		"OGP":           h.defaultOGP("Not Found - "+h.blogTitle, r.URL.Path, h.blogTitle),
+		"Query":         "",
+		"HealthEnabled": h.healthDisplay != nil,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -493,18 +502,19 @@ func (h *PublicHandlers) HandleHome(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]any{
-		"SiteTitle":   h.blogTitle,
-		"Posts":       posts,
-		"CurrentPage": page,
-		"HasPrev":     page > 1,
-		"HasNext":     hasNext,
-		"PrevPage":    page - 1,
-		"NextPage":    page + 1,
-		"Query":       queryStr,
-		"NoIndex":     queryStr != "" || page > 1,
-		"PinnedPosts": h.getPinnedPosts(),
-		"OGP":         h.defaultOGP(h.blogTitle, r.URL.Path, h.blogTitle),
-		"IsAdmin":     h.isAdminRequest(w, r),
+		"SiteTitle":     h.blogTitle,
+		"Posts":         posts,
+		"CurrentPage":   page,
+		"HasPrev":       page > 1,
+		"HasNext":       hasNext,
+		"PrevPage":      page - 1,
+		"NextPage":      page + 1,
+		"Query":         queryStr,
+		"NoIndex":       queryStr != "" || page > 1,
+		"PinnedPosts":   h.getPinnedPosts(),
+		"OGP":           h.defaultOGP(h.blogTitle, r.URL.Path, h.blogTitle),
+		"IsAdmin":       h.isAdminRequest(w, r),
+		"HealthEnabled": h.healthDisplay != nil,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -564,12 +574,13 @@ func (h *PublicHandlers) HandlePostDetail(w http.ResponseWriter, r *http.Request
 	}
 
 	data := map[string]any{
-		"SiteTitle":   h.blogTitle,
-		"Post":        post,
-		"PinnedPosts": h.getPinnedPosts(),
-		"OGP":         h.postOGP(post, r.URL.Path),
-		"Query":       "",
-		"IsAdmin":     h.isAdminRequest(w, r),
+		"SiteTitle":     h.blogTitle,
+		"Post":          post,
+		"PinnedPosts":   h.getPinnedPosts(),
+		"OGP":           h.postOGP(post, r.URL.Path),
+		"Query":         "",
+		"IsAdmin":       h.isAdminRequest(w, r),
+		"HealthEnabled": h.healthDisplay != nil,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -616,11 +627,12 @@ func (h *PublicHandlers) HandleTags(w http.ResponseWriter, r *http.Request) {
 	})
 
 	data := map[string]any{
-		"SiteTitle":   h.blogTitle,
-		"Tags":        tags,
-		"PinnedPosts": h.getPinnedPosts(),
-		"OGP":         h.defaultOGP("Tags - "+h.blogTitle, r.URL.Path, "Tags from "+h.blogTitle),
-		"Query":       "",
+		"SiteTitle":     h.blogTitle,
+		"Tags":          tags,
+		"PinnedPosts":   h.getPinnedPosts(),
+		"OGP":           h.defaultOGP("Tags - "+h.blogTitle, r.URL.Path, "Tags from "+h.blogTitle),
+		"Query":         "",
+		"HealthEnabled": h.healthDisplay != nil,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -681,18 +693,19 @@ func (h *PublicHandlers) HandleTagPosts(w http.ResponseWriter, r *http.Request) 
 	}
 
 	data := map[string]any{
-		"SiteTitle":   h.blogTitle,
-		"Tag":         tag,
-		"Posts":       posts,
-		"CurrentPage": page,
-		"HasPrev":     page > 1,
-		"HasNext":     hasNext,
-		"PrevPage":    page - 1,
-		"NextPage":    page + 1,
-		"PinnedPosts": h.getPinnedPosts(),
-		"OGP":         h.defaultOGP(tag+" - "+h.blogTitle, r.URL.Path, "Posts tagged with "+tag),
-		"Query":       "",
-		"IsAdmin":     h.isAdminRequest(w, r),
+		"SiteTitle":     h.blogTitle,
+		"Tag":           tag,
+		"Posts":         posts,
+		"CurrentPage":   page,
+		"HasPrev":       page > 1,
+		"HasNext":       hasNext,
+		"PrevPage":      page - 1,
+		"NextPage":      page + 1,
+		"PinnedPosts":   h.getPinnedPosts(),
+		"OGP":           h.defaultOGP(tag+" - "+h.blogTitle, r.URL.Path, "Posts tagged with "+tag),
+		"Query":         "",
+		"IsAdmin":       h.isAdminRequest(w, r),
+		"HealthEnabled": h.healthDisplay != nil,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

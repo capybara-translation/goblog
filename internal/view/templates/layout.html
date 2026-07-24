@@ -59,6 +59,7 @@
             </h1>
             <nav class="font-sans text-sm text-primary-500 flex flex-wrap gap-4">
                 <a href="/tags" class="hover:text-primary-700 transition-colors duration-200">Tags</a>
+                {{if .HealthEnabled}}<a href="/health" class="hover:text-primary-700 transition-colors duration-200">Healthcare</a>{{end}}
                 {{range .PinnedPosts}}<a href="/posts/{{.Slug}}" class="hover:text-primary-700 transition-colors duration-200">{{.Title}}</a>{{end}}
             </nav>
             <form action="/" method="GET" role="search" aria-label="Site search" class="flex gap-2 font-sans">

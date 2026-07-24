@@ -84,6 +84,12 @@ func main() {
 		healthPlanetAdminService = service.NewHealthPlanetAdminService(hpClient, repo.NewHealthPlanetTokenRepository(database))
 	}
 
+	// SSR /health chart page (nil when disabled — route is not registered)
+	var healthDisplayService *service.HealthDisplayService
+	if cfg.HealthPlanetEnabled {
+		healthDisplayService = service.NewHealthDisplayService(repo.NewHealthRecordRepository(database))
+	}
+
 	// Initialize OGP service for link cards
 	ogpFetcher := ogp.NewFetcher(ogp.FetchTimeout)
 	ogpService := service.NewOGPService(ogpRepo, ogpFetcher, cfg.UploadDir)
@@ -94,7 +100,7 @@ func main() {
 	}
 
 	// Initialize router (using embedded resources)
-	r := gobloghttp.NewRouter(postService, postViewService, authService, ogpService, reactionService, reactionTypeService, deviceService, healthPlanetAdminService, cfg.SecureCookie, cfg.TrustedProxies, cfg.BlogTitle, cfg.BaseURL, cfg.UploadDir, cfg.MaxUploadSize, cfg.PostsPerPage, goblog.Templates, goblog.StaticFiles)
+	r := gobloghttp.NewRouter(postService, postViewService, authService, ogpService, reactionService, reactionTypeService, deviceService, healthPlanetAdminService, healthDisplayService, cfg.SecureCookie, cfg.TrustedProxies, cfg.BlogTitle, cfg.BaseURL, cfg.UploadDir, cfg.MaxUploadSize, cfg.PostsPerPage, goblog.Templates, goblog.StaticFiles)
 
 	// Start server
 	port := ":" + cfg.Port

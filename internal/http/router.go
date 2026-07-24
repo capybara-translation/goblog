@@ -34,7 +34,7 @@ func (n noDirListingFS) Open(name string) (http.File, error) {
 }
 
 // NewRouter creates the application router using embedded resources
-func NewRouter(postService service.PostService, postViewService service.PostViewService, authService service.AuthService, ogpService service.OGPService, reactionService service.ReactionService, reactionTypeService service.ReactionTypeService, deviceService service.DeviceService, healthPlanetAdminService *service.HealthPlanetAdminService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, uploadDir string, maxUploadSize int64, postsPerPage int, templatesFS, staticFS embed.FS) *mux.Router {
+func NewRouter(postService service.PostService, postViewService service.PostViewService, authService service.AuthService, ogpService service.OGPService, reactionService service.ReactionService, reactionTypeService service.ReactionTypeService, deviceService service.DeviceService, healthPlanetAdminService *service.HealthPlanetAdminService, healthDisplayService *service.HealthDisplayService, secureCookie bool, trustedProxies []string, blogTitle, baseURL, uploadDir string, maxUploadSize int64, postsPerPage int, templatesFS, staticFS embed.FS) *mux.Router {
 	r := mux.NewRouter()
 
 	// Shared image-dimensions cache. The Markdown renderer asks it for
@@ -48,7 +48,7 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 	variants := service.NewDiskVariantsService(uploadDir)
 
 	// Initialize public page handlers (using embedded templates)
-	publicHandlers := NewPublicHandlers(postService, postViewService, ogpService, reactionService, authService, secureCookie, trustedProxies, blogTitle, baseURL, postsPerPage, templatesFS, dimensions, variants)
+	publicHandlers := NewPublicHandlers(postService, postViewService, ogpService, reactionService, authService, secureCookie, trustedProxies, blogTitle, baseURL, postsPerPage, healthDisplayService, templatesFS, dimensions, variants)
 
 	// Display custom 404 page for non-existent routes
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -88,6 +88,9 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 	r.HandleFunc("/posts/", publicHandlers.HandlePosts).Methods("GET")
 	r.HandleFunc("/tags", publicHandlers.HandleTags).Methods("GET")
 	r.HandleFunc("/tags/{tag}", publicHandlers.HandleTagPosts).Methods("GET")
+	if healthDisplayService != nil {
+		r.HandleFunc("/health", publicHandlers.HandleHealthPage).Methods("GET")
+	}
 
 	// 管理画面（SPA）
 	r.HandleFunc("/admin", HandleAdminSPA).Methods("GET")
@@ -173,7 +176,7 @@ func NewRouterWithTemplates(postService service.PostService, postViewService ser
 	variants := service.NewDiskVariantsService(uploadDir)
 
 	// Initialize public page handlers (loading templates from filesystem)
-	publicHandlers := NewPublicHandlersFromPath(postService, postViewService, nil, authService, secureCookie, trustedProxies, blogTitle, baseURL, templatePattern, postsPerPage, dimensions, variants)
+	publicHandlers := NewPublicHandlersFromPath(postService, postViewService, nil, authService, secureCookie, trustedProxies, blogTitle, baseURL, templatePattern, postsPerPage, nil, dimensions, variants)
 
 	// Display custom 404 page for non-existent routes
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {

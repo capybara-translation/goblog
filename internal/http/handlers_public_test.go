@@ -2407,7 +2407,7 @@ func TestHandlePostDetail_RendersReactionCounts(t *testing.T) {
 		},
 	}
 
-	h := NewPublicHandlersFromPath(postSvc, nil, reactionSvc, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testPostsPerPage, nil, nil)
+	h := NewPublicHandlersFromPath(postSvc, nil, reactionSvc, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testPostsPerPage, nil, nil, nil)
 
 	r := mux.NewRouter()
 	r.HandleFunc("/posts/{slug}", h.HandlePostDetail).Methods("GET")
@@ -2461,7 +2461,7 @@ func TestHandlePostDetail_NoReactionBlock_WhenServiceNil(t *testing.T) {
 	}
 
 	// nil reactionService — the reactions block must be absent.
-	h := NewPublicHandlersFromPath(postSvc, nil, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testPostsPerPage, nil, nil)
+	h := NewPublicHandlersFromPath(postSvc, nil, nil, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testPostsPerPage, nil, nil, nil)
 
 	r := mux.NewRouter()
 	r.HandleFunc("/posts/{slug}", h.HandlePostDetail).Methods("GET")
@@ -2511,7 +2511,7 @@ func TestHandleHome_RendersReactionButtons(t *testing.T) {
 		},
 	}
 
-	h := NewPublicHandlersFromPath(postSvc, nil, reactionSvc, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testPostsPerPage, nil, nil)
+	h := NewPublicHandlersFromPath(postSvc, nil, reactionSvc, nil, testSecureCookie, nil, testBlogTitle, testBaseURL, testTemplatePattern, testPostsPerPage, nil, nil, nil)
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", h.HandleHome).Methods("GET")
@@ -2873,7 +2873,7 @@ func TestHandlePostDetail_RecordsResolvedClientIP(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			viewSvc := &mockPostViewService{recorded: make(chan string, 1)}
-			h := NewPublicHandlersFromPath(postSvc, viewSvc, nil, nil, false, tc.trustedProxies, testBlogTitle, testBaseURL, testTemplatePattern, testPostsPerPage, nil, nil)
+			h := NewPublicHandlersFromPath(postSvc, viewSvc, nil, nil, false, tc.trustedProxies, testBlogTitle, testBaseURL, testTemplatePattern, testPostsPerPage, nil, nil, nil)
 
 			r := mux.NewRouter()
 			r.HandleFunc("/posts/{slug}", h.HandlePostDetail).Methods("GET")

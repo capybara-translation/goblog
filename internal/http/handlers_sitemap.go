@@ -49,6 +49,10 @@ func (h *PublicHandlers) HandleSitemap(w http.ResponseWriter, r *http.Request) {
 		{Loc: h.baseURL + "/tags", ChangeFreq: "weekly", Priority: 0.6},
 	}
 
+	if h.healthDisplay != nil {
+		urls = append(urls, SitemapURL{Loc: h.baseURL + "/health", ChangeFreq: "weekly", Priority: 0.5})
+	}
+
 	// Post URLs
 	for _, post := range posts {
 		lastMod := ""
