@@ -3,6 +3,7 @@ package http
 import (
 	"bytes"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -10,6 +11,14 @@ import (
 	"github.com/capybara-translation/goblog/internal/repo"
 	"github.com/capybara-translation/goblog/internal/service"
 )
+
+// stripTagsNormalize strips HTML tags and collapses whitespace, so template
+// output can be compared against a plain-text expectation regardless of
+// exact markup/indentation.
+func stripTagsNormalize(html string) string {
+	noTags := regexp.MustCompile(`<[^>]+>`).ReplaceAllString(html, " ")
+	return strings.Join(strings.Fields(noTags), " ")
+}
 
 // fakeHealthRecordRepo returns fixed daily averages for the page test.
 type fakeHealthRecordRepo struct{}
@@ -110,6 +119,9 @@ func TestHealthBadges_Template(t *testing.T) {
 	if got := render(full); !strings.Contains(got, "体重 72.1kg") {
 		t.Errorf("weight badge missing: %q", got)
 	}
+	if got := render(full); strings.Contains(got, "・") {
+		t.Errorf("single-metric summary must not contain a ・ separator: %q", got)
+	}
 
 	halfBP := &domain.Post{HealthSummary: &domain.HealthSummary{Systolic: &sys}} // Diastolic なし
 	if got := render(halfBP); strings.Contains(got, "血圧") {
@@ -119,5 +131,11 @@ func TestHealthBadges_Template(t *testing.T) {
 	none := &domain.Post{HealthSummary: nil}
 	if got := strings.TrimSpace(render(none)); got != "" {
 		t.Errorf("nil summary should render nothing, got %q", got)
+	}
+
+	weight, pulse := 72.1, 63.0
+	twoMetrics := &domain.Post{HealthSummary: &domain.HealthSummary{Weight: &weight, Pulse: &pulse}}
+	if got := stripTagsNormalize(render(twoMetrics)); got != "体重 72.1kg ・ 脈拍 63bpm" {
+		t.Errorf("two-metric badges = %q, want %q", got, "体重 72.1kg ・ 脈拍 63bpm")
 	}
 }
