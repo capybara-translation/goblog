@@ -10,7 +10,11 @@
         {{if .Post.Title}}
         <h2 class="text-lg font-sans font-semibold mb-2 text-primary-800">{{.Post.Title}}</h2>
         {{end}}
-        {{template "healthBadges" .Post}}
+        {{if .Post.HealthSummary}}
+        <div class="pb-4 mb-4 border-b border-primary-200">
+            {{template "healthBadges" .Post}}
+        </div>
+        {{end}}
         <div class="markdown-content text-primary-700 leading-relaxed">
             {{renderMarkdown .Post.Content}}
         </div>

@@ -29,11 +29,11 @@ export function formatHealthSummaryLine(s: HealthDailySummary): string | null {
 
   const parts: string[] = [];
   if (s.weight != null) parts.push(`体重 ${s.weight.toFixed(1)}kg`);
+  if (s.body_fat != null) parts.push(`体脂肪率 ${s.body_fat.toFixed(1)}%`);
   if (s.systolic != null && s.diastolic != null) {
     parts.push(`血圧 ${Math.round(s.systolic)}/${Math.round(s.diastolic)}`);
   }
   if (s.pulse != null) parts.push(`脈拍 ${Math.round(s.pulse)}bpm`);
-  if (s.body_fat != null) parts.push(`体脂肪率 ${s.body_fat.toFixed(1)}%`);
 
   return parts.length > 0 ? parts.join(' ・ ') : null;
 }

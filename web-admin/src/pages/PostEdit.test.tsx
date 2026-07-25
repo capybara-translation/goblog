@@ -1017,7 +1017,7 @@ describe('PostEdit', () => {
       })
       await waitFor(() => {
         expect(
-          screen.getByText('体重 72.1kg ・ 血圧 119/82 ・ 脈拍 63bpm ・ 体脂肪率 20.8%')
+          screen.getByText('体重 72.1kg ・ 体脂肪率 20.8% ・ 血圧 119/82 ・ 脈拍 63bpm')
         ).toBeInTheDocument()
       })
     })
@@ -1080,7 +1080,7 @@ describe('PostEdit', () => {
       expect(formatHealthSummaryLine({ found: true })).toBeNull()
     })
 
-    it('orders 体重 → 血圧 → 脈拍 → 体脂肪率 with ・ separators', () => {
+    it('orders 体重 → 体脂肪率 → 血圧 → 脈拍 with ・ separators', () => {
       const s: HealthDailySummary = {
         found: true,
         weight: 72.1,
@@ -1089,7 +1089,7 @@ describe('PostEdit', () => {
         pulse: 63,
         body_fat: 20.8,
       }
-      expect(formatHealthSummaryLine(s)).toBe('体重 72.1kg ・ 血圧 119/82 ・ 脈拍 63bpm ・ 体脂肪率 20.8%')
+      expect(formatHealthSummaryLine(s)).toBe('体重 72.1kg ・ 体脂肪率 20.8% ・ 血圧 119/82 ・ 脈拍 63bpm')
     })
 
     it('omits blood pressure when only systolic is present', () => {
@@ -1108,7 +1108,7 @@ describe('PostEdit', () => {
 
     it('places separators only between present items', () => {
       const s: HealthDailySummary = { found: true, systolic: 119, diastolic: 82, body_fat: 20.8 }
-      expect(formatHealthSummaryLine(s)).toBe('血圧 119/82 ・ 体脂肪率 20.8%')
+      expect(formatHealthSummaryLine(s)).toBe('体脂肪率 20.8% ・ 血圧 119/82')
     })
   })
 })

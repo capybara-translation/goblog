@@ -134,8 +134,8 @@
 <div class="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-sm font-sans text-primary-500">
     {{$sep := false}}
     {{if .Weight}}<span>体重 {{healthValue1 .Weight}}kg</span>{{$sep = true}}{{end}}
+    {{if .BodyFat}}{{if $sep}}<span aria-hidden="true">・</span>{{end}}<span>体脂肪率 {{healthValue1 .BodyFat}}%</span>{{$sep = true}}{{end}}
     {{if and .Systolic .Diastolic}}{{if $sep}}<span aria-hidden="true">・</span>{{end}}<span>血圧 {{healthValue0 .Systolic}}/{{healthValue0 .Diastolic}}</span>{{$sep = true}}{{end}}
-    {{if .Pulse}}{{if $sep}}<span aria-hidden="true">・</span>{{end}}<span>脈拍 {{healthValue0 .Pulse}}bpm</span>{{$sep = true}}{{end}}
-    {{if .BodyFat}}{{if $sep}}<span aria-hidden="true">・</span>{{end}}<span>体脂肪率 {{healthValue1 .BodyFat}}%</span>{{end}}
+    {{if .Pulse}}{{if $sep}}<span aria-hidden="true">・</span>{{end}}<span>脈拍 {{healthValue0 .Pulse}}bpm</span>{{end}}
 </div>
 {{end}}{{end}}
