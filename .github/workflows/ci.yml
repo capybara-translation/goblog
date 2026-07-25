@@ -7,6 +7,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # static.go embeds web-admin/dist (gitignored build output), so the
+      # admin SPA must be built before any go command can compile the tree.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web-admin/package-lock.json
+      - name: build admin SPA (required by go:embed)
+        working-directory: web-admin
+        run: |
+          npm ci
+          npm run build
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
