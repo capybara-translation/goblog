@@ -74,6 +74,9 @@ func TestHandleHealthPage_RendersChartsAndRangeLinks(t *testing.T) {
 	if !strings.Contains(body, `<meta property="og:title" content="Healthcare - `) {
 		t.Error("og:title meta with Healthcare title missing")
 	}
+	if !strings.Contains(body, `<script src="/static/js/healthchart.js" defer></script>`) {
+		t.Error("healthchart.js script tag missing (tap-to-show progressive enhancement)")
+	}
 }
 
 // range クエリ指定（デフォルト以外の URL バリエーション）は home の ?q/page と同様に

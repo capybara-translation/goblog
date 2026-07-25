@@ -30,21 +30,50 @@ func TestRender_BasicStructure(t *testing.T) {
 	if !strings.Contains(s, "<svg") || !strings.Contains(s, "viewBox=") {
 		t.Error("missing svg/viewBox")
 	}
-	if got := strings.Count(s, "<circle"); got != 3 {
-		t.Errorf("circles = %d, want 3 (one per point)", got)
+	// Each point renders two circles: the small visible marker (r=3, with
+	// the hover <title>) and a larger transparent hit-target circle (r=10,
+	// data-chart-label) for the tap-to-show JS. See TestRender_HitTargetCircles.
+	if got := strings.Count(s, "<circle"); got != 6 {
+		t.Errorf("circles = %d, want 6 (2 per point x 3 points)", got)
 	}
 	if !strings.Contains(s, "<title>2026-07-16: 71kg</title>") {
 		t.Errorf("point title missing: %s", s)
+	}
+	if !strings.Contains(s, `data-chart-label="2026-07-16: 71kg"`) {
+		t.Errorf("hit-target data-chart-label missing: %s", s)
 	}
 	if strings.Count(s, "<polyline") != 1 {
 		t.Error("want exactly 1 polyline for 1 series")
 	}
 }
 
+// 各データ点は、可視マーカー（r=3）に加えて、タップ可能な透明ヒットターゲット
+// （r=10、data-chart-label）を1つずつ持つこと。可視マーカーはホバー用の
+// <title> を保持したまま（JS 無効でも動作する）。
+func TestRender_HitTargetCircles(t *testing.T) {
+	svg, err := Render(weightChart())
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	s := string(svg)
+	if got := strings.Count(s, `r="3"`); got != 3 {
+		t.Errorf(`visible marker circles (r="3") = %d, want 3`, got)
+	}
+	if got := strings.Count(s, `r="10"`); got != 3 {
+		t.Errorf(`hit-target circles (r="10") = %d, want 3 (one per point)`, got)
+	}
+	if got := strings.Count(s, `fill="transparent"`); got != 3 {
+		t.Errorf(`transparent fills = %d, want 3`, got)
+	}
+}
+
 // x 座標は暦日ベースの線形スケール: 7/1 と 7/16 の間隔は 7/16 と 7/31 の間隔と等しい
 func TestRender_CalendarLinearXScale(t *testing.T) {
 	svg, _ := Render(weightChart())
-	re := regexp.MustCompile(`<circle cx="([0-9.]+)"`)
+	// Match only the visible marker circles (r=3); each point also has a
+	// same-position transparent hit-target circle (r=10) that would
+	// otherwise double-count every x position.
+	re := regexp.MustCompile(`<circle cx="([0-9.]+)" cy="[0-9.]+" r="3"`)
 	ms := re.FindAllStringSubmatch(string(svg), -1)
 	if len(ms) != 3 {
 		t.Fatalf("found %d circles", len(ms))
@@ -105,8 +134,11 @@ func TestRender_SkipsNonFiniteValues(t *testing.T) {
 		t.Fatalf("Render: %v", err)
 	}
 	s := string(svg)
-	if got := strings.Count(s, "<circle"); got != 1 {
-		t.Errorf("circles = %d, want 1 (Inf point must be dropped)", got)
+	if got := strings.Count(s, `r="3"`); got != 1 {
+		t.Errorf(`visible marker circles (r="3") = %d, want 1 (Inf point must be dropped)`, got)
+	}
+	if got := strings.Count(s, `r="10"`); got != 1 {
+		t.Errorf(`hit-target circles (r="10") = %d, want 1 (Inf point must be dropped)`, got)
 	}
 	if strings.Contains(s, "NaN") || strings.Contains(s, "Inf") {
 		t.Errorf("output contains non-finite literal: %s", s)
@@ -169,7 +201,7 @@ func TestRender_XAxisNoDuplicatesOnShortSpan_SingleDay(t *testing.T) {
 	s := string(svg)
 
 	// Extract all x-axis tick labels with their x position (e.g., x="48.5" y="232" ... "7/15")
-	tickRe := regexp.MustCompile(`<text x="([^"]*)" y="232" font-size="10" fill="#737373" text-anchor="middle">([^<]+)</text>`)
+	tickRe := regexp.MustCompile(`<text x="([^"]*)" y="232" font-size="10" fill="#a1a1aa" text-anchor="middle">([^<]+)</text>`)
 	matches := tickRe.FindAllStringSubmatch(s, -1)
 	if len(matches) == 0 {
 		t.Error("no x-axis tick labels found")
@@ -231,7 +263,7 @@ func TestRender_XAxisNoDuplicatesOnShortSpan_ThreeDays(t *testing.T) {
 	s := string(svg)
 
 	// Extract all x-axis tick labels
-	tickRe := regexp.MustCompile(`<text x="[^"]*" y="232" font-size="10" fill="#737373" text-anchor="middle">([^<]+)</text>`)
+	tickRe := regexp.MustCompile(`<text x="[^"]*" y="232" font-size="10" fill="#a1a1aa" text-anchor="middle">([^<]+)</text>`)
 	matches := tickRe.FindAllStringSubmatch(s, -1)
 	if len(matches) == 0 {
 		t.Error("no x-axis tick labels found")
@@ -314,7 +346,7 @@ func TestRender_XAxisNoDuplicatesOnLongSpan_130Days(t *testing.T) {
 	}
 	s := string(svg)
 
-	tickRe := regexp.MustCompile(`<text x="[^"]*" y="232" font-size="10" fill="#737373" text-anchor="middle">([^<]+)</text>`)
+	tickRe := regexp.MustCompile(`<text x="[^"]*" y="232" font-size="10" fill="#a1a1aa" text-anchor="middle">([^<]+)</text>`)
 	matches := tickRe.FindAllStringSubmatch(s, -1)
 	if len(matches) == 0 {
 		t.Fatal("no x-axis tick labels found")
@@ -345,7 +377,7 @@ func TestRender_XAxisNoDuplicatesOnLongSpan_200Days(t *testing.T) {
 	}
 	s := string(svg)
 
-	tickRe := regexp.MustCompile(`<text x="[^"]*" y="232" font-size="10" fill="#737373" text-anchor="middle">([^<]+)</text>`)
+	tickRe := regexp.MustCompile(`<text x="[^"]*" y="232" font-size="10" fill="#a1a1aa" text-anchor="middle">([^<]+)</text>`)
 	matches := tickRe.FindAllStringSubmatch(s, -1)
 	seen := make(map[string]bool)
 	distinct := 0

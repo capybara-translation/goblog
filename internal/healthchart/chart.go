@@ -1,5 +1,9 @@
 // Package healthchart renders daily-average health series as self-contained
-// inline SVG line charts (no JavaScript). Pure functions only: given the
+// inline SVG line charts. The SVG needs no JavaScript to be useful — each
+// point carries a <title> tooltip that works on hover — but it also emits a
+// transparent, larger hit-target circle per point (data-chart-label) for an
+// optional companion script (healthchart.js) that shows the same label on
+// tap, for touch users who have no hover. Pure functions only: given the
 // same Chart, Render returns the same markup, which keeps it unit-testable.
 //
 // Dates are YYYY-MM-DD strings; they are parsed with time.Parse purely for
@@ -51,7 +55,9 @@ const (
 )
 
 // Series colors: index 0 red (blood pressure 最高 comes first), index 1 blue.
-var seriesColors = [2]string{"#dc2626" /* red-600 */, "#2563eb" /* blue-600 */}
+// red-500/blue-500 rather than the -600 shades: the page's dark background
+// (bg-primary-100, see health.html) needs the lighter/higher-contrast step.
+var seriesColors = [2]string{"#ef4444" /* red-500 */, "#3b82f6" /* blue-500 */}
 
 func parseDay(s string) (time.Time, error) { return time.Parse(dateFmt, s) }
 
@@ -176,8 +182,8 @@ func Render(c Chart) (template.HTML, error) {
 	// y grid + labels
 	for _, tv := range ticks {
 		y := yFor(tv)
-		fmt.Fprintf(&b, `<line x1="%g" y1="%.1f" x2="%g" y2="%.1f" stroke="#e5e5e5" stroke-width="1"/>`, padL, y, chartW-padR, y)
-		fmt.Fprintf(&b, `<text x="%g" y="%.1f" font-size="10" fill="#737373" text-anchor="end">%s</text>`, padL-6, y+3, formatValue(tv))
+		fmt.Fprintf(&b, `<line x1="%g" y1="%.1f" x2="%g" y2="%.1f" stroke="#3f3f46" stroke-width="1"/>`, padL, y, chartW-padR, y)
+		fmt.Fprintf(&b, `<text x="%g" y="%.1f" font-size="10" fill="#a1a1aa" text-anchor="end">%s</text>`, padL-6, y+3, formatValue(tv))
 	}
 
 	// x tick labels: ~6 evenly spaced dates; M/D for spans <= 120 days, Y/M beyond.
@@ -212,7 +218,7 @@ func Render(c Chart) (template.HTML, error) {
 			continue
 		}
 		prevLabel = label
-		fmt.Fprintf(&b, `<text x="%.1f" y="%g" font-size="10" fill="#737373" text-anchor="middle">%s</text>`, x, chartH-8, label)
+		fmt.Fprintf(&b, `<text x="%.1f" y="%g" font-size="10" fill="#a1a1aa" text-anchor="middle">%s</text>`, x, chartH-8, label)
 	}
 
 	// series. Non-finite points are skipped entirely — treated as absent —
@@ -244,8 +250,19 @@ func Render(c Chart) (template.HTML, error) {
 				continue
 			}
 			x, _ := xFor(p.Date)
-			fmt.Fprintf(&b, `<circle cx="%.1f" cy="%.1f" r="%g" fill="%s"><title>%s: %s%s</title></circle>`,
-				x, yFor(p.Value), dotR, color, template.HTMLEscapeString(p.Date), formatValue(p.Value), template.HTMLEscapeString(c.Unit))
+			y := yFor(p.Value)
+			label := fmt.Sprintf("%s: %s%s", template.HTMLEscapeString(p.Date), formatValue(p.Value), template.HTMLEscapeString(c.Unit))
+			fmt.Fprintf(&b, `<circle cx="%.1f" cy="%.1f" r="%g" fill="%s"><title>%s</title></circle>`,
+				x, y, dotR, color, label)
+			// Transparent hit-target circle on top of the visible marker: the
+			// visible dot (r=3) is too small to reliably tap on a touchscreen,
+			// and touch devices have no hover to trigger the <title> tooltip
+			// above anyway. healthchart.js listens for clicks on
+			// [data-chart-label] and renders the same label as an on-page
+			// tooltip. This is pure progressive enhancement — the <title>
+			// keeps working for mouse users with JS disabled.
+			fmt.Fprintf(&b, `<circle cx="%.1f" cy="%.1f" r="10" fill="transparent" data-chart-label="%s"/>`,
+				x, y, label)
 		}
 	}
 
@@ -256,7 +273,7 @@ func Render(c Chart) (template.HTML, error) {
 			s := c.Series[si]
 			color := seriesColors[si%len(seriesColors)]
 			fmt.Fprintf(&b, `<rect x="%.1f" y="%g" width="10" height="10" fill="%s"/>`, lx, padT, color)
-			fmt.Fprintf(&b, `<text x="%.1f" y="%g" font-size="11" fill="#404040">%s</text>`, lx+14, padT+9, template.HTMLEscapeString(s.Label))
+			fmt.Fprintf(&b, `<text x="%.1f" y="%g" font-size="11" fill="#d4d4d8">%s</text>`, lx+14, padT+9, template.HTMLEscapeString(s.Label))
 			lx += 14 + float64(len([]rune(s.Label)))*11 + 16
 		}
 	}

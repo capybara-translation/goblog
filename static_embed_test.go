@@ -13,3 +13,12 @@ func TestStaticEmbedsReactionsJS(t *testing.T) {
 		t.Fatalf("reactions.js is not embedded in StaticFiles: %v", err)
 	}
 }
+
+// TestStaticEmbedsHealthChartJS is the same check for healthchart.js (the
+// /health page's tap-to-show progressive enhancement, referenced by
+// health.html as /static/js/healthchart.js).
+func TestStaticEmbedsHealthChartJS(t *testing.T) {
+	if _, err := fs.Stat(StaticFiles, "internal/view/static/js/healthchart.js"); err != nil {
+		t.Fatalf("healthchart.js is not embedded in StaticFiles: %v", err)
+	}
+}
