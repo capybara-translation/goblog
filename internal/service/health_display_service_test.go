@@ -40,16 +40,16 @@ func TestHealthDisplay_Series_RangeFallbackAndWindow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Series: %v", err)
 	}
-	if s.Range != "90" {
-		t.Errorf("Range = %q, want 90 (fallback)", s.Range)
+	if s.Range != "30" {
+		t.Errorf("Range = %q, want 30 (fallback)", s.Range)
 	}
 	today := time.Now().Format("2006-01-02")
 	if s.To != today || m.gotTo != today {
 		t.Errorf("To = %q / repo to = %q, want %q", s.To, m.gotTo, today)
 	}
-	wantFrom := time.Now().AddDate(0, 0, -89).Format("2006-01-02")
+	wantFrom := time.Now().AddDate(0, 0, -29).Format("2006-01-02")
 	if s.From != wantFrom || m.gotFrom != wantFrom {
-		t.Errorf("From = %q / repo from = %q, want %q (90-day window incl. today)", s.From, m.gotFrom, wantFrom)
+		t.Errorf("From = %q / repo from = %q, want %q (30-day window incl. today)", s.From, m.gotFrom, wantFrom)
 	}
 }
 

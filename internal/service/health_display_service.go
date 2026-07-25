@@ -26,7 +26,7 @@ type HealthSeries struct {
 	Pulse     []HealthSeriesPoint
 }
 
-const defaultHealthRange = "90"
+const defaultHealthRange = "30"
 
 var healthRangeDays = map[string]int{"30": 30, "90": 90, "365": 365}
 
@@ -55,7 +55,7 @@ func roundFor(metric string, v float64) float64 {
 }
 
 // Series returns the daily-average series for the requested range.
-// Unknown range values silently fall back to "90" (same convention as
+// Unknown range values silently fall back to "30" (same convention as
 // POSTS_PER_PAGE). For "all", From is the earliest data date.
 //
 // The window boundaries are derived from time.Now() in the server process's
