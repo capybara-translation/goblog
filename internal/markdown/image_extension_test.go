@@ -33,7 +33,7 @@ func TestConvert_ImageAttributes_FirstImageIsNotLazy(t *testing.T) {
 	mustContain(t, html, `src="/uploads/abc.jpg"`)
 	mustContain(t, html, `alt="sunset"`)
 	mustContain(t, html, `decoding="async"`)
-	mustNotContain(t, html, `loading="lazy"`)        // first image is NOT lazy
+	mustNotContain(t, html, `loading="lazy"`)       // first image is NOT lazy
 	mustNotContain(t, html, `fetchpriority="high"`) // intentionally not emitted
 }
 

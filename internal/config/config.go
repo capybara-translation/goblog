@@ -85,16 +85,16 @@ func Load() *Config {
 	baseURL = strings.TrimSuffix(baseURL, "/")
 
 	return &Config{
-		Port:           port,
-		SecureCookie:   getEnvAsBool("SECURE_COOKIE", false), // Default: false (for development)
-		PasswordPolicy: getPasswordPolicy("PASSWORD_POLICY", PasswordPolicyNone),
-		TrustedProxies: getEnvAsStringSlice("TRUSTED_PROXIES"),
-		DatabasePath:   getEnv("DATABASE_PATH", "data/goblog.db"),
-		BlogTitle:      getEnv("BLOG_TITLE", "goblog"),
-		BaseURL:        baseURL,
-		UploadDir:      getEnv("UPLOAD_DIR", "data/uploads"),
-		MaxUploadSize:  getEnvAsInt64("MAX_UPLOAD_SIZE", DefaultMaxUploadSize),
-		PostsPerPage:   getEnvAsIntInRange("POSTS_PER_PAGE", DefaultPostsPerPage, 1, MaxPostsPerPage),
+		Port:                     port,
+		SecureCookie:             getEnvAsBool("SECURE_COOKIE", false), // Default: false (for development)
+		PasswordPolicy:           getPasswordPolicy("PASSWORD_POLICY", PasswordPolicyNone),
+		TrustedProxies:           getEnvAsStringSlice("TRUSTED_PROXIES"),
+		DatabasePath:             getEnv("DATABASE_PATH", "data/goblog.db"),
+		BlogTitle:                getEnv("BLOG_TITLE", "goblog"),
+		BaseURL:                  baseURL,
+		UploadDir:                getEnv("UPLOAD_DIR", "data/uploads"),
+		MaxUploadSize:            getEnvAsInt64("MAX_UPLOAD_SIZE", DefaultMaxUploadSize),
+		PostsPerPage:             getEnvAsIntInRange("POSTS_PER_PAGE", DefaultPostsPerPage, 1, MaxPostsPerPage),
 		SessionTTL:               getEnvAsDurationAtLeast("SESSION_TTL", DefaultSessionTTL, MinSessionTTL),
 		RememberTTL:              getEnvAsDurationAtLeast("REMEMBER_TTL", DefaultRememberTTL, MinRememberTTL),
 		HealthPlanetEnabled:      getEnvAsBool("HEALTHPLANET_ENABLED", false),

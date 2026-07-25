@@ -11,10 +11,10 @@ import (
 
 // mockOGPRepository is a mock implementation of repo.OGPRepository
 type mockOGPRepository struct {
-	findByURLFunc    func(url string) (*ogp.Data, error)
-	upsertFunc       func(data *ogp.Data) error
+	findByURLFunc     func(url string) (*ogp.Data, error)
+	upsertFunc        func(data *ogp.Data) error
 	deleteExpiredFunc func() ([]string, error)
-	upsertedData     *ogp.Data
+	upsertedData      *ogp.Data
 }
 
 func (m *mockOGPRepository) FindByURL(url string) (*ogp.Data, error) {
@@ -265,11 +265,11 @@ func TestOGPService_Get_SetsTTL(t *testing.T) {
 func TestOGPService_Get_CacheHitDownloadsImage(t *testing.T) {
 	// Cache hit with ImageURL but empty LocalImagePath should trigger download
 	cachedData := &ogp.Data{
-		URL:         "https://example.com",
-		Title:       "Cached Title",
-		ImageURL:    "https://example.com/image.jpg",
-		FetchedAt:   time.Now(),
-		ExpiresAt:   time.Now().Add(24 * time.Hour),
+		URL:       "https://example.com",
+		Title:     "Cached Title",
+		ImageURL:  "https://example.com/image.jpg",
+		FetchedAt: time.Now(),
+		ExpiresAt: time.Now().Add(24 * time.Hour),
 		// LocalImagePath intentionally empty
 	}
 

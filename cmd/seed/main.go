@@ -56,7 +56,7 @@ func getSeedPosts() []seedPost {
 			title:    "Markdownの書き方ガイド",
 			slug:     "markdown-guide",
 			isPinned: true,
-			content:  `この記事では、Markdownの基本的な書き方を紹介します。
+			content: `この記事では、Markdownの基本的な書き方を紹介します。
 
 ## 見出し
 
