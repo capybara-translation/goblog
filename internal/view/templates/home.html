@@ -20,7 +20,11 @@
                 <a href="/posts/{{.Slug}}" class="text-primary-800 hover:text-primary-600 transition-colors">{{if $.Query}}{{highlightQuery .Title $.Query}}{{else}}{{.Title}}{{end}}</a>
             </h2>
             {{end}}
-            {{template "healthBadges" .}}
+            {{if .HealthSummary}}
+            <div class="pb-4 mb-4 border-b border-primary-200">
+                {{template "healthBadges" .}}
+            </div>
+            {{end}}
             <div class="markdown-content text-primary-700 leading-relaxed">
                 {{if $.Query}}{{renderMarkdownWithHighlight .Content $.Query}}{{else}}{{renderMarkdown .Content}}{{end}}
             </div>
