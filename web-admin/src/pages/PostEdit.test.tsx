@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
-import { PostEdit } from './PostEdit'
+import { PostEdit, formatHealthSummaryLine } from './PostEdit'
 import { ModalProvider } from '../hooks/useModal'
 import { apiClient } from '../api/client'
-import type { Post } from '../api/client'
+import type { Post, HealthDailySummary } from '../api/client'
 
 // Fixed date for deterministic tests (UTC: 2025-06-15)
 const FIXED_DATE = new Date('2025-06-15T12:00:00Z')
@@ -24,6 +24,7 @@ vi.mock('../api/client', () => ({
     getTags: vi.fn(),
     previewMarkdown: vi.fn().mockResolvedValue(''),
     getHealthPlanetStatus: vi.fn(),
+    getHealthDailySummary: vi.fn(),
   },
 }))
 
@@ -80,6 +81,9 @@ describe('PostEdit', () => {
     ])
     // Default: healthplanet integration disabled unless a test overrides it.
     vi.mocked(apiClient.getHealthPlanetStatus).mockResolvedValue({ enabled: false })
+    // Default: no data, so tests that enable the integration but don't care
+    // about the summary preview aren't required to mock it explicitly.
+    vi.mocked(apiClient.getHealthDailySummary).mockResolvedValue({ found: false })
   })
 
   afterEach(() => {
@@ -989,6 +993,122 @@ describe('PostEdit', () => {
       await waitFor(() => {
         expect(screen.getByText('Post updated')).toBeInTheDocument()
       })
+    })
+  })
+
+  describe('health data preview', () => {
+    it('shows the formatted summary line after selecting a date', async () => {
+      vi.mocked(apiClient.getHealthPlanetStatus).mockResolvedValue({ enabled: true })
+      vi.mocked(apiClient.getHealthDailySummary).mockResolvedValue({
+        found: true,
+        weight: 72.1,
+        systolic: 119,
+        diastolic: 82,
+        pulse: 63,
+        body_fat: 20.8,
+      })
+      await renderCreateMode()
+
+      const field = await screen.findByLabelText('健康データの日付')
+      fireEvent.change(field, { target: { value: '2026-07-20' } })
+
+      await waitFor(() => {
+        expect(apiClient.getHealthDailySummary).toHaveBeenCalledWith('2026-07-20')
+      })
+      await waitFor(() => {
+        expect(
+          screen.getByText('体重 72.1kg ・ 血圧 119/82 ・ 脈拍 63bpm ・ 体脂肪率 20.8%')
+        ).toBeInTheDocument()
+      })
+    })
+
+    it('shows a no-data message when the day has no health data', async () => {
+      vi.mocked(apiClient.getHealthPlanetStatus).mockResolvedValue({ enabled: true })
+      vi.mocked(apiClient.getHealthDailySummary).mockResolvedValue({ found: false })
+      await renderCreateMode()
+
+      const field = await screen.findByLabelText('健康データの日付')
+      fireEvent.change(field, { target: { value: '2026-07-21' } })
+
+      await waitFor(() => {
+        expect(screen.getByText('この日の健康データはありません')).toBeInTheDocument()
+      })
+    })
+
+    it('hides the preview when the date is cleared', async () => {
+      vi.mocked(apiClient.getHealthPlanetStatus).mockResolvedValue({ enabled: true })
+      vi.mocked(apiClient.getHealthDailySummary).mockResolvedValue({
+        found: true,
+        weight: 72.1,
+      })
+      await renderCreateMode()
+
+      const field = await screen.findByLabelText('健康データの日付')
+      fireEvent.change(field, { target: { value: '2026-07-20' } })
+      await waitFor(() => {
+        expect(screen.getByText('体重 72.1kg')).toBeInTheDocument()
+      })
+
+      fireEvent.change(field, { target: { value: '' } })
+      await waitFor(() => {
+        expect(screen.queryByText('体重 72.1kg')).not.toBeInTheDocument()
+        expect(screen.queryByText('この日の健康データはありません')).not.toBeInTheDocument()
+      })
+    })
+
+    it('shows nothing when the fetch fails', async () => {
+      vi.mocked(apiClient.getHealthPlanetStatus).mockResolvedValue({ enabled: true })
+      vi.mocked(apiClient.getHealthDailySummary).mockRejectedValue(new Error('network error'))
+      await renderCreateMode()
+
+      const field = await screen.findByLabelText('健康データの日付')
+      fireEvent.change(field, { target: { value: '2026-07-20' } })
+
+      await waitFor(() => {
+        expect(apiClient.getHealthDailySummary).toHaveBeenCalled()
+      })
+      expect(screen.queryByText('この日の健康データはありません')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('formatHealthSummaryLine', () => {
+    it('returns null when not found', () => {
+      expect(formatHealthSummaryLine({ found: false })).toBeNull()
+    })
+
+    it('returns null when found but no displayable metrics', () => {
+      expect(formatHealthSummaryLine({ found: true })).toBeNull()
+    })
+
+    it('orders 体重 → 血圧 → 脈拍 → 体脂肪率 with ・ separators', () => {
+      const s: HealthDailySummary = {
+        found: true,
+        weight: 72.1,
+        systolic: 119,
+        diastolic: 82,
+        pulse: 63,
+        body_fat: 20.8,
+      }
+      expect(formatHealthSummaryLine(s)).toBe('体重 72.1kg ・ 血圧 119/82 ・ 脈拍 63bpm ・ 体脂肪率 20.8%')
+    })
+
+    it('omits blood pressure when only systolic is present', () => {
+      const s: HealthDailySummary = { found: true, weight: 72.1, systolic: 119 }
+      expect(formatHealthSummaryLine(s)).toBe('体重 72.1kg')
+    })
+
+    it('omits blood pressure when only diastolic is present', () => {
+      const s: HealthDailySummary = { found: true, weight: 72.1, diastolic: 82 }
+      expect(formatHealthSummaryLine(s)).toBe('体重 72.1kg')
+    })
+
+    it('renders a single metric with no separator', () => {
+      expect(formatHealthSummaryLine({ found: true, pulse: 63 })).toBe('脈拍 63bpm')
+    })
+
+    it('places separators only between present items', () => {
+      const s: HealthDailySummary = { found: true, systolic: 119, diastolic: 82, body_fat: 20.8 }
+      expect(formatHealthSummaryLine(s)).toBe('血圧 119/82 ・ 体脂肪率 20.8%')
     })
   })
 })

@@ -26,6 +26,7 @@
                 <a href="/posts/{{.Slug}}" class="text-primary-800 hover:text-primary-600 transition-colors">{{.Title}}</a>
             </h2>
             {{end}}
+            {{template "healthBadges" .}}
             <div class="markdown-content text-primary-700 leading-relaxed">
                 {{renderMarkdown .Content}}
             </div>
@@ -46,7 +47,6 @@
                 {{template "reactionButtons" .}}
             </div>
             {{end}}
-            {{template "healthBadges" .}}
         </article>
         {{end}}
 

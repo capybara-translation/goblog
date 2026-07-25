@@ -95,6 +95,15 @@ export interface HealthPlanetStatus {
   last_refreshed_at?: string | null;
 }
 
+export interface HealthDailySummary {
+  found: boolean;
+  weight?: number | null;
+  body_fat?: number | null;
+  systolic?: number | null;
+  diastolic?: number | null;
+  pulse?: number | null;
+}
+
 export interface AdminReactionCount {
   id: number;
   emoji: string;
@@ -322,6 +331,10 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ code }),
     });
+  }
+
+  async getHealthDailySummary(date: string): Promise<HealthDailySummary> {
+    return this.request<HealthDailySummary>(`/healthplanet/summary?date=${encodeURIComponent(date)}`);
   }
 
   // Tags endpoint

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, FormEvent } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { formatInTimeZone } from 'date-fns-tz';
-import { apiClient, Post } from '../api/client';
+import { apiClient, Post, HealthDailySummary } from '../api/client';
 import { StatusBadge } from '../components/StatusBadge';
 import { MarkdownEditor } from '../components/MarkdownEditor';
 import { TagInput } from '../components/TagInput';
@@ -16,6 +16,26 @@ const BLOG_TIMEZONE = import.meta.env.VITE_BLOG_TIMEZONE || 'UTC';
  */
 function formatDateTime(dateString: string): string {
   return formatInTimeZone(new Date(dateString), BLOG_TIMEZONE, 'yyyy-MM-dd HH:mm:ss');
+}
+
+/**
+ * Build the same one-line summary the public badges render (体重 → 血圧 →
+ * 脈拍 → 体脂肪率, ・ separators between present items only), so the editor
+ * preview matches what readers will see. Returns null when there is nothing
+ * to show (not found, or found with no displayable metrics).
+ */
+export function formatHealthSummaryLine(s: HealthDailySummary): string | null {
+  if (!s.found) return null;
+
+  const parts: string[] = [];
+  if (s.weight != null) parts.push(`体重 ${s.weight.toFixed(1)}kg`);
+  if (s.systolic != null && s.diastolic != null) {
+    parts.push(`血圧 ${Math.round(s.systolic)}/${Math.round(s.diastolic)}`);
+  }
+  if (s.pulse != null) parts.push(`脈拍 ${Math.round(s.pulse)}bpm`);
+  if (s.body_fat != null) parts.push(`体脂肪率 ${s.body_fat.toFixed(1)}%`);
+
+  return parts.length > 0 ? parts.join(' ・ ') : null;
 }
 
 export function PostEdit() {
@@ -42,6 +62,7 @@ export function PostEdit() {
   const [isPinned, setIsPinned] = useState(false);
   const [healthDate, setHealthDate] = useState('');
   const [hpEnabled, setHpEnabled] = useState(false);
+  const [healthSummary, setHealthSummary] = useState<HealthDailySummary | null>(null);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -60,6 +81,29 @@ export function PostEdit() {
       .then((s) => setHpEnabled(s.enabled))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    // Preview the health data for the selected day, so the operator can see
+    // what the public badges will render before saving. Cleared when the
+    // date field is emptied or the integration is disabled; fetch errors
+    // just leave the preview hidden (non-critical, editor-only UI).
+    if (!hpEnabled || healthDate === '') {
+      setHealthSummary(null);
+      return;
+    }
+    let cancelled = false;
+    apiClient
+      .getHealthDailySummary(healthDate)
+      .then((summary) => {
+        if (!cancelled) setHealthSummary(summary);
+      })
+      .catch(() => {
+        if (!cancelled) setHealthSummary(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hpEnabled, healthDate]);
 
   // Save handler (shared between form submit and shortcut key)
   const performSave = useCallback(async () => {
@@ -384,6 +428,17 @@ export function PostEdit() {
             <p className="mt-1 text-sm text-primary-500">
               指定した日の体重・血圧が記事に表示されます（空欄で解除）
             </p>
+            {healthSummary && (
+              formatHealthSummaryLine(healthSummary) !== null ? (
+                <p className="mt-1 text-sm text-primary-600">
+                  {formatHealthSummaryLine(healthSummary)}
+                </p>
+              ) : (
+                <p className="mt-1 text-sm text-primary-500">
+                  この日の健康データはありません
+                </p>
+              )
+            )}
           </div>
         )}
 

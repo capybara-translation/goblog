@@ -156,6 +156,13 @@ func NewRouter(postService service.PostService, postViewService service.PostView
 		protectedAPI.HandleFunc("/healthplanet/auth-url", healthPlanetHandlers.HandleAuthURL).Methods("GET")
 		protectedAPI.HandleFunc("/healthplanet/exchange", healthPlanetHandlers.HandleExchange).Methods("POST")
 	}
+	// Daily health summary lookup (editor preview of the selected health_date).
+	// Gated on healthDisplayService, not healthPlanetAdminService: the editor
+	// preview only needs read access to health_records, not the OAuth flow.
+	if healthDisplayService != nil {
+		healthSummaryHandlers := NewHealthSummaryHandlers(healthDisplayService)
+		protectedAPI.HandleFunc("/healthplanet/summary", healthSummaryHandlers.HandleGetSummary).Methods("GET")
+	}
 
 	// Markdown preview (with OGP link card support + width/height + srcset)
 	previewHandler := NewPreviewHandler(ogpService, dimensions, variants)
