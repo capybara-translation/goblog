@@ -9,7 +9,7 @@ import (
 )
 
 type mockHealthRecordReadRepo struct {
-	mockHealthRecordRepo // Task 5(hpsync) の既存モックを埋め込み（Upsert 用）
+	mockHealthRecordRepo     // Task 5(hpsync) の既存モックを埋め込み（Upsert 用）
 	dailyAveragesFunc        func(fromDate, toDate string) ([]repo.DailyAverage, error)
 	dailyAveragesByDatesFunc func(dates []string) ([]repo.DailyAverage, error)
 	gotFrom, gotTo           string

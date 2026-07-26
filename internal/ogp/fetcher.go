@@ -29,10 +29,10 @@ type Fetcher interface {
 
 // Common errors
 var (
-	ErrInvalidURL    = errors.New("invalid URL")
-	ErrPrivateIP     = errors.New("private IP addresses are not allowed")
-	ErrFetchFailed   = errors.New("failed to fetch URL")
-	ErrParseFailed   = errors.New("failed to parse HTML")
+	ErrInvalidURL       = errors.New("invalid URL")
+	ErrPrivateIP        = errors.New("private IP addresses are not allowed")
+	ErrFetchFailed      = errors.New("failed to fetch URL")
+	ErrParseFailed      = errors.New("failed to parse HTML")
 	ErrTooManyRedirects = errors.New("too many redirects")
 )
 
@@ -44,10 +44,10 @@ const maxImageSize = 2 * 1024 * 1024
 
 // Allowed image content types and their extensions
 var imageContentTypes = map[string]string{
-	"image/jpeg": ".jpg",
-	"image/png":  ".png",
-	"image/gif":  ".gif",
-	"image/webp": ".webp",
+	"image/jpeg":    ".jpg",
+	"image/png":     ".png",
+	"image/gif":     ".gif",
+	"image/webp":    ".webp",
 	"image/svg+xml": ".svg",
 }
 

@@ -1,4 +1,5 @@
 # goblog
+[![CI](https://github.com/capybara-translation/goblog/actions/workflows/ci.yml/badge.svg)](https://github.com/capybara-translation/goblog/actions/workflows/ci.yml)
 goblog is a simple blog system written in Go.
 
 ## 開発環境のセットアップ

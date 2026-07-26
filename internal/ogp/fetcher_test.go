@@ -143,13 +143,13 @@ func TestIsAmazonProductImage(t *testing.T) {
 
 func TestParseOGP(t *testing.T) {
 	tests := []struct {
-		name        string
-		html        string
-		url         string
-		wantTitle   string
-		wantDesc    string
-		wantImage   string
-		wantSite    string
+		name      string
+		html      string
+		url       string
+		wantTitle string
+		wantDesc  string
+		wantImage string
+		wantSite  string
 	}{
 		{
 			name: "Full OGP tags",

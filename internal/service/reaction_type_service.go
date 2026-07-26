@@ -14,10 +14,10 @@ import (
 var (
 	ErrReactionTypeNotFound  = errors.New("reaction type: not found")                                  // -> 404
 	ErrReactionTypeInvalid   = errors.New("reaction type: invalid emoji or label")                     // -> 400
-	ErrReactionEmojiTaken    = errors.New("reaction type: emoji already exists")                        // -> 409
+	ErrReactionEmojiTaken    = errors.New("reaction type: emoji already exists")                       // -> 409
 	ErrReactionEmojiLocked   = errors.New("reaction type: emoji of a built-in type cannot be changed") // -> 409
 	ErrReactionTypeProtected = errors.New("reaction type: built-in types cannot be deleted")           // -> 409
-	ErrReactionTypeInUse     = errors.New("reaction type: has reactions and cannot be deleted")         // -> 409
+	ErrReactionTypeInUse     = errors.New("reaction type: has reactions and cannot be deleted")        // -> 409
 )
 
 const (

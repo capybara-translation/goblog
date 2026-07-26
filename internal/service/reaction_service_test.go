@@ -8,9 +8,9 @@ import (
 )
 
 type mockReactionPostLookup struct {
-	post                    *domain.Post
-	err                     error
-	publishedBySlugsFn      func(slugs []string) ([]*domain.Post, error)
+	post               *domain.Post
+	err                error
+	publishedBySlugsFn func(slugs []string) ([]*domain.Post, error)
 }
 
 func (m *mockReactionPostLookup) GetPostBySlug(slug string) (*domain.Post, error) {

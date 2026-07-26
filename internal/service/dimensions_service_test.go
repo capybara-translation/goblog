@@ -23,8 +23,8 @@ func TestDiskDimensions_DecodesJPEG_PNG_WebP(t *testing.T) {
 	d := NewDiskDimensionsService(dir)
 
 	cases := []struct {
-		url   string
-		w, h  int
+		url  string
+		w, h int
 	}{
 		{"/uploads/photo.jpg", 320, 240},
 		{"/uploads/icon.png", 64, 48},
@@ -56,7 +56,7 @@ func TestDiskDimensions_RejectsPathTraversal(t *testing.T) {
 		"/uploads/..%2Fsecret.jpg",
 		"/uploads/",
 		"/uploads/sub/../../etc/passwd",
-		"/uploads/.",          // would otherwise os.Open the upload dir itself
+		"/uploads/.",           // would otherwise os.Open the upload dir itself
 		"/uploads//etc/passwd", // filepath.IsAbs catches the embedded absolute path
 	} {
 		if _, _, ok := d.Get(evil); ok {

@@ -10,18 +10,18 @@ import (
 
 // mockPostRepository is a mock implementation of PostRepository
 type mockPostRepository struct {
-	findAllFunc            func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
-	findAllByTagFunc       func(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
-	getAllTagsFunc         func(status *domain.PostStatus) (map[string]int, error)
-	findBySlugFunc         func(slug string) (*domain.Post, error)
-	findByIDFunc           func(id int64) (*domain.Post, error)
-	createFunc             func(post *domain.Post) error
-	updateFunc             func(post *domain.Post) error
-	deleteFunc             func(id int64) error
-	countFunc              func(status *domain.PostStatus) (int, error)
-	countByTagFunc         func(tag string, status *domain.PostStatus) (int, error)
-	searchFunc             func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
-	countSearchFunc        func(query string, status *domain.PostStatus) (int, error)
+	findAllFunc             func(status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	findAllByTagFunc        func(tag string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	getAllTagsFunc          func(status *domain.PostStatus) (map[string]int, error)
+	findBySlugFunc          func(slug string) (*domain.Post, error)
+	findByIDFunc            func(id int64) (*domain.Post, error)
+	createFunc              func(post *domain.Post) error
+	updateFunc              func(post *domain.Post) error
+	deleteFunc              func(id int64) error
+	countFunc               func(status *domain.PostStatus) (int, error)
+	countByTagFunc          func(tag string, status *domain.PostStatus) (int, error)
+	searchFunc              func(query string, status *domain.PostStatus, limit, offset int) ([]*domain.Post, error)
+	countSearchFunc         func(query string, status *domain.PostStatus) (int, error)
 	findPinnedPublishedFunc func() ([]*domain.Post, error)
 }
 

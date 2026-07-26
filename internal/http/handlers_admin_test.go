@@ -9,16 +9,16 @@ import (
 
 func TestHandleAdminSPA(t *testing.T) {
 	tests := []struct {
-		name               string
-		path               string
-		expectedStatus     int
+		name                string
+		path                string
+		expectedStatus      int
 		expectedContentType string
-		checkBody          func(t *testing.T, body string)
+		checkBody           func(t *testing.T, body string)
 	}{
 		{
-			name:               "root path /admin",
-			path:               "/admin",
-			expectedStatus:     http.StatusOK,
+			name:                "root path /admin",
+			path:                "/admin",
+			expectedStatus:      http.StatusOK,
 			expectedContentType: "text/html",
 			checkBody: func(t *testing.T, body string) {
 				if !strings.Contains(body, "<div id=\"root\">") {
@@ -27,9 +27,9 @@ func TestHandleAdminSPA(t *testing.T) {
 			},
 		},
 		{
-			name:               "root path with trailing slash /admin/",
-			path:               "/admin/",
-			expectedStatus:     http.StatusOK,
+			name:                "root path with trailing slash /admin/",
+			path:                "/admin/",
+			expectedStatus:      http.StatusOK,
 			expectedContentType: "text/html",
 			checkBody: func(t *testing.T, body string) {
 				if !strings.Contains(body, "<div id=\"root\">") {
@@ -38,9 +38,9 @@ func TestHandleAdminSPA(t *testing.T) {
 			},
 		},
 		{
-			name:               "client-side route /admin/posts",
-			path:               "/admin/posts",
-			expectedStatus:     http.StatusOK,
+			name:                "client-side route /admin/posts",
+			path:                "/admin/posts",
+			expectedStatus:      http.StatusOK,
 			expectedContentType: "text/html",
 			checkBody: func(t *testing.T, body string) {
 				// Should fallback to index.html for client-side routing
@@ -50,9 +50,9 @@ func TestHandleAdminSPA(t *testing.T) {
 			},
 		},
 		{
-			name:               "client-side route /admin/posts/new",
-			path:               "/admin/posts/new",
-			expectedStatus:     http.StatusOK,
+			name:                "client-side route /admin/posts/new",
+			path:                "/admin/posts/new",
+			expectedStatus:      http.StatusOK,
 			expectedContentType: "text/html",
 			checkBody: func(t *testing.T, body string) {
 				// Should fallback to index.html for client-side routing
@@ -62,9 +62,9 @@ func TestHandleAdminSPA(t *testing.T) {
 			},
 		},
 		{
-			name:               "client-side route /admin/posts/123/edit",
-			path:               "/admin/posts/123/edit",
-			expectedStatus:     http.StatusOK,
+			name:                "client-side route /admin/posts/123/edit",
+			path:                "/admin/posts/123/edit",
+			expectedStatus:      http.StatusOK,
 			expectedContentType: "text/html",
 			checkBody: func(t *testing.T, body string) {
 				// Should fallback to index.html for client-side routing
@@ -74,9 +74,9 @@ func TestHandleAdminSPA(t *testing.T) {
 			},
 		},
 		{
-			name:               "non-existent asset falls back to index.html",
-			path:               "/admin/assets/non-existent.css",
-			expectedStatus:     http.StatusOK,
+			name:                "non-existent asset falls back to index.html",
+			path:                "/admin/assets/non-existent.css",
+			expectedStatus:      http.StatusOK,
 			expectedContentType: "text/html",
 			checkBody: func(t *testing.T, body string) {
 				// Non-existent files should fallback to index.html for SPA routing

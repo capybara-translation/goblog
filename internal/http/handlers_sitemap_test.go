@@ -34,8 +34,8 @@ func TestHandleSitemap(t *testing.T) {
 
 	// Test tag data
 	testTags := map[string]int{
-		"Go":   2,
-		"Web":  1,
+		"Go":  2,
+		"Web": 1,
 		"日本語": 1,
 	}
 

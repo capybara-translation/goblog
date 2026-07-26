@@ -187,6 +187,10 @@ make dev-admin         # 開発サーバー起動（Vite）
 make build-admin       # プロダクションビルド
 ```
 
+## CI
+
+GitHub Actions（`.github/workflows/ci.yml`）が push / PR ごとに backend（admin SPA を先にビルド（static.go の go:embed が web-admin/dist を要求するため）→ gofmt チェック → go vet / build / test）と frontend（tsc --noEmit → vitest → build）を並列実行する。gofmt ゲートがあるため、Go ファイルを編集したら整形されていることを確認すること。
+
 ## 環境変数
 
 `.env`ファイル（開発時のみ推奨）または環境変数で設定：
